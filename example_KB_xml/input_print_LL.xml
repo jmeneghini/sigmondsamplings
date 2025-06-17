@@ -1,0 +1,199 @@
+<KBFit>
+    <Initialize>
+        <ProjectName>LLPrint</ProjectName>
+        <LogFile>LL_print.log</LogFile>
+        <EchoXML/>
+        <MCSamplingInfo>
+            <Bootstrapper>
+                <NumberResamplings>2000</NumberResamplings>
+                <Seed>3103</Seed>
+                <BootSkip>0</BootSkip>
+            </Bootstrapper>
+        </MCSamplingInfo>
+        <MCBinsInfo>
+            <MCEnsembleInfo>cls21_s64_t128_D200</MCEnsembleInfo>
+            <TweakEnsemble>
+                <Ommissions>2000</Ommissions>
+                <Rebin>10</Rebin>
+            </TweakEnsemble>
+        </MCBinsInfo>
+    </Initialize>
+
+    <TaskSequence>
+        <Task>
+            <Action>DoPrint</Action>
+
+            <OutputStub>LLPrint</OutputStub>
+            <OutputMode>full</OutputMode>
+
+            <OmegaMu>0.5</OmegaMu>
+
+            <QuantizationCondition>StildeCB</QuantizationCondition>
+            <RootFinder><AdaptiveBracket></AdaptiveBracket></RootFinder>
+
+
+            <KtildeMatrix>
+                <Element>
+                    <KElementInfo>
+                        <JTimesTwo>0</JTimesTwo>
+                        <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                        <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                    </KElementInfo>
+                    <FitForm>
+                        <Polynomial>
+                            <Powers>0 2</Powers>
+                        </Polynomial>
+                    </FitForm> <!-- quad fn of Ecm for l=0 -->
+                </Element>
+                <Element>
+                    <KElementInfo>
+                        <JTimesTwo>2</JTimesTwo>
+                        <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                        <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                    </KElementInfo>
+                    <FitForm>
+                        <Polynomial>
+                            <Powers>1 3</Powers>
+                        </Polynomial>
+                    </FitForm> <!-- Breit Wigner for l=1 -->
+                </Element>
+                <Element>
+                    <KElementInfo>
+                        <JTimesTwo>4</JTimesTwo>
+                        <KIndex>L(2) 2S(0) chan(0)</KIndex>
+                        <KIndex>L(2) 2S(0) chan(0)</KIndex>
+                    </KElementInfo>
+                    <FitForm>
+                        <Polynomial>
+                            <Powers>0</Powers>
+                        </Polynomial>
+                    </FitForm>
+                </Element>
+
+                <DecayChannels>
+                    <DecayChannelInfo>
+                        <Particle1Name>lambda</Particle1Name>
+                        <Spin1TimesTwo>1</Spin1TimesTwo>
+                        <Identical/>
+                    </DecayChannelInfo>
+                </DecayChannels>
+
+                <StartingValues>
+                    <KFitParamInfo>
+                        <PolynomialTerm>
+                            <Power>0</Power>
+                            <KElementInfo>
+                                <JTimesTwo>0</JTimesTwo>
+                                <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                                <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                            </KElementInfo>
+                        </PolynomialTerm>
+                        <StartingValue>3.9</StartingValue>
+                    </KFitParamInfo>
+
+                    <KFitParamInfo>
+                        <PolynomialTerm>
+                            <Power>2</Power>
+                            <KElementInfo>
+                                <JTimesTwo>0</JTimesTwo>
+                                <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                                <KIndex>L(0) 2S(0) chan(0)</KIndex>
+                            </KElementInfo>
+                        </PolynomialTerm>
+                        <StartingValue>-0.15</StartingValue>
+                    </KFitParamInfo>
+
+                    <KFitParamInfo>
+                        <PolynomialTerm>
+                            <Power>1</Power>
+                            <KElementInfo>
+                                <JTimesTwo>2</JTimesTwo>
+                                <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                                <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                            </KElementInfo>
+                        </PolynomialTerm>
+                        <StartingValue>8.3</StartingValue>
+                    </KFitParamInfo>
+
+                    <KFitParamInfo>
+                        <PolynomialTerm>
+                            <Power>3</Power>
+                            <KElementInfo>
+                                <JTimesTwo>2</JTimesTwo>
+                                <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                                <KIndex>L(1) 2S(0) chan(0)</KIndex>
+                            </KElementInfo>
+                        </PolynomialTerm>
+                        <StartingValue>-0.53</StartingValue>
+                    </KFitParamInfo>
+
+                    <KFitParamInfo>
+                        <PolynomialTerm>
+                            <Power>0</Power>
+                            <KElementInfo>
+                                <JTimesTwo>4</JTimesTwo>
+                                <KIndex>L(2) 2S(0) chan(0)</KIndex>
+                                <KIndex>L(2) 2S(0) chan(0)</KIndex>
+                            </KElementInfo>
+                        </PolynomialTerm>
+                        <StartingValue>-2.1</StartingValue>
+                    </KFitParamInfo>
+                </StartingValues>
+
+            </KtildeMatrix>
+
+            <KBBlock>
+                <MCEnsembleInfo>cls21_s64_t128_D200</MCEnsembleInfo>
+                <BoxQuantization>
+                    <TotalMomentumRay>ar</TotalMomentumRay>
+                    <TotalMomentumIntSquared>0</TotalMomentumIntSquared>
+                    <LGIrrep>A1g</LGIrrep>
+                    <LmaxValues>0</LmaxValues>
+                </BoxQuantization>
+                <LabFrameEnergyMin>1.9</LabFrameEnergyMin>
+                <LabFrameEnergyMax>2.25</LabFrameEnergyMax>
+                <LabFrameEnergyInc>0.001</LabFrameEnergyInc>
+            </KBBlock>
+
+            <DefaultEnergyFormat>reference_ratio</DefaultEnergyFormat>
+
+            <MCEnsembleParameters>
+                <MCEnsembleInfo>cls21_s64_t128_D200</MCEnsembleInfo>
+                <ReferenceMassTimeSpacingProduct>
+                    <MCObs>L(0)_elab 0</MCObs>
+                </ReferenceMassTimeSpacingProduct>
+<!--                <LatticeAnisotropy>-->
+<!--                    <MCObs>xi_pion 0</MCObs>-->
+<!--                </LatticeAnisotropy>-->
+                <ParticleMass>
+                    <Name>lambda</Name>
+                    <FixedValue>1.0</FixedValue>
+                </ParticleMass>
+            </MCEnsembleParameters>
+
+
+            <KBObservables>
+                <MCSamplingInfo>
+                    <Bootstrapper>
+                        <NumberResamplings>2000</NumberResamplings>
+                        <Seed>3103</Seed>
+                        <BootSkip>0</BootSkip>
+                    </Bootstrapper>
+                </MCSamplingInfo>
+                <MCBinsInfo>
+                    <MCEnsembleInfo>cls21_s64_t128_D200</MCEnsembleInfo>
+                    <TweakEnsemble>
+                        <Ommissions>2000</Ommissions>
+                        <Rebin>10</Rebin>
+                    </TweakEnsemble>
+                </MCBinsInfo>
+                <Verbose />
+                <SamplingData>
+                <FileName>/home/john/Documents/LatticeQCD/spectrums/ensemble_based/D200/isosinglet_doublystrange/analysis/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-5-30-25-ratio-Nbin10-SP-4tN-4t0-12tD_B-samplings.hdf5[/samplings]</FileName>
+                </SamplingData>
+            </KBObservables>
+
+
+        </Task>
+    </TaskSequence>
+</KBFit>
