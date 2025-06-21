@@ -4,7 +4,7 @@ Statistical analysis tools for Sigmond samplings.
 
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Union, Callable
-from .sampling import SigmondSampling, EnsembleInfo
+from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo
 
 
 class SamplingStats:
@@ -304,10 +304,18 @@ class SamplingStats:
         # Create chi-squared sampling object
         chi_sq_data = np.array(chi_squared_values)
         
+        observable_info = ObservableInfo(
+            name='chi_squared',
+            index=0,
+            op_type='n',
+            re_im='re',
+            ensemble_info=self.ensemble_info,
+        )
+        
         # Use the same ensemble and sampling info as the input data
         chi_sq_sampling = SigmondSampling(
             data=chi_sq_data,
-            ensemble_info=self.ensemble_info,
+            observable_info=observable_info,
             sampling_info=self.samplings[0].sampling_info,
             is_complex=False
         )
@@ -458,9 +466,17 @@ class SamplingStats:
         fitted_params = {}
         for p_idx in range(num_params):
             param_data = np.array(param_samples[p_idx])
+            name = f'param_{p_idx}'
+            observable_info = ObservableInfo(
+                name = name,
+                index = 0,
+                op_type='n',
+                re_im='re',
+                ensemble_info=self.ensemble_info,
+                )
             fitted_params[f'param_{p_idx}'] = SigmondSampling(
                 data=param_data,
-                ensemble_info=self.ensemble_info,
+                observable_info=observable_info,
                 sampling_info=self.samplings[0].sampling_info,
                 is_complex=False
             )

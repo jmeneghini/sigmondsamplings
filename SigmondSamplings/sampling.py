@@ -9,8 +9,6 @@ import re
 
 
 # Default ensemble for general use - accessible to users
-DEFAULT_ENSEMBLE = EnsembleInfo("independent", 1, 1, {"Description": "Independent sampling ensemble"})
-
 
 class EnsembleInfo:
     """Information about the Monte Carlo ensemble."""
@@ -33,6 +31,7 @@ class EnsembleInfo:
     def __repr__(self):
         return f"EnsembleInfo('{self.ensemble_name}', {self.num_measurements}, {self.num_bins})"
 
+DEFAULT_ENSEMBLE = EnsembleInfo("independent", 1, 1, {"Description": "Independent sampling ensemble"})
 
 class SamplingInfo:
     """Information about the sampling method (Bootstrap/Jackknife)."""
@@ -265,10 +264,10 @@ class SigmondSampling:
             result_observable_info = self.observable_info
         else:
             # Multiple samplings - check if all have same observable_info
-            all_obs_infos = {s.observable_info for s in samplings}
-            if len(all_obs_infos) == 1:
+            first_info = next(iter(samplings)).observable_info
+            if all(s.observable_info == first_info for s in samplings):
                 # All samplings have same observable_info
-                result_observable_info = next(iter(all_obs_infos))
+                result_observable_info = first_info
             else:
                 # Mixed observable_infos - create a mixed one
                 result_observable_info = ObservableInfo(
