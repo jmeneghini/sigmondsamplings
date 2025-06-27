@@ -24,6 +24,7 @@ class SigmondLoader:
         """
         self.sigmond_query_cmd = sigmond_query_cmd
         self._check_sigmond_query()
+        self.is_on_mac: bool = self._check_for_mac()
     
     def _check_sigmond_query(self):
         """Check if sigmond_query is available."""
@@ -34,9 +35,17 @@ class SigmondLoader:
                 raise RuntimeError(f"sigmond_query command failed: {result.stderr}")
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             raise RuntimeError(f"sigmond_query not found or not working: {e}")
+        
+    def _check_for_mac(self) -> bool:
+        """Check if the user is on macOS."""
+        import sys
+        return sys.platform == "darwin"
     
     def _run_sigmond_query(self, filename: str, options: str) -> str:
         """Run sigmond_query with given options."""
+        # on macOS, we need to surround the filename with quotes for sigmond_query to work correctly
+        if self.is_on_mac:
+            filename = f'"{filename}"'
         cmd = [self.sigmond_query_cmd] + options.split() + [filename]
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -420,7 +429,7 @@ class SigmondLoader:
 
         return result
     
-    def find_observables(self, filename: str, name_pattern: str = None, 
+    def find_observables(self, filename: str, name_patterns: Union[List[str], str] = None, 
                         index: int = None, scalar_type: str = None) -> List[ObservableInfo]:
         """
         Find observables matching given criteria.
@@ -437,12 +446,21 @@ class SigmondLoader:
         _, _, observable_infos = self.get_file_info(filename)
         
         results = []
+        if isinstance(name_patterns, str):
+            name_patterns = [name_patterns]
+            
         for obs_info in observable_infos:
             match = True
             
-            if name_pattern is not None:
-                if not re.search(name_pattern, obs_info.name):
+            if name_patterns is not None:
+                pattern_found = False
+                for pattern in name_patterns:
+                    if re.search(pattern, obs_info.name):
+                        pattern_found = True
+                        break
+                if not pattern_found:
                     match = False
+                    
             
             if index is not None and obs_info.index != index:
                 match = False
