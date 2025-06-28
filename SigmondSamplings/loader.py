@@ -47,7 +47,7 @@ class SigmondLoader:
         if self.is_on_mac:
             filename = f'"{filename}"'
         cmd = [self.sigmond_query_cmd] + options.split() + [filename]
-        try:
+        try:    
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode != 0:
                 # For HDF5 files, useful info might be in stdout even with non-zero exit code
@@ -324,12 +324,12 @@ class SigmondLoader:
         result = {}
         requested_keys = set()
         for obs_info in observable_infos:
-            key = (obs_info.name, obs_info.index)
+            # Create key in the same format as load_all_observables uses: "name index"
+            key = f"{obs_info.name} {obs_info.index}"
             requested_keys.add(key)
             
         for name, sampling in all_observables.items():
-            key = SigmondLoader.get_name_and_index_from_dict_key(name)
-            if key in requested_keys:
+            if name in requested_keys:
                 result[name] = sampling
         
         return result
@@ -396,7 +396,7 @@ class SigmondLoader:
             obs_name, obs_index = key
             
             # Unique key for the output dictionary
-            output_key = f"{obs_name}[{obs_index}]"
+            output_key = f"{obs_name} {obs_index}"
 
             if 're' in parts and 'im' in parts:
                 re_info, re_idx = parts['re']

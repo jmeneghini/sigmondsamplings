@@ -1,7 +1,8 @@
 <KBFit>
     <Initialize>
-        <ProjectName>PhiRhoDetRes</ProjectName>
-        <LogFile>PhiRhoDetRes.log</LogFile>
+        <ProjectName>PhiRhoDetRes_s46_s47</ProjectName>
+        <OutputDirectory>../results/PhiRhoDetRes_s46_s47</OutputDirectory>
+        <LogFile>PhiRhoDetRes_s46_s47.log</LogFile>
         <EchoXML/>
         <MCSamplingInfo>
             <Bootstrapper>
@@ -26,12 +27,12 @@
                 <Verbosity>Low</Verbosity>
             </MinimizerInfo>
 
-            <OutSamplingsFile>samplings.hdf5[/samplings]</OutSamplingsFile>
+            <OutSamplingsFile>fit_param_samplings.hdf5[/samplings]</OutSamplingsFile>
             <EcmQcmBoxSamplingsStub>ecm_qcm_box_samplings</EcmQcmBoxSamplingsStub>
 
             <DeterminantResidualFit>
 
-                <OmegaMu>8.0</OmegaMu>
+                <OmegaMu>30.0</OmegaMu>
                 <QuantizationCondition>KtildeinvB</QuantizationCondition>
                 <Verbose/>
 
@@ -86,10 +87,10 @@
 
                 </KtildeMatrixInverse>
 
-                <DefaultEnergyFormat>reference_ratio</DefaultEnergyFormat>
+                <DefaultEnergyFormat>reference_ratio</DefaultEnergyFormat>]
 
                 <MCEnsembleParameters>
-                    <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48</MCEnsembleInfo>
                     <ReferenceMassTimeSpacingProduct>
                         <MCObs>Phi(0)_elab 0</MCObs>
                     </ReferenceMassTimeSpacingProduct>
@@ -100,18 +101,7 @@
                 </MCEnsembleParameters>
 
                 <MCEnsembleParameters>
-                    <MCEnsembleInfo>phirho_s25_t48_mp0100_mr0310|2940000|1|25|25|25|48</MCEnsembleInfo>
-                    <ReferenceMassTimeSpacingProduct>
-                        <MCObs>Phi(0)_elab 0</MCObs>
-                    </ReferenceMassTimeSpacingProduct>
-                    <ParticleMass>
-                        <Name>phi</Name>
-                        <FixedValue>1.0</FixedValue>
-                    </ParticleMass>
-                </MCEnsembleParameters>
-
-                <MCEnsembleParameters>
-                    <MCEnsembleInfo>phirho_s26_t48_mp0100_mr0310|2611812|1|26|26|26|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s47_t48_mp0100_mr0310|700000|1|47|47|47|48</MCEnsembleInfo>
                     <ReferenceMassTimeSpacingProduct>
                         <MCObs>Phi(0)_elab 0</MCObs>
                     </ReferenceMassTimeSpacingProduct>
@@ -122,7 +112,7 @@
                 </MCEnsembleParameters>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>ar</TotalMomentumRay>
                         <TotalMomentumIntSquared>0</TotalMomentumIntSquared>
@@ -138,7 +128,7 @@
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>oa</TotalMomentumRay>
                         <TotalMomentumIntSquared>1</TotalMomentumIntSquared>
@@ -157,56 +147,48 @@
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>pd</TotalMomentumRay>
                         <TotalMomentumIntSquared>2</TotalMomentumIntSquared>
                         <LGIrrep>A1</LGIrrep>
                         <LmaxValues>0</LmaxValues>
                     </BoxQuantization>
-                    <LabFrameEnergy>
+                    <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy>
+                    </LabFrameEnergy> -->
                     <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_2_ref 0</MCObs>
                     </LabFrameEnergy> -->
-                    <!-- <LabFrameEnergy>
+                    <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_3_ref 0</MCObs>
                     </LabFrameEnergy>
-                    <LabFrameEnergy>
+                    <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_4_ref 0</MCObs>
                     </LabFrameEnergy> -->
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
-                    <!-- <MCBinsInfo>
-                        <MCEnsembleInfo>phirho_s24_t48_mp0100_mr0310|3332000|1|24|24|24|48</MCEnsembleInfo>
-                        <NumberOfMeasurements>3332000</NumberOfMeasurements>
-                        <NumberOfBins>28000</NumberOfBins>
-                        <TweakEnsemble>
-                            <Rebin>119</Rebin>
-                        </TweakEnsemble>
-                    </MCBinsInfo> -->
+                    <MCEnsembleInfo>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>cd</TotalMomentumRay>
                         <TotalMomentumIntSquared>3</TotalMomentumIntSquared>
                         <LGIrrep>A1</LGIrrep>
                         <LmaxValues>0</LmaxValues>
                     </BoxQuantization>
-                    <LabFrameEnergy>
+                    <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy>
+                    </LabFrameEnergy> -->
                     <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
+                    </LabFrameEnergy> -->
                     <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
+                    </LabFrameEnergy>
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s25_t48_mp0100_mr0310|2940000|1|25|25|25|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s47_t48_mp0100_mr0310|700000|1|47|47|47|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>ar</TotalMomentumRay>
                         <TotalMomentumIntSquared>0</TotalMomentumIntSquared>
@@ -216,13 +198,13 @@
                     <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1g_1_PSQ=0_elab_2_ref 0</MCObs>
                     </LabFrameEnergy>
-                    <!-- <LabFrameEnergy>
+                    <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1g_1_PSQ=0_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
+                    </LabFrameEnergy>
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s25_t48_mp0100_mr0310|2940000|1|25|25|25|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s47_t48_mp0100_mr0310|700000|1|47|47|47|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>oa</TotalMomentumRay>
                         <TotalMomentumIntSquared>1</TotalMomentumIntSquared>
@@ -241,7 +223,7 @@
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s25_t48_mp0100_mr0310|2940000|1|25|25|25|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s47_t48_mp0100_mr0310|700000|1|47|47|47|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>pd</TotalMomentumRay>
                         <TotalMomentumIntSquared>2</TotalMomentumIntSquared>
@@ -251,110 +233,34 @@
                     <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_1_ref 0</MCObs>
                     </LabFrameEnergy> -->
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
                     <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_3_ref 0</MCObs>
+                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_2_ref 0</MCObs>phirho_s46_t48_mp0100_mr0310|750000|1|46|46|46|48
                     </LabFrameEnergy> -->
+                    <LabFrameEnergy>
+                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_3_ref 0</MCObs>
+                    </LabFrameEnergy>
                     <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_4_ref 0</MCObs>
                     </LabFrameEnergy> -->
                 </KBBlock>
 
                 <KBBlock>
-                    <MCEnsembleInfo>phirho_s25_t48_mp0100_mr0310|2940000|1|25|25|25|48</MCEnsembleInfo>
+                    <MCEnsembleInfo>phirho_s47_t48_mp0100_mr0310|700000|1|47|47|47|48</MCEnsembleInfo>
                     <BoxQuantization>
                         <TotalMomentumRay>cd</TotalMomentumRay>
                         <TotalMomentumIntSquared>3</TotalMomentumIntSquared>
                         <LGIrrep>A1</LGIrrep>
                         <LmaxValues>0</LmaxValues>
                     </BoxQuantization>
-                    <LabFrameEnergy>
+                    <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy>
+                    </LabFrameEnergy> -->
                     <!-- <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
+                    </LabFrameEnergy> -->
                     <LabFrameEnergy>
                         <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                </KBBlock>
-
-                <KBBlock>
-                    <MCEnsembleInfo>phirho_s26_t48_mp0100_mr0310|2611812|1|26|26|26|48</MCEnsembleInfo>
-                    <BoxQuantization>
-                        <TotalMomentumRay>ar</TotalMomentumRay>
-                        <TotalMomentumIntSquared>0</TotalMomentumIntSquared>
-                        <LGIrrep>A1g</LGIrrep>
-                        <LmaxValues>0</LmaxValues>
-                    </BoxQuantization>
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1g_1_PSQ=0_elab_2_ref 0</MCObs>
                     </LabFrameEnergy>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1g_1_PSQ=0_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                </KBBlock>
-
-                <KBBlock>
-                    <MCEnsembleInfo>phirho_s26_t48_mp0100_mr0310|2611812|1|26|26|26|48</MCEnsembleInfo>
-                    <BoxQuantization>
-                        <TotalMomentumRay>oa</TotalMomentumRay>
-                        <TotalMomentumIntSquared>1</TotalMomentumIntSquared>
-                        <LGIrrep>A1</LGIrrep>
-                        <LmaxValues>0</LmaxValues>
-                    </BoxQuantization>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,0,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,0,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,0,1)_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                </KBBlock>
-
-                <KBBlock>
-                    <MCEnsembleInfo>phirho_s26_t48_mp0100_mr0310|2611812|1|26|26|26|48</MCEnsembleInfo>
-                    <BoxQuantization>
-                        <TotalMomentumRay>pd</TotalMomentumRay>
-                        <TotalMomentumIntSquared>2</TotalMomentumIntSquared>
-                        <LGIrrep>A1</LGIrrep>
-                        <LmaxValues>0</LmaxValues>
-                    </BoxQuantization>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(0,1,1)_elab_4_ref 0</MCObs>
-                    </LabFrameEnergy> -->
-                </KBBlock>
-
-                <KBBlock>
-                    <MCEnsembleInfo>phirho_s26_t48_mp0100_mr0310|2611812|1|26|26|26|48</MCEnsembleInfo>
-                    <BoxQuantization>
-                        <TotalMomentumRay>cd</TotalMomentumRay>
-                        <TotalMomentumIntSquared>3</TotalMomentumIntSquared>
-                        <LGIrrep>A1</LGIrrep>
-                        <LmaxValues>0</LmaxValues>
-                    </BoxQuantization>
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_1_ref 0</MCObs>
-                    </LabFrameEnergy>
-                    <!-- <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_2_ref 0</MCObs>
-                    </LabFrameEnergy>
-                    <LabFrameEnergy>
-                        <MCObs>isosinglet_S=0_A1_1_P=(1,1,1)_elab_3_ref 0</MCObs>
-                    </LabFrameEnergy> -->
                 </KBBlock>
 
                 <KBObservables>
@@ -368,9 +274,8 @@
                     </MCSamplingInfo>
                     <Verbose />
                     <SamplingData>
-                        <FileName>/home/john/Documents/LatticeQCD/luscher_stuff/KBfitAnalysis/phirho/my_levels/g1000_imp/s24/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-6-14-25-no_ratio_interacting_vev_sub-Nbin119-SP-3tN-3t0-6tD_B-samplings.hdf5[/samplings]</FileName>
-                        <FileName>/home/john/Documents/LatticeQCD/luscher_stuff/KBfitAnalysis/phirho/my_levels/g1000_imp/s25/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-6-14-25-no_ratio_interacting_vev_sub-Nbin105-SP-3tN-3t0-6tD_B-samplings.hdf5[/samplings]</FileName>
-                        <FileName>/home/john/Documents/LatticeQCD/luscher_stuff/KBfitAnalysis/phirho/my_levels/g1000_imp/s26/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-6-14-25-no_ratio_interacting_vev_sub-Nbin93-SP-3tN-3t0-6tD_B-samplings.hdf5[/samplings]</FileName>
+                        <FileName>/pi-mnt/latticeQCD/spectrum_analysis/channels/phirho/levels/john_results/s46/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-6-14-25-no_ratio_interacting_vev_sub-Nbin25-SP-3tN-3t0-6tD_B-samplings.hdf5[/samplings]</FileName>
+                        <FileName>/pi-mnt/latticeQCD/spectrum_analysis/channels/phirho/levels/john_results/s47/3fit_spectrum/data/samples/fit_spectrum_levels_sigmond-6-14-25-no_ratio_interacting_vev_sub-Nbin25-SP-3tN-3t0-6tD_B-samplings.hdf5[/samplings]</FileName>
                     </SamplingData>
                 </KBObservables>
             </DeterminantResidualFit>

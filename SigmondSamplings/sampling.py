@@ -99,7 +99,7 @@ class ObservableInfo:
         return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info.ensemble_name}')"
     
     def __str__(self):
-        return f"{self.name}[{self.index}] ({self.ensemble_info.ensemble_name})"
+        return f"{self.name} {self.index}" # Simple MCObs string format
 
 
 class SigmondSampling:
