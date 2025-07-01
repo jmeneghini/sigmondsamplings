@@ -465,12 +465,13 @@ class KBfitXMLHelper:
         project_name: str,
         ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, List[LabFrameEnergyInfo]]],
         reference_particle: str,
-        particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
+        particle_masses: ParticleInfo | List[ParticleInfo] | List[Tuple[EnsembleInfo, ParticleInfo]] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
         fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
         omega_mu: float = 30.0,
         quantization_condition: QuantizationCondition = QuantizationCondition.KTILDE_INV_B,
+        use_inverse_k_matrix: bool = True,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
         minimizer_info: MinimizerInfo = MinimizerInfo(),
         output_directory: str = ".",
@@ -479,10 +480,6 @@ class KBfitXMLHelper:
         output_samplings_file: str = "fit_param_samplings.hdf5[/samplings]"
     ) -> str:
         """Create determinant residual fit XML directly from structured ensemble data.
-
-        This method follows the simplified API of ``create_spectrum_xml``,
-        consuming a rich data structure to automatically generate all
-        necessary ``KBBlock`` elements for a determinant residual fit.
 
         Parameters
         ----------
@@ -509,6 +506,8 @@ class KBfitXMLHelper:
             The value of omega_mu for the fit.
         quantization_condition
             The quantization condition for the fit.
+        use_inverse_k_matrix
+            Whether to use the inverse K matrix for the fit.
         default_energy_format
             The default energy format for the fit.
         minimizer_info
@@ -526,6 +525,7 @@ class KBfitXMLHelper:
         -------
         The KBfit XML for the determinant residual fit.
         """
+        
         # 1. Extract and collate information from ensemble_data
         if not ensemble_data:
             raise ValueError("`ensemble_data` must contain at least one entry.")
@@ -554,7 +554,7 @@ class KBfitXMLHelper:
                     lab_energies_dict[key] = []
                 lab_energies_dict[key].append(lab_energy_info)
 
-        unique_ensemble_infos = list(set(all_ensemble_infos.values()))
+        unique_ensemble_infos = list(all_ensemble_infos.values())
         
         # setup particle masses to be of the form [(EnsembleInfo, List[ParticleInfo])]
         ensemble_particle_infos = self._create_ensemble_particle_masses(particle_masses, unique_ensemble_infos)
@@ -576,7 +576,7 @@ class KBfitXMLHelper:
         detres_elem = self._create_element(fit_type.value, parent=task_elem)
         
         self.create_common_task_elements(detres_elem, fit_forms, decay_channels, omega_mu,
-                                         quantization_condition, verbose, True,  # make_inverse=True for detres
+                                         quantization_condition, verbose, use_inverse_k_matrix,  # make_inverse=True for detres
                                          default_energy_format, reference_particle, ensemble_particle_infos)
         
         # Create KBBlocks data for the helper method
@@ -601,13 +601,14 @@ class KBfitXMLHelper:
         project_name: str,
         ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, List[Tuple[BoxQuantizationInfo, LabFrameEnergyRangeInfo]]]],
         reference_particle: str,
-        particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
+        particle_masses: ParticleInfo | List[ParticleInfo] | List[Tuple[EnsembleInfo, ParticleInfo]] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
         fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
         output_stub: str,
         omega_mu: float = 0.5,
         quantization_condition: QuantizationCondition = QuantizationCondition.STILDE_CB,
+        use_inverse_k_matrix: bool = True,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
         output_mode: OutputMode = OutputMode.FULL,
         root_finder_config: Optional[RootFinderConfig] = None,
@@ -690,7 +691,7 @@ class KBfitXMLHelper:
         self.create_print_task_elements(task_elem, output_stub, output_mode, root_finder_config)
         
         self.create_common_task_elements(task_elem, fit_forms, decay_channels, omega_mu,
-                                         quantization_condition, verbose, False,  # make_inverse=False for print
+                                         quantization_condition, verbose, use_inverse_k_matrix,  # make_inverse=False for print
                                          default_energy_format, reference_particle, ensemble_particle_infos)
         
         # Create KBBlocks data for the helper method
