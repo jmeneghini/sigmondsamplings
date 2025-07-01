@@ -119,8 +119,8 @@ class KElementInfo:
         """Create XML content for K-matrix element."""
         k_info_elem = ET.SubElement(elem, "KElementInfo")
         ET.SubElement(k_info_elem, "JTimesTwo").text = str(self.j_times_two)
-        ET.SubElement(k_info_elem, "KIndex1").text = self.k_index1
-        ET.SubElement(k_info_elem, "KIndex2").text = self.k_index2
+        ET.SubElement(k_info_elem, "KIndex").text = self.k_index1
+        ET.SubElement(k_info_elem, "KIndex").text = self.k_index2
 
 class FitForm(ABC):
     """Abstract base class for all fit form types."""
@@ -149,8 +149,10 @@ class ExpressionFitForm(FitForm):
         elem_elem = ET.SubElement(kmatrix_elem, "Element")
         # create the <KElementInfo>
         self.k_index.create_xml_content(elem_elem)
+        # create the <FitForm>
+        fit_form_elem = ET.SubElement(elem_elem, "FitForm")
         # create the <Expression>
-        expr_elem = ET.SubElement(elem_elem, "Expression")
+        expr_elem = ET.SubElement(fit_form_elem, "Expression")
         ET.SubElement(expr_elem, "String").text = self.expression
         
     def create_starting_values_xml_content(self, starting_values_elem: ET.Element) -> None:
@@ -254,6 +256,7 @@ class RootFinderConfig:
         ET.SubElement(root_finder_elem, "AbsXTolerance").text = str(self.abs_x_tolerance)
         ET.SubElement(root_finder_elem, "AbsResidualTolerance").text = str(self.abs_residual_tolerance)
         ET.SubElement(root_finder_elem, "MinStepPercent").text = str(self.min_step_percent)
+        ET.SubElement(root_finder_elem, "MaxStepPercent").text = str(self.max_step_percent)
 
 
 class KBfitXMLHelper:
@@ -458,8 +461,9 @@ class KBfitXMLHelper:
     
     def create_detres_xml(
         self,
+        xml_output_file: Optional[str],
         project_name: str,
-        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, Dict[int, Dict[str, Dict[int, SigmondSampling]]]]],
+        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, List[LabFrameEnergyInfo]]],
         reference_particle: str,
         particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
@@ -472,7 +476,7 @@ class KBfitXMLHelper:
         output_directory: str = ".",
         echo_xml: bool = True,
         verbose: bool = True,
-        output_file: str = "fit_param_samplings.hdf5[/samplings]"
+        output_samplings_file: str = "fit_param_samplings.hdf5[/samplings]"
     ) -> str:
         """Create determinant residual fit XML directly from structured ensemble data.
 
@@ -482,13 +486,13 @@ class KBfitXMLHelper:
 
         Parameters
         ----------
+        xml_output_file
+            Optional path to write the generated XML file.
         project_name
             Human-readable project label.
         ensemble_data
-            A list of tuples, where each tuple contains the ``EnsembleInfo``,
-            ``SamplingInfo``, and the nested ``psq_dict`` for an ensemble.
-            The ``psq_dict`` is a dictionary of ``psq`` values, where each value is a dictionary of ``energy_type`` values,
-            where each value is a dictionary which maps the ``level`` to a ``SigmondSampling`` object.
+            A list where each element is a tuple ``(ensemble_info, sampling_info, lab_energies)``.
+            ``lab_energies`` is a list of ``LabFrameEnergyInfo`` objects.
         reference_particle
             The name of the reference particle.
         particle_masses
@@ -515,7 +519,7 @@ class KBfitXMLHelper:
             Whether to echo the XML to the console.
         verbose
             Whether to print verbose output.
-        output_file
+        output_samplings_file
             The name of the output samplings file.
 
         Returns
@@ -530,32 +534,25 @@ class KBfitXMLHelper:
         all_ensemble_infos: Dict[str, EnsembleInfo] = {}
         lab_energies_dict: Dict[Tuple[str, int, str], List[LabFrameEnergyInfo]] = {}
 
-        for ens_info, samp_info, psq_dict in ensemble_data:
+        for ens_info, samp_info, lab_energies in ensemble_data:
             if samp_info != ref_sampling_info:
                 raise ValueError("All entries in `ensemble_data` must share the same SamplingInfo.")
             if ens_info.ensemble_name not in all_ensemble_infos:
                 all_ensemble_infos[ens_info.ensemble_name] = ens_info
 
-            for psq, energy_type_map in psq_dict.items():
-                # We are only interested in 'elab' for determinant residual fits
-                if 'elab' not in energy_type_map:
+            for lab_energy_info in lab_energies:
+                obs_info = lab_energy_info.mcobs
+                
+                momentum_info = self.extract_momentum_info_from_observable(obs_info.name)
+                if not momentum_info:
                     continue
-                    
-                level_map = energy_type_map['elab']
-                for level, sigmond_sampling in level_map.items():
-                    obs_info = sigmond_sampling.observable_info
-                    
-                    momentum_info = self.extract_momentum_info_from_observable(obs_info.name)
-                    if not momentum_info:
-                        continue
-                    
-                    psq_extracted, irrep = momentum_info
-                    
-                    lab_energy_info = LabFrameEnergyInfo(mcobs=obs_info)
-                    key = (ens_info.ensemble_name, psq_extracted, irrep)
-                    if key not in lab_energies_dict:
-                        lab_energies_dict[key] = []
-                    lab_energies_dict[key].append(lab_energy_info)
+                
+                psq_extracted, irrep = momentum_info
+                
+                key = (ens_info.ensemble_name, psq_extracted, irrep)
+                if key not in lab_energies_dict:
+                    lab_energies_dict[key] = []
+                lab_energies_dict[key].append(lab_energy_info)
 
         unique_ensemble_infos = list(set(all_ensemble_infos.values()))
         
@@ -574,7 +571,7 @@ class KBfitXMLHelper:
         
         task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
         
-        self.create_fit_task_elements(task_elem, minimizer_info, output_file, add_ecm_qcm_stub=True)
+        self.create_fit_task_elements(task_elem, minimizer_info, output_samplings_file, add_ecm_qcm_stub=True)
         
         detres_elem = self._create_element(fit_type.value, parent=task_elem)
         
@@ -593,22 +590,22 @@ class KBfitXMLHelper:
         
         xml_str = self._prettify_xml(root)
         
-        if output_file:
-            Path(output_file).write_text(xml_str)
+        if xml_output_file:
+            Path(xml_output_file).write_text(xml_str)
         
         return xml_str
     
     def create_print_xml(
         self,
+        xml_output_file: Optional[str],
         project_name: str,
-        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, Dict[int, Dict[str, Dict[int, Tuple[List[str], 'SigmondSampling']]]]]],
+        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, List[Tuple[BoxQuantizationInfo, LabFrameEnergyRangeInfo]]]],
         reference_particle: str,
         particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
         fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
         output_stub: str,
-        energy_ranges: Optional[Dict[int, Tuple[float, float, float]]] = None,
         omega_mu: float = 0.5,
         quantization_condition: QuantizationCondition = QuantizationCondition.STILDE_CB,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
@@ -617,7 +614,6 @@ class KBfitXMLHelper:
         output_directory: str = ".",
         echo_xml: bool = True,
         verbose: bool = True,
-        output_file: Optional[str] = None
     ) -> str:
         """Create XML for print tasks from structured ensemble data.
 
@@ -627,11 +623,14 @@ class KBfitXMLHelper:
 
         Parameters
         ----------
+        xml_output_file
+            Optional path to write the generated XML file.
         project_name
             Human-readable project label.
         ensemble_data
-            A list of tuples, where each tuple contains the ``EnsembleInfo``,
-            ``SamplingInfo``, and the nested ``psq_dict`` for an ensemble.
+            A list where each element is a tuple ``(ensemble_info, sampling_info, block_configs)``.
+            ``block_configs`` is a list of tuples, where each tuple contains the
+            ``BoxQuantizationInfo`` and ``LabFrameEnergyRangeInfo`` for a KBBlock.
         reference_particle
             The name of the reference particle.
         particle_masses
@@ -646,51 +645,39 @@ class KBfitXMLHelper:
             A list of ``DecayChannelInfo`` objects.
         output_stub
             The base name for the output data files.
-        energy_ranges
-            Optional dictionary mapping momentum-squared (``psq``) to a tuple
-            ``(min_energy, max_energy, step_size)`` for the print grid.
-            Sensible defaults are used if not provided.
         omega_mu, quantization_condition, default_energy_format, output_mode,
         root_finder_config
             Optional settings for the print task.
-        output_directory, echo_xml, verbose, output_file
+        output_directory, echo_xml, verbose
             Optional settings for output and logging.
 
         Returns
         -------
-        The pretty-printed KBfit XML document as a string.
+        The KBfit XML document as a string.
         """
         # 1. Extract and collate information from ensemble_data
         if not ensemble_data:
             raise ValueError("`ensemble_data` must contain at least one entry.")
 
         ref_sampling_info = ensemble_data[0][1]
-        all_observables: List[ObservableInfo] = []
         all_ensemble_infos: Dict[str, EnsembleInfo] = {}
+        # block_configs_dict: key=ensemble_name, val=List[(BoxQuantizationInfo, LabFrameEnergyRangeInfo)]
+        block_configs_dict: Dict[str, List[Tuple[BoxQuantizationInfo, LabFrameEnergyRangeInfo]]] = {}
 
-        for ens_info, samp_info, psq_dict in ensemble_data:
+        for ens_info, samp_info, block_configs in ensemble_data:
             if samp_info != ref_sampling_info:
                 raise ValueError("All entries in `ensemble_data` must share the same SamplingInfo.")
             if ens_info.ensemble_name not in all_ensemble_infos:
                 all_ensemble_infos[ens_info.ensemble_name] = ens_info
+                block_configs_dict[ens_info.ensemble_name] = []
             
-            for psq, energy_type_map in psq_dict.items():
-                for energy_type, level_map in energy_type_map.items():
-                    for level, (_, sigmond_sampling) in level_map.items():
-                        all_observables.append(sigmond_sampling.observable_info)
-
-        unique_ensemble_infos = list(all_ensemble_infos.values())
-        # We group by momentum to find all unique (psq, irrep) shells
-        momentum_groups = self.group_observables_by_momentum(all_observables)
+            block_configs_dict[ens_info.ensemble_name].extend(block_configs)
         
+        unique_ensemble_infos = list(all_ensemble_infos.values())
+
         # setup particle masses to be of the form [(EnsembleInfo, List[ParticleInfo])]
         ensemble_particle_infos = self._create_ensemble_particle_masses(particle_masses, unique_ensemble_infos)
         
-        if energy_ranges is None:
-            energy_ranges = {
-                psq: (2.0, 4.0, 0.01) for psq, _ in momentum_groups.keys()
-            }
-
         # 2. Build the XML structure
         root = self._create_element("KBFit")
         
@@ -707,28 +694,18 @@ class KBfitXMLHelper:
                                          default_energy_format, reference_particle, ensemble_particle_infos)
         
         # Create KBBlocks data for the helper method
-        # Use the first ensemble for all KBBlocks, as the print job is often
-        # considered universal for the given K-matrix.
-        first_ensemble = unique_ensemble_infos[0] if unique_ensemble_infos else None
         block_data = []
-        
-        if first_ensemble:
-            for (psq, irrep), obs_list in momentum_groups.items():
-                box_quant = self.create_box_quantization_from_momentum(psq, irrep)
-                energy_range_tuple = energy_ranges.get(psq, (2.0, 4.0, 0.01))
-                energy_range_info = LabFrameEnergyRangeInfo(
-                    min=energy_range_tuple[0],
-                    max=energy_range_tuple[1],
-                    inc=energy_range_tuple[2]
-                )
-                block_data.append((first_ensemble, box_quant, energy_range_info))
+        for ens_name, block_configs in block_configs_dict.items():
+            ensemble_info = all_ensemble_infos[ens_name]
+            for box_quant, energy_range in block_configs:
+                block_data.append((ensemble_info, box_quant, energy_range))
         
         self.create_kbblocks_and_observables(task_elem, ref_sampling_info, sampling_files, verbose, block_data)
         
         xml_str = self._prettify_xml(root)
         
-        if output_file:
-            Path(output_file).write_text(xml_str)
+        if xml_output_file:
+            Path(xml_output_file).write_text(xml_str)
         
         return xml_str
     
@@ -843,7 +820,7 @@ class KBfitXMLHelper:
                     energy_shifts_dict[key] = []
                 energy_shifts_dict[key].append(shift_info)
 
-        unique_ensemble_infos = list(set(all_ensemble_infos.values()))
+        unique_ensemble_infos = list(all_ensemble_infos.values())
         
         # setup particle masses to be of the form [(EnsembleInfo, List[ParticleInfo])]
         ensemble_particle_infos = self._create_ensemble_particle_masses(ensemble_particle_infos, unique_ensemble_infos)
@@ -878,10 +855,10 @@ class KBfitXMLHelper:
             box_quant = self.create_box_quantization_from_momentum(psq, irrep)
             
             try:
-                cm_range = cm_energy_ranges.get(psq, (2.55, 2.85))
+                cm_range = cm_energy_ranges.get(psq, (2.50, 2.90))
             except:
-                cm_range = (2.55, 2.85)
-            
+                cm_range = (2.50, 2.90)
+
             block_data.append((ensemble_info, box_quant, (shifts, cm_range)))
         
         self.create_kbblocks_and_observables(spectrum_elem, ref_sampling_info, sampling_files, verbose, block_data)

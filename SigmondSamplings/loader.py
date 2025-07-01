@@ -24,7 +24,6 @@ class SigmondLoader:
         """
         self.sigmond_query_cmd = sigmond_query_cmd
         self._check_sigmond_query()
-        self.is_on_mac: bool = self._check_for_mac()
     
     def _check_sigmond_query(self):
         """Check if sigmond_query is available."""
@@ -35,17 +34,11 @@ class SigmondLoader:
                 raise RuntimeError(f"sigmond_query command failed: {result.stderr}")
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
             raise RuntimeError(f"sigmond_query not found or not working: {e}")
-        
-    def _check_for_mac(self) -> bool:
-        """Check if the user is on macOS."""
-        import sys
-        return sys.platform == "darwin"
     
     def _run_sigmond_query(self, filename: str, options: str) -> str:
         """Run sigmond_query with given options."""
-        # on macOS, we need to surround the filename with quotes for sigmond_query to work correctly
-        if self.is_on_mac:
-            filename = f'"{filename}"'
+        # Note: When using subprocess.run() with a list, quotes are not needed and actually cause issues
+        # The subprocess module handles filenames with spaces/special characters automatically
         cmd = [self.sigmond_query_cmd] + options.split() + [filename]
         try:    
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
