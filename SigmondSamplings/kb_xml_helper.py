@@ -574,10 +574,7 @@ class KBfitXMLHelper:
         
         task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
         
-        minimizer_info.create_xml_content(task_elem)
-        
-        self._create_element("OutSamplingsFile", output_file, task_elem)
-        self._create_element("EcmQcmBoxSamplingsStub", "ecm_qcm_box_samplings", task_elem)
+        self.create_fit_task_elements(task_elem, minimizer_info, output_file, add_ecm_qcm_stub=True)
         
         detres_elem = self._create_element(fit_type.value, parent=task_elem)
         
@@ -585,15 +582,14 @@ class KBfitXMLHelper:
                                          quantization_condition, verbose, True,  # make_inverse=True for detres
                                          default_energy_format, reference_particle, ensemble_particle_infos)
         
+        # Create KBBlocks data for the helper method
+        block_data = []
         for (ensemble_name, psq, irrep), lab_energies in lab_energies_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
             box_quant = self.create_box_quantization_from_momentum(psq, irrep)
-            
-            kb_block = self._create_kbblock_detres(ensemble_info, box_quant, lab_energies)
-            detres_elem.append(kb_block)
+            block_data.append((ensemble_info, box_quant, lab_energies))
         
-        kb_obs = self._create_kbobservables(ref_sampling_info, sampling_files, verbose)
-        detres_elem.append(kb_obs)
+        self.create_kbblocks_and_observables(detres_elem, ref_sampling_info, sampling_files, verbose, block_data)
         
         xml_str = self._prettify_xml(root)
         
@@ -704,33 +700,18 @@ class KBfitXMLHelper:
         
         task_elem = self.create_task_and_header_elements(root, TaskType.PRINT)
         
-        self._create_element("OutputStub", output_stub, task_elem)
-        self._create_element("OutputMode", output_mode.value, task_elem)
+        self.create_print_task_elements(task_elem, output_stub, output_mode, root_finder_config)
         
-        self._create_element("OmegaMu", str(omega_mu), task_elem)
-        self._create_element("QuantizationCondition", quantization_condition.value, task_elem)
+        self.create_common_task_elements(task_elem, fit_forms, decay_channels, omega_mu,
+                                         quantization_condition, verbose, False,  # make_inverse=False for print
+                                         default_energy_format, reference_particle, ensemble_particle_infos)
         
-        if root_finder_config:
-            root_finder_config.create_xml_content(task_elem)
-        
-        if verbose:
-            self._create_element("Verbose", parent=task_elem)
-        
-        ktilde_elem = self._create_ktilde_matrix_or_inverse(fit_forms, decay_channels, False)  # make_inverse=False for print
-        task_elem.append(ktilde_elem)
-        
-        self._create_element("DefaultEnergyFormat", default_energy_format.value, task_elem)
-        
-        for ensemble_info, particle_infos in ensemble_particle_infos:
-            params_elem = self._create_mcensemble_parameters(
-                ensemble_info, reference_particle, particle_infos
-            )
-            task_elem.append(params_elem)
-        
+        # Create KBBlocks data for the helper method
         # Use the first ensemble for all KBBlocks, as the print job is often
         # considered universal for the given K-matrix.
         first_ensemble = unique_ensemble_infos[0] if unique_ensemble_infos else None
-
+        block_data = []
+        
         if first_ensemble:
             for (psq, irrep), obs_list in momentum_groups.items():
                 box_quant = self.create_box_quantization_from_momentum(psq, irrep)
@@ -740,11 +721,9 @@ class KBfitXMLHelper:
                     max=energy_range_tuple[1],
                     inc=energy_range_tuple[2]
                 )
-                kb_block = self._create_kbblock_print(first_ensemble, box_quant, energy_range_info)
-                task_elem.append(kb_block)
+                block_data.append((first_ensemble, box_quant, energy_range_info))
         
-        kb_obs = self._create_kbobservables(ref_sampling_info, sampling_files, verbose)
-        task_elem.append(kb_obs)
+        self.create_kbblocks_and_observables(task_elem, ref_sampling_info, sampling_files, verbose, block_data)
         
         xml_str = self._prettify_xml(root)
         
@@ -881,12 +860,9 @@ class KBfitXMLHelper:
         
         task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
         
-        minimizer_info.create_xml_content(task_elem)
-        
-        self._create_element("OutSamplingsFile", output_samplings_file, task_elem)
+        self.create_fit_task_elements(task_elem, minimizer_info, output_samplings_file, add_ecm_qcm_stub=False)
 
         # enter into spectrum fit task
-        
         spectrum_elem = self._create_element(fit_type.value, parent=task_elem)
 
         root_finder_config.create_xml_content(spectrum_elem)
@@ -895,6 +871,8 @@ class KBfitXMLHelper:
                                          quantization_condition, verbose, use_inverse_k_matrix,
                                          default_energy_format, reference_particle, ensemble_particle_infos)
         
+        # Create KBBlocks data for the helper method
+        block_data = []
         for (ensemble_name, psq, irrep), shifts in energy_shifts_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
             box_quant = self.create_box_quantization_from_momentum(psq, irrep)
@@ -903,12 +881,10 @@ class KBfitXMLHelper:
                 cm_range = cm_energy_ranges.get(psq, (2.55, 2.85))
             except:
                 cm_range = (2.55, 2.85)
-
-            kb_block = self._create_kbblock_spectrum(ensemble_info, box_quant, shifts, cm_range)
-            spectrum_elem.append(kb_block)
+            
+            block_data.append((ensemble_info, box_quant, (shifts, cm_range)))
         
-        kb_obs = self._create_kbobservables(ref_sampling_info, sampling_files, verbose)
-        spectrum_elem.append(kb_obs)
+        self.create_kbblocks_and_observables(spectrum_elem, ref_sampling_info, sampling_files, verbose, block_data)
         
         xml_str = self._prettify_xml(root)
         
@@ -985,7 +961,73 @@ class KBfitXMLHelper:
             )
             task_elem.append(ensemble_params_elem)
 
+    def create_fit_task_elements(self, task_elem: ET.Element,
+                                minimizer_info: MinimizerInfo,
+                                output_samplings_file: str,
+                                add_ecm_qcm_stub: bool = False) -> None:
+        """Create fit-specific task elements (minimizer info, output files)."""
+        minimizer_info.create_xml_content(task_elem)
+        self._create_element("OutSamplingsFile", output_samplings_file, task_elem)
         
+        if add_ecm_qcm_stub:
+            self._create_element("EcmQcmBoxSamplingsStub", "ecm_qcm_box_samplings", task_elem)
+    
+    def create_print_task_elements(self, task_elem: ET.Element,
+                                  output_stub: str,
+                                  output_mode: OutputMode,
+                                  root_finder_config: Optional[RootFinderConfig] = None) -> None:
+        """Create print-specific task elements (output configuration)."""
+        self._create_element("OutputStub", output_stub, task_elem)
+        self._create_element("OutputMode", output_mode.value, task_elem)
+        
+        if root_finder_config:
+            root_finder_config.create_xml_content(task_elem)
+    
+    def create_kbblocks_and_observables(self, parent_elem: ET.Element,
+                                       ref_sampling_info: SamplingInfo,
+                                       sampling_files: List[str],
+                                       verbose: bool,
+                                       block_data: List[Tuple[EnsembleInfo, BoxQuantizationInfo, Any]]) -> None:
+        """Create KBBlocks and KBObservables elements.
+        
+        Parameters
+        ----------
+        parent_elem
+            The parent element to append blocks to
+        ref_sampling_info
+            Sampling info for observables
+        sampling_files
+            List of sampling data files
+        verbose
+            Whether to include verbose flag
+        block_data
+            List of tuples containing (ensemble_info, box_quantization, block_specific_data)
+            where block_specific_data can be:
+            - (energy_shifts, cm_range) tuple for spectrum
+            - List[LabFrameEnergyInfo] for detres
+            - LabFrameEnergyRangeInfo for print
+        """
+        # Create all KBBlocks
+        for ensemble_info, box_quant, block_specific_data in block_data:
+            if isinstance(block_specific_data, tuple) and len(block_specific_data) == 2:
+                # Spectrum: (energy_shifts, cm_range)
+                energy_shifts, cm_range = block_specific_data
+                kb_block = self._create_kbblock_spectrum(ensemble_info, box_quant, energy_shifts, cm_range)
+            elif isinstance(block_specific_data, list):
+                # Detres: list of LabFrameEnergyInfo (may be empty)
+                kb_block = self._create_kbblock_detres(ensemble_info, box_quant, block_specific_data)
+            elif isinstance(block_specific_data, LabFrameEnergyRangeInfo):
+                # Print: LabFrameEnergyRangeInfo
+                kb_block = self._create_kbblock_print(ensemble_info, box_quant, block_specific_data)
+            else:
+                raise ValueError(f"Unsupported block_specific_data type: {type(block_specific_data)}. "
+                               f"Expected tuple (for spectrum), list (for detres), or LabFrameEnergyRangeInfo (for print).")
+            
+            parent_elem.append(kb_block)
+        
+        # Create KBObservables
+        kb_obs = self._create_kbobservables(ref_sampling_info, sampling_files, verbose)
+        parent_elem.append(kb_obs)
 
     @staticmethod
     def extract_momentum_info_from_observable(observable_name: str) -> Optional[Tuple[int, str]]:
