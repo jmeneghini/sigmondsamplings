@@ -15,23 +15,31 @@ from xml.dom import minidom
 from typing import List, Dict, Optional, Union, Tuple, Any
 from pathlib import Path
 import re
+import warnings
 from dataclasses import dataclass
 from enum import Enum
+from abc import ABC, abstractmethod
 
 from .sampling import EnsembleInfo, SamplingInfo, ObservableInfo, SigmondSampling
 
 
 class TaskType(Enum):
     """Enumeration of KB fit task types."""
+    FIT = "DoFit"
+    PRINT = "DoPrint"
+    SINGLE_CHANNEL = "DoSingleChannel"
+    
+class FitType(Enum):
+    """Enumeration of fit types."""
     DETERMINANT_RESIDUAL = "DeterminantResidualFit"
     SPECTRUM = "SpectrumFit"
-    PRINT = "DoPrint"
 
 
 class MinimizerMethod(Enum):
     """Enumeration of minimizer methods."""
     NL2SNO = "NL2Sno"
     MINUIT2_MIGRAD = "Minuit2Migrad"
+    MINUIT2_SIMPLEX = "Minuit2Simplex"
 
 
 class QuantizationCondition(Enum):
@@ -67,11 +75,18 @@ class BoxQuantizationInfo:
     momentum_ray: str
     momentum_int_squared: int
     lg_irrep: str
-    lmax_values: Union[int, str] = 0
+    lmax_values: List[int] | int
     
     def __post_init__(self):
         self.lmax_values = str(self.lmax_values)
-
+        
+    def create_xml_content(self, box_quant_elem: ET.Element) -> None:
+        """Create XML content for box quantization."""
+        box_quant_elem = ET.SubElement(box_quant_elem, "BoxQuantization")
+        ET.SubElement(box_quant_elem, "TotalMomentumRay").text = self.momentum_ray
+        ET.SubElement(box_quant_elem, "TotalMomentumIntSquared").text = str(self.momentum_int_squared)
+        ET.SubElement(box_quant_elem, "LGIrrep").text = self.lg_irrep
+        ET.SubElement(box_quant_elem, "LmaxValues").text = self.lmax_values if isinstance(self.lmax_values, int) else " ".join(str(l) for l in self.lmax_values)
 
 @dataclass
 class DecayChannelInfo:
@@ -82,7 +97,16 @@ class DecayChannelInfo:
     spin_2_times_two: int
     identical: bool = False
     
-
+    def create_xml_content(self, channels_elem: ET.Element) -> None:
+        """Create XML content for decay channel."""
+        channel_elem = ET.SubElement(channels_elem, "DecayChannelInfo")
+        ET.SubElement(channel_elem, "Particle1Name").text = self.particle_1
+        ET.SubElement(channel_elem, "Spin1TimesTwo").text = str(self.spin_1_times_two)
+        if self.identical:
+            ET.SubElement(channel_elem, "Identical")
+        else:
+            ET.SubElement(channel_elem, "Particle2Name").text = self.particle_2
+            ET.SubElement(channel_elem, "Spin2TimesTwo").text = str(self.spin_2_times_two)
 
 @dataclass
 class KElementInfo:
@@ -90,70 +114,107 @@ class KElementInfo:
     j_times_two: int
     k_index1: str
     k_index2: str
+    
+    def create_xml_content(self, elem: ET.Element) -> None:
+        """Create XML content for K-matrix element."""
+        k_info_elem = ET.SubElement(elem, "KElementInfo")
+        ET.SubElement(k_info_elem, "JTimesTwo").text = str(self.j_times_two)
+        ET.SubElement(k_info_elem, "KIndex1").text = self.k_index1
+        ET.SubElement(k_info_elem, "KIndex2").text = self.k_index2
 
-
-class FitFormType(Enum):
-    """Enumeration of fit form types."""
-    EXPRESSION = "Expression"
-    POLYNOMIAL = "Polynomial"
-    SUM_OF_POLES = "SumOfPoles"
-    SUM_OF_POLES_PLUS_POLYNOMIAL = "SumOfPolesPlusPolynomial"
+class FitForm(ABC):
+    """Abstract base class for all fit form types."""
+    
+    @abstractmethod
+    def create_element_info_xml_content(self, kmatrix_elem: ET.Element, k_index: KElementInfo) -> None:
+        """Create XML content for the <Element> element."""
+        pass
+    
+    @abstractmethod
+    def create_starting_values_xml_content(self, starting_values_elem: ET.Element, k_index: KElementInfo) -> None:
+        """Create XML content for the <StartingValues> element."""
+        pass
 
 
 @dataclass
-class ExpressionFitForm:
+class ExpressionFitForm(FitForm):
     """Expression fit form configuration."""
     expression: str
-
-
-@dataclass
-class PolynomialFitForm:
-    """Polynomial fit form configuration."""
-    degree: Optional[int] = None
-    powers: Optional[List[int]] = None
+    params_with_starting_values: Dict[str, float] # parameter name -> starting value
     
-    def __post_init__(self):
-        if self.degree is None and self.powers is None:
-            raise ValueError("Either degree or powers must be specified for polynomial fit form")
-        if self.degree is not None and self.powers is not None:
-            raise ValueError("Cannot specify both degree and powers for polynomial fit form")
-
-
+    def create_element_info_xml_content(self, kmatrix_elem: ET.Element, k_index: KElementInfo) -> None:
+        """Create XML content for expression fit form."""
+        # create the <Element>
+        elem_elem = ET.SubElement(kmatrix_elem, "Element")
+        # create the <KElementInfo>
+        k_index.create_xml_content(elem_elem)
+        # create the <Expression>
+        expr_elem = ET.SubElement(elem_elem, "Expression")
+        ET.SubElement(expr_elem, "String").text = self.expression
+        
+    def create_starting_values_xml_content(self, starting_values_elem: ET.Element, k_index: KElementInfo) -> None:
+        """Create XML content for starting values."""
+        for param_name, starting_value in self.params_with_starting_values.items():
+            # create and populate the <KFitParamInfo>
+            kfit_param_info_elem = ET.SubElement(starting_values_elem, "KFitParamInfo")
+            string_expr_param_elem = ET.SubElement(kfit_param_info_elem, "StringExpressionParameter")
+            ET.SubElement(string_expr_param_elem, "ParameterName").text = param_name
+            k_index.create_xml_content(string_expr_param_elem)
+            # create and populate the <StartingValue>
+            ET.SubElement(kfit_param_info_elem, "StartingValue").text = str(starting_value)
+            
 @dataclass
-class SumOfPolesFitForm:
-    """Sum of poles fit form configuration."""
-    number_of_poles: Optional[int] = None
-    pole_indices: Optional[List[int]] = None
+class ParticleInfo:
+    """Information for particles."""
+    name: str
+    mass: ObservableInfo | float = 1.0 # if float, then the mass is fixed
+    psq: int = 0 # used for non-interacting pairs
     
-    def __post_init__(self):
-        if self.number_of_poles is None and self.pole_indices is None:
-            raise ValueError("Either number_of_poles or pole_indices must be specified")
-        if self.number_of_poles is not None and self.pole_indices is not None:
-            raise ValueError("Cannot specify both number_of_poles and pole_indices")
-
-
-@dataclass
-class SumOfPolesPlusPolynomialFitForm:
-    """Sum of poles plus polynomial fit form configuration."""
-    sum_of_poles: SumOfPolesFitForm
-    polynomial: PolynomialFitForm
-
-
-@dataclass
-class FitParameterInfo:
-    """Information for fit parameters."""
-    parameter_name: str
-    starting_value: float
-    k_element_info: Optional[KElementInfo] = None
-    fit_form_type: FitFormType = FitFormType.EXPRESSION
-
+    def create_particle_mass_xml_content(self, mc_ensemble_parameters_elem: ET.Element) -> None:
+        """Create XML content for particle mass."""
+        particle_mass_elem = ET.SubElement(mc_ensemble_parameters_elem, "ParticleMass")
+        ET.SubElement(particle_mass_elem, "Name").text = self.name
+        if isinstance(self.mass, float):
+            ET.SubElement(particle_mass_elem, "FixedValue").text = str(self.mass)
+        else:
+            ET.SubElement(particle_mass_elem, "MCObs").text = str(self.mass)
 
 @dataclass
 class LabFrameEnergyShiftInfo:
     """Information for lab frame energy shifts (spectrum fits)."""
-    mcobs: str
-    non_interacting_pair: str
+    mcobs: ObservableInfo
+    non_interacting_pair: List[ParticleInfo]
+    
+    def create_xml_content(self, shift_elem: ET.Element) -> None:
+        """Create XML content for lab frame energy shift."""
+        shift_elem = ET.SubElement(shift_elem, "LabFrameEnergyShift")
+        ET.SubElement(shift_elem, "MCObs").text = self.mcobs
+        ni_str = "".join(f"{p.name}({p.psq})" for p in self.non_interacting_pair)
+        ET.SubElement(shift_elem, "NonInteractingPair").text = ni_str
+        
+@dataclass
+class LabFrameEnergyInfo:
+    """Information for lab frame energies (print tasks)."""
+    mcobs: ObservableInfo
+    
+    def create_xml_content(self, energy_elem: ET.Element) -> None:
+        """Create XML content for lab frame energy."""
+        energy_elem = ET.SubElement(energy_elem, "LabFrameEnergy")
+        ET.SubElement(energy_elem, "MCObs").text = self.mcobs
 
+@dataclass
+class LabFrameEnergyRangeInfo:
+    """Information for lab frame energy range (print tasks)."""
+    min: float
+    max: float
+    inc: float
+    
+    def create_xml_content(self, energy_range_elem: ET.Element) -> None:
+        """Create XML content for lab frame energy range."""
+        energy_range_elem = ET.SubElement(energy_range_elem, "LabFrameEnergyRange")
+        ET.SubElement(energy_range_elem, "Min").text = str(self.min)
+        ET.SubElement(energy_range_elem, "Max").text = str(self.max)
+        ET.SubElement(energy_range_elem, "Inc").text = str(self.inc)
 
 @dataclass
 class MinimizerInfo:
@@ -163,6 +224,14 @@ class MinimizerInfo:
     chisquare_rel_tol: float = 1e-4
     maximum_iterations: int = 1024
     verbosity: Verbosity = Verbosity.LOW
+    
+    def create_xml_content(self, minimizer_elem: ET.Element) -> None:
+        """Create XML content for minimizer."""
+        minimizer_elem = ET.SubElement(minimizer_elem, "MinimizerInfo")
+        ET.SubElement(minimizer_elem, "Method").text = self.method.value
+        ET.SubElement(minimizer_elem, "ParameterRelTol").text = str(self.parameter_rel_tol)
+        ET.SubElement(minimizer_elem, "ChiSquareRelTol").text = str(self.chisquare_rel_tol)
+        ET.SubElement(minimizer_elem, "MaximumIterations").text = str(self.maximum_iterations)
 
 
 @dataclass
@@ -176,6 +245,15 @@ class RootFinderConfig:
     step_scale_limit: float = 10.0
     plateau_mod2_threshold: float = 1e-8
     plateau_count_before_jump: int = 5
+    
+    def create_xml_content(self, spectrum_elem: ET.Element) -> None:
+        """Create XML content for root finder."""
+        root_finder_elem = ET.SubElement(spectrum_elem, "RootFinder")
+        ET.SubElement(root_finder_elem, "AdaptiveBracket")
+        ET.SubElement(root_finder_elem, "InitialStepPercent").text = str(self.initial_step_percent)
+        ET.SubElement(root_finder_elem, "AbsXTolerance").text = str(self.abs_x_tolerance)
+        ET.SubElement(root_finder_elem, "AbsResidualTolerance").text = str(self.abs_residual_tolerance)
+        ET.SubElement(root_finder_elem, "MinStepPercent").text = str(self.min_step_percent)
 
 
 class KBfitXMLHelper:
@@ -231,7 +309,7 @@ class KBfitXMLHelper:
     
     def _create_mcensemble_parameters(self, ensemble_info: EnsembleInfo, 
                                     reference_particle: str,
-                                    particle_masses: Dict[str, float]) -> ET.Element:
+                                    particle_masses: List[ParticleInfo]) -> ET.Element:
         """Create MCEnsembleParameters element."""
         params_elem = self._create_element("MCEnsembleParameters")
         self._create_element("MCEnsembleInfo", ensemble_info.ensemble_name, params_elem)
@@ -241,97 +319,27 @@ class KBfitXMLHelper:
         self._create_element("MCObs", f"{reference_particle}(0)_elab 0", ref_mass_elem)
         
         # Particle masses
-        for particle_name, mass_value in particle_masses.items():
-            mass_elem = self._create_element("ParticleMass", parent=params_elem)
-            self._create_element("Name", particle_name, mass_elem)
-            self._create_element("FixedValue", str(mass_value), mass_elem)
+        for particle in particle_masses:
+            particle.create_particle_mass_xml_content(params_elem)
         
         return params_elem
     
-    def _create_minimizer_info(self, minimizer_info: MinimizerInfo) -> ET.Element:
-        """Create MinimizerInfo element."""
-        minimizer_elem = self._create_element("MinimizerInfo")
-        self._create_element("Method", minimizer_info.method.value, minimizer_elem)
-        self._create_element("ParameterRelTol", str(minimizer_info.parameter_rel_tol), minimizer_elem)
-        self._create_element("ChiSquareRelTol", str(minimizer_info.chisquare_rel_tol), minimizer_elem)
-        self._create_element("MaximumIterations", str(minimizer_info.maximum_iterations), minimizer_elem)
-        self._create_element("Verbosity", minimizer_info.verbosity.value, minimizer_elem)
-        return minimizer_elem
-    
-    def _create_root_finder_config(self, config: RootFinderConfig) -> ET.Element:
-        """Create RootFinder element."""
-        root_elem = self._create_element("RootFinder")
-        self._create_element("AdaptiveBracket", parent=root_elem)
-        self._create_element("InitialStepPercent", str(config.initial_step_percent), root_elem)
-        self._create_element("AbsXTolerance", str(config.abs_x_tolerance), root_elem)
-        self._create_element("AbsResidualTolerance", str(config.abs_residual_tolerance), root_elem)
-        self._create_element("MinStepPercent", str(config.min_step_percent), root_elem)
-        self._create_element("MaxStepPercent", str(config.max_step_percent), root_elem)
-        self._create_element("StepScaleLimit", str(config.step_scale_limit), root_elem)
-        self._create_element("PlateauMod2Threshold", str(config.plateau_mod2_threshold), root_elem)
-        self._create_element("PlateauCountBeforeJump", str(config.plateau_count_before_jump), root_elem)
-        return root_elem
-    
-    def _create_fit_form_content(self, fit_form: Union[ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm], 
-                                parent: ET.Element) -> None:
-        """Create fit form content based on the fit form type."""
-        if isinstance(fit_form, ExpressionFitForm):
-            expr_elem = self._create_element("Expression", parent=parent)
-            self._create_element("String", fit_form.expression, expr_elem)
-            
-        elif isinstance(fit_form, PolynomialFitForm):
-            poly_elem = self._create_element("Polynomial", parent=parent)
-            if fit_form.degree is not None:
-                self._create_element("Degree", str(fit_form.degree), poly_elem)
-            elif fit_form.powers is not None:
-                powers_str = " ".join(str(p) for p in fit_form.powers)
-                self._create_element("Powers", powers_str, poly_elem)
-                
-        elif isinstance(fit_form, SumOfPolesFitForm):
-            poles_elem = self._create_element("SumOfPoles", parent=parent)
-            if fit_form.number_of_poles is not None:
-                self._create_element("NumberOfPoles", str(fit_form.number_of_poles), poles_elem)
-            elif fit_form.pole_indices is not None:
-                indices_str = " ".join(str(i) for i in fit_form.pole_indices)
-                self._create_element("PoleIndices", indices_str, poles_elem)
-                
-        elif isinstance(fit_form, SumOfPolesPlusPolynomialFitForm):
-            combo_elem = self._create_element("SumOfPolesPlusPolynomial", parent=parent)
-            
-            # Add SumOfPoles part
-            poles_elem = self._create_element("SumOfPoles", parent=combo_elem)
-            if fit_form.sum_of_poles.number_of_poles is not None:
-                self._create_element("NumberOfPoles", str(fit_form.sum_of_poles.number_of_poles), poles_elem)
-            elif fit_form.sum_of_poles.pole_indices is not None:
-                indices_str = " ".join(str(i) for i in fit_form.sum_of_poles.pole_indices)
-                self._create_element("PoleIndices", indices_str, poles_elem)
-            
-            # Add Polynomial part
-            poly_elem = self._create_element("Polynomial", parent=combo_elem)
-            if fit_form.polynomial.degree is not None:
-                self._create_element("Degree", str(fit_form.polynomial.degree), poly_elem)
-            elif fit_form.polynomial.powers is not None:
-                powers_str = " ".join(str(p) for p in fit_form.polynomial.powers)
-                self._create_element("Powers", powers_str, poly_elem)
+    def _create_kbblock_xml(self, ensemble_info: EnsembleInfo, box_quantization: BoxQuantizationInfo) -> ET.Element:
+        """Create common KBBlock elements for all tasks."""
+        kb_block = self._create_element("KBBlock")
+        self._create_element("MCEnsembleInfo", ensemble_info.ensemble_name, kb_block)
+        box_quantization.create_xml_content(kb_block)
+        return kb_block
     
     def _create_kbblock_detres(self, ensemble_info: EnsembleInfo, 
                               box_quantization: BoxQuantizationInfo,
-                              lab_frame_energies: List[str]) -> ET.Element:
+                              lab_frame_energies: List[LabFrameEnergyInfo]) -> ET.Element:
         """Create KBBlock element for determinant residual fits."""
-        kb_block = self._create_element("KBBlock")
-        self._create_element("MCEnsembleInfo", ensemble_info.ensemble_name, kb_block)
-        
-        # Box quantization
-        box_quant_elem = self._create_element("BoxQuantization", parent=kb_block)
-        self._create_element("TotalMomentumRay", box_quantization.momentum_ray, box_quant_elem)
-        self._create_element("TotalMomentumIntSquared", str(box_quantization.momentum_int_squared), box_quant_elem)
-        self._create_element("LGIrrep", box_quantization.lg_irrep, box_quant_elem)
-        self._create_element("LmaxValues", box_quantization.lmax_values, box_quant_elem)
+        kb_block = self._create_kbblock_xml(ensemble_info, box_quantization)
         
         # Lab frame energies
-        for energy_obs in lab_frame_energies:
-            energy_elem = self._create_element("LabFrameEnergy", parent=kb_block)
-            self._create_element("MCObs", energy_obs, energy_elem)
+        for lab_frame_energy in lab_frame_energies:
+            lab_frame_energy.create_xml_content(kb_block)
         
         return kb_block
     
@@ -340,23 +348,13 @@ class KBfitXMLHelper:
                                 energy_shifts: List[LabFrameEnergyShiftInfo],
                                 cm_energy_range: Tuple[float, float]) -> ET.Element:
         """Create KBBlock element for spectrum fits."""
-        kb_block = self._create_element("KBBlock")
-        self._create_element("MCEnsembleInfo", ensemble_info.ensemble_name, kb_block)
-        
-        # Box quantization
-        box_quant_elem = self._create_element("BoxQuantization", parent=kb_block)
-        self._create_element("TotalMomentumRay", box_quantization.momentum_ray, box_quant_elem)
-        self._create_element("TotalMomentumIntSquared", str(box_quantization.momentum_int_squared), box_quant_elem)
-        self._create_element("LGIrrep", box_quantization.lg_irrep, box_quant_elem)
-        self._create_element("LmaxValues", box_quantization.lmax_values, box_quant_elem)
+        kb_block = self._create_kbblock_xml(ensemble_info, box_quantization)
         
         # Lab frame energy shifts
         for shift in energy_shifts:
-            shift_elem = self._create_element("LabFrameEnergyShift", parent=kb_block)
-            self._create_element("MCObs", shift.mcobs, shift_elem)
-            self._create_element("NonInteractingPair", shift.non_interacting_pair, shift_elem)
+            shift.create_xml_content(kb_block)
         
-        # CM frame energy range
+        # CM frame energy range for the root finder
         self._create_element("CMFrameEnergyMin", str(cm_energy_range[0]), kb_block)
         self._create_element("CMFrameEnergyMax", str(cm_energy_range[1]), kb_block)
         
@@ -364,22 +362,12 @@ class KBfitXMLHelper:
     
     def _create_kbblock_print(self, ensemble_info: EnsembleInfo,
                              box_quantization: BoxQuantizationInfo,
-                             energy_range: Tuple[float, float, float]) -> ET.Element:
+                             energy_range: LabFrameEnergyRangeInfo) -> ET.Element:
         """Create KBBlock element for print tasks."""
-        kb_block = self._create_element("KBBlock")
-        self._create_element("MCEnsembleInfo", ensemble_info.ensemble_name, kb_block)
+        kb_block = self._create_kbblock_xml(ensemble_info, box_quantization)
         
-        # Box quantization
-        box_quant_elem = self._create_element("BoxQuantization", parent=kb_block)
-        self._create_element("TotalMomentumRay", box_quantization.momentum_ray, box_quant_elem)
-        self._create_element("TotalMomentumIntSquared", str(box_quantization.momentum_int_squared), box_quant_elem)
-        self._create_element("LGIrrep", box_quantization.lg_irrep, box_quant_elem)
-        self._create_element("LmaxValues", box_quantization.lmax_values, box_quant_elem)
-        
-        # Energy range for print
-        self._create_element("LabFrameEnergyMin", str(energy_range[0]), kb_block)
-        self._create_element("LabFrameEnergyMax", str(energy_range[1]), kb_block)
-        self._create_element("LabFrameEnergyInc", str(energy_range[2]), kb_block)
+        # Lab frame energy range
+        energy_range.create_xml_content(kb_block)
         
         return kb_block
     
@@ -388,19 +376,11 @@ class KBfitXMLHelper:
         channels_elem = self._create_element("DecayChannels")
 
         for channel in channels:
-            channel_elem = self._create_element("DecayChannelInfo", parent=channels_elem)
-            self._create_element("Particle1Name", channel.particle_1, channel_elem)
-            self._create_element("Spin1TimesTwo", str(channel.spin_1_times_two), channel_elem)
-            if channel.identical:
-                self._create_element("Identical", parent=channel_elem)
-            else:
-                self._create_element("Particle2Name", channel.particle_2, channel_elem)
-                self._create_element("Spin2TimesTwo", str(channel.spin_2_times_two), channel_elem)
+            channel.create_xml_content(channels_elem)
 
         return channels_elem
     
     def _create_kbobservables(self, sampling_info: SamplingInfo,
-                             ensemble_info: Optional[EnsembleInfo],
                              sampling_files: List[str],
                              verbose: bool = True) -> ET.Element:
         """Create KBObservables element."""
@@ -409,11 +389,6 @@ class KBfitXMLHelper:
         # Sampling info
         sampling_elem = self._create_mcsamplinginfo_element(sampling_info)
         kb_obs.append(sampling_elem)
-        
-        # Bins info (optional)
-        if ensemble_info:
-            bins_elem = self._create_mcbinsinfo_element(ensemble_info)
-            kb_obs.append(bins_elem)
         
         # Verbose flag
         if verbose:
@@ -426,24 +401,15 @@ class KBfitXMLHelper:
         
         return kb_obs
     
-    def _create_ktilde_matrix_inverse(self, k_elements: List[KElementInfo],
-                                    fit_forms: List[Union[ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm]],
-                                    decay_channels: List[DecayChannelInfo],
-                                    starting_values: List[FitParameterInfo]) -> ET.Element:
-        """Create KtildeMatrixInverse element for detres and spectrum fits."""
-        ktilde_elem = self._create_element("KtildeMatrixInverse")
+    def _create_ktilde_matrix_or_inverse(self, fit_forms: List[FitForm],
+                                         decay_channels: List[DecayChannelInfo],
+                                         make_inverse: bool) -> ET.Element:
+        """Create KtildeMatrix/KtildeMatrixInverse element"""
+        ktilde_elem = self._create_element("KtildeMatrixInverse" if make_inverse else "KtildeMatrix")
         
         # K-matrix elements
-        for k_element, fit_form in zip(k_elements, fit_forms):
-            element_elem = self._create_element("Element", parent=ktilde_elem)
-            k_elem_info = self._create_element("KElementInfo", parent=element_elem)
-            self._create_element("JTimesTwo", str(k_element.j_times_two), k_elem_info)
-            self._create_element("KIndex", k_element.k_index1, k_elem_info)
-            self._create_element("KIndex", k_element.k_index2, k_elem_info)
-            
-            if fit_form:
-                fit_form_elem = self._create_element("FitForm", parent=element_elem)
-                self._create_fit_form_content(fit_form, fit_form_elem)
+        for fit_form in fit_forms:
+            fit_form.create_element_info_xml_content(ktilde_elem)
         
         # Decay channels
         channels_elem = self._create_decay_channels(decay_channels)
@@ -451,42 +417,62 @@ class KBfitXMLHelper:
         
         # Starting values
         start_vals_elem = self._create_element("StartingValues", parent=ktilde_elem)
-        for param in starting_values:
-            param_elem = self._create_element("KFitParamInfo", parent=start_vals_elem)
-            
-            # String expression parameter
-            str_expr_elem = self._create_element("StringExpressionParameter", parent=param_elem)
-            self._create_element("ParameterName", param.parameter_name, str_expr_elem)
-            
-            if param.k_element_info:
-                k_elem_info = self._create_element("KElementInfo", parent=str_expr_elem)
-                self._create_element("JTimesTwo", str(param.k_element_info.j_times_two), k_elem_info)
-                self._create_element("KIndex", param.k_element_info.k_index1, k_elem_info)
-                self._create_element("KIndex", param.k_element_info.k_index2, k_elem_info)
-            
-            self._create_element("StartingValue", str(param.starting_value), param_elem)
+        for fit_form in fit_forms:
+            fit_form.create_starting_values_xml_content(start_vals_elem)
         
         return ktilde_elem
+    
+    def _create_ensemble_particle_masses(self, particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
+                                         unique_ensemble_infos: List[EnsembleInfo]) -> List[Tuple[EnsembleInfo, List[ParticleInfo]]]:
+        """Create ensemble particle masses from a list of particle masses."""
+         # setup particle masses to be of the form [(EnsembleInfo, List[ParticleInfo])]
+        if isinstance(particle_masses, ParticleInfo):
+            # Single particle for all ensembles
+            ensemble_particle_infos = [(ens_info, [particle_masses]) for ens_info in unique_ensemble_infos]
+        elif isinstance(particle_masses, list):
+            if len(particle_masses) == 0:
+                raise ValueError("`particle_masses` cannot be empty.")
+            
+            # Check what type of list we have
+            first_item = particle_masses[0]
+            if isinstance(first_item, ParticleInfo):
+                # List of ParticleInfo - same for all ensembles
+                ensemble_particle_infos = [(ens_info, particle_masses) for ens_info in unique_ensemble_infos]
+            elif isinstance(first_item, tuple) and len(first_item) == 2:
+                # List of tuples - check if (EnsembleInfo, ParticleInfo) or (EnsembleInfo, List[ParticleInfo])
+                ens_info, particle_info = first_item
+                if isinstance(particle_info, ParticleInfo):
+                    # [(EnsembleInfo, ParticleInfo)]
+                    ensemble_particle_infos = [(ens_info, [particle_info]) for ens_info, particle_info in particle_masses]
+                elif isinstance(particle_info, list):
+                    # [(EnsembleInfo, List[ParticleInfo])]
+                    ensemble_particle_infos = particle_masses
+                else:
+                    raise ValueError("`particle_masses` tuple format not recognized.")
+            else:
+                raise ValueError("`particle_masses` has been provided in an unexpected format.")
+        else:
+            raise ValueError("`particle_masses` must be ParticleInfo, List[ParticleInfo], or List[Tuple[EnsembleInfo, ParticleInfo]].")
+        
+        return ensemble_particle_infos
     
     def create_detres_xml(
         self,
         project_name: str,
-        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, Dict[int, Dict[str, Dict[int, Tuple[List[str], 'SigmondSampling']]]]]],
+        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, Dict[int, Dict[str, Dict[int, SigmondSampling]]]]],
         reference_particle: str,
-        particle_masses: Dict[str, float],
+        particle_masses: List[ParticleInfo] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
-        k_elements: List[KElementInfo],
-        fit_forms: List[Union[ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm]],
+        fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
-        starting_values: List[FitParameterInfo],
         omega_mu: float = 30.0,
         quantization_condition: QuantizationCondition = QuantizationCondition.KTILDE_INV_B,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
-        minimizer_info: Optional[MinimizerInfo] = None,
-        output_directory: Optional[str] = None,
+        minimizer_info: MinimizerInfo = MinimizerInfo(),
+        output_directory: str = ".",
         echo_xml: bool = True,
         verbose: bool = True,
-        output_file: Optional[str] = None
+        output_file: str = "fit_param_samplings.hdf5[/samplings]"
     ) -> str:
         """Create determinant residual fit XML directly from structured ensemble data.
 
@@ -501,29 +487,49 @@ class KBfitXMLHelper:
         ensemble_data
             A list of tuples, where each tuple contains the ``EnsembleInfo``,
             ``SamplingInfo``, and the nested ``psq_dict`` for an ensemble.
-        reference_particle, particle_masses, sampling_files, k_elements, fit_forms,
-        decay_channels, starting_values
-            Core physics and fit model parameters.
-        omega_mu, quantization_condition, default_energy_format, minimizer_info
-            Optional settings for the fit and numerical procedures.
-        output_directory, echo_xml, verbose, output_file
-            Optional settings for output and logging.
+            The ``psq_dict`` is a dictionary of ``psq`` values, where each value is a dictionary of ``energy_type`` values,
+            where each value is a dictionary which maps the ``level`` to a ``SigmondSampling`` object.
+        reference_particle
+            The name of the reference particle.
+        particle_masses
+            A list of ``ParticleInfo`` objects or a list of tuples, where each tuple contains
+            an ``EnsembleInfo`` and a list of ``ParticleInfo`` objects. If a single list is provided,
+            then all ensembles will use the same particle masses.
+        sampling_files
+            A list of sampling data files.
+        fit_forms
+            A list of ``FitForm`` objects.
+        decay_channels
+            A list of ``DecayChannelInfo`` objects.
+        omega_mu
+            The value of omega_mu for the fit.
+        quantization_condition
+            The quantization condition for the fit.
+        default_energy_format
+            The default energy format for the fit.
+        minimizer_info
+            The minimizer info for the fit.
+        output_directory
+            The directory to write the output file to.
+        echo_xml
+            Whether to echo the XML to the console.
+        verbose
+            Whether to print verbose output.
+        output_file
+            The name of the output samplings file.
 
         Returns
         -------
-        The pretty-printed KBfit XML document as a string.
+        The KBfit XML for the determinant residual fit.
         """
-        if minimizer_info is None:
-            minimizer_info = MinimizerInfo()
-
         # 1. Extract and collate information from ensemble_data
         if not ensemble_data:
             raise ValueError("`ensemble_data` must contain at least one entry.")
 
         ref_sampling_info = ensemble_data[0][1]
-        all_observables: List[ObservableInfo] = []
         all_ensemble_infos: Dict[str, EnsembleInfo] = {}
         lab_energies_dict: Dict[Tuple[str, int, str], List[str]] = {}
+        all_observables: List[ObservableInfo] = []
 
         for ens_info, samp_info, psq_dict in ensemble_data:
             if samp_info != ref_sampling_info:
@@ -531,11 +537,7 @@ class KBfitXMLHelper:
             if ens_info.ensemble_name not in all_ensemble_infos:
                 all_ensemble_infos[ens_info.ensemble_name] = ens_info
 
-            for psq, energy_type_map in psq_dict.items():
-                # We are only interested in 'elab' for determinant residual fits
-                if 'elab' not in energy_type_map:
-                    continue
-                
+            for psq, levels in psq_dict.items():
                 level_map = energy_type_map['elab']
                 for level, (_, sigmond_sampling) in level_map.items():
                     obs_info = sigmond_sampling.observable_info
@@ -553,8 +555,7 @@ class KBfitXMLHelper:
                         lab_energies_dict[key] = []
                     lab_energies_dict[key].append(mcobs_name)
 
-        unique_ensemble_infos = list(all_ensemble_infos.values())
-        ensemble_momentum_groups = self.group_observables_by_ensemble_and_momentum(all_observables)
+        unique_ensemble_infos = list(set(all_ensemble_infos.values()))
 
         # 2. Build the XML structure
         root = self._create_element("KBFit")
@@ -591,8 +592,8 @@ class KBfitXMLHelper:
         if verbose:
             self._create_element("Verbose", parent=detres_elem)
         
-        ktilde_elem = self._create_ktilde_matrix_inverse(
-            k_elements, fit_forms, decay_channels, starting_values
+        ktilde_elem = self._create_ktilde_matrix_or_inverse(
+            k_elements, fit_forms, decay_channels, starting_values, make_inverse=True
         )
         detres_elem.append(ktilde_elem)
         
@@ -604,12 +605,9 @@ class KBfitXMLHelper:
             )
             detres_elem.append(params_elem)
         
-        for (ensemble_name, psq, irrep), obs_list in ensemble_momentum_groups.items():
+        for (ensemble_name, psq, irrep), lab_energies in lab_energies_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
             box_quant = self.create_box_quantization_from_momentum(psq, irrep)
-            
-            key = (ensemble_name, psq, irrep)
-            lab_energies = lab_energies_dict.get(key, [])
             
             kb_block = self._create_kbblock_detres(ensemble_info, box_quant, lab_energies)
             detres_elem.append(kb_block)
@@ -632,7 +630,7 @@ class KBfitXMLHelper:
         particle_masses: Dict[str, float],
         sampling_files: List[str],
         k_elements: List[KElementInfo],
-        fit_forms: List[Union[ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm]],
+        fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
         starting_values: List[FitParameterInfo],
         output_stub: str,
@@ -741,8 +739,8 @@ class KBfitXMLHelper:
         if verbose:
             self._create_element("Verbose", parent=task)
         
-        ktilde_elem = self._create_ktilde_matrix_inverse(
-            k_elements, fit_forms, decay_channels, starting_values
+        ktilde_elem = self._create_ktilde_matrix_or_inverse(
+            k_elements, fit_forms, decay_channels, starting_values, make_inverse=False
         )
         task.append(ktilde_elem)
         
@@ -777,25 +775,24 @@ class KBfitXMLHelper:
     
     def create_spectrum_xml(
         self,
+        xml_output_file: str,
         project_name: str,
-        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, Dict[int, Dict[str, Dict[int, Tuple[List[str], SigmondSampling]]]]]],
+        ensemble_data: List[Tuple[EnsembleInfo, SamplingInfo, List[LabFrameEnergyShiftInfo]]],
         reference_particle: str,
-        particle_masses: Dict[str, float],
+        ensemble_particle_infos: ParticleInfo | List[ParticleInfo] | List[Tuple[EnsembleInfo, ParticleInfo]] | List[Tuple[EnsembleInfo, List[ParticleInfo]]],
         sampling_files: List[str],
-        k_elements: List[KElementInfo],
-        fit_forms: List[Union[ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm]],
+        fit_forms: List[FitForm],   
         decay_channels: List[DecayChannelInfo],
-        starting_values: List[FitParameterInfo],
         omega_mu: float = 0.8,
         quantization_condition: QuantizationCondition = QuantizationCondition.STILDE_CB,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
-        minimizer_info: Optional[MinimizerInfo] = None,
-        root_finder_config: Optional[RootFinderConfig] = None,
+        minimizer_info: MinimizerInfo = MinimizerInfo(),
+        root_finder_config: RootFinderConfig = RootFinderConfig(),
         cm_energy_ranges: Optional[Dict[int, Tuple[float, float]]] = None,
-        output_directory: Optional[str] = None,
+        output_directory: str = ".",
         echo_xml: bool = True,
         verbose: bool = True,
-        output_file: Optional[str] = None
+        output_samplings_file: str = "fit_param_samplings.hdf5[/samplings]"
     ) -> str:
         """Create spectrum XML directly from structured ensemble data.
 
@@ -808,148 +805,133 @@ class KBfitXMLHelper:
 
         Parameters
         ----------
+        xml_output_file
+            The name of the output XML file.
         project_name
             Human-readable project label.
         ensemble_data
-            A list where each element is a tuple ``(ensemble_info, sampling_info, psq_dict)``.
-            ``psq_dict`` is a nested dictionary mapping from momentum-squared (int)
-            to energy type (str) to level (int) to a final tuple containing
-            a list of non-interacting pair strings and the ``SigmondSampling`` object.
+            A list where each element is a tuple ``(ensemble_info, sampling_info, energy_shifts)``.
+            ``energy_shifts`` is a list of ``LabFrameEnergyShiftInfo`` objects.
         reference_particle
-            Name of the particle to use for the reference mass scale.
-        particle_masses
-            Dictionary mapping particle names to their masses in reference units.
+            The name of the reference particle.
+        ensemble_particle_infos
+            Either a single ``ParticleInfo`` object,  where all ensembles use the same single particle mass,
+            or a list of ``ParticleInfo`` objects, where each ensemble uses the set of particle masses provided.
+            If a list of tuples of the form ``(EnsembleInfo, ParticleInfo)`` is provided, then each ensemble uses the
+            associated particle mass. Finally, if a list of tuples of the form ``(EnsembleInfo, List[ParticleInfo])`` is provided,
+            then each ensemble uses the set of particle masses provided.
         sampling_files
-            List of paths to the HDF5 sampling files.
-        k_elements
-            List of ``KElementInfo`` objects defining the K-matrix elements.
+            A list of sampling data files.
         fit_forms
-            List of fit form objects, one for each corresponding k-element.
+            A list of ``FitForm`` objects.
         decay_channels
-            List of ``DecayChannelInfo`` objects.
-        starting_values
-            List of ``FitParameterInfo`` objects for the K-matrix fit.
-        omega_mu, quantization_condition, default_energy_format
-            Optional physics settings for the fit.
-        minimizer_info, root_finder_config
-            Optional configurations for the numerical procedures.
+            A list of ``DecayChannelInfo`` objects.
+        omega_mu
+            The value of omega_mu for the fit.
+        quantization_condition
+            The quantization condition for the fit.
+        default_energy_format
+            The default energy format for the fit.
+        minimizer_info
+            The minimizer info for the fit.
+        root_finder_config
+            The root finder config for the fit.
         cm_energy_ranges
-            Optional dictionary mapping momentum-squared to a ``(min, max)``
-            energy range tuple for the root search. Defaults are provided if ``None``.
-        output_directory, echo_xml, verbose, output_file
-            Optional settings for output and logging.
+            The energy ranges for the root finder.
+        output_directory
+            The directory to write the output file to.
+        echo_xml
+            Whether to echo the XML to the console.
+        verbose
+            Whether to print verbose output.
+        output_samplings_file
+            The name of the output samplings file.
 
         Returns
         -------
-        The pretty-printed KBfit XML document as a string.
+        The KBfit XML document as a string.
         """
-        if minimizer_info is None:
-            minimizer_info = MinimizerInfo()
-
-        if root_finder_config is None:
-            root_finder_config = RootFinderConfig()
-
         # 1. Extract and collate information from ensemble_data
         if not ensemble_data:
             raise ValueError("`ensemble_data` must contain at least one entry.")
-
-        ref_sampling_info = ensemble_data[0][1]
-        all_observables: List[ObservableInfo] = []
+        
+        ref_sampling_info = ensemble_data[0][0]
         all_ensemble_infos: Dict[str, EnsembleInfo] = {}
+        # key is (ensemble_name, psq, irrep)
         energy_shifts_dict: Dict[Tuple[str, int, str], List[LabFrameEnergyShiftInfo]] = {}
 
-        for ens_info, samp_info, psq_dict in ensemble_data:
+        for ens_info, samp_info, energy_shifts in ensemble_data:
             if samp_info != ref_sampling_info:
                 raise ValueError("All entries in `ensemble_data` must share the same SamplingInfo.")
             if ens_info.ensemble_name not in all_ensemble_infos:
                 all_ensemble_infos[ens_info.ensemble_name] = ens_info
 
-            for psq, energy_type_map in psq_dict.items():
-                for energy_type, level_map in energy_type_map.items():
-                    # We are only interested in energy shifts for spectrum fits
-                    if "delab" not in energy_type.lower():
-                        continue
-                    for level, (ni_list, sigmond_sampling) in level_map.items():
-                        obs_info = sigmond_sampling.observable_info
-                        all_observables.append(obs_info)
-                        
-                        momentum_info = self.extract_momentum_info_from_observable(obs_info.name)
-                        if not momentum_info:
-                            continue 
-                        
-                        _, irrep = momentum_info
-                        
-                        if not ni_list:
-                            raise ValueError(f"Non-interacting pair list is empty for observable: {obs_info.name}")
-                        
-                        mcobs_name = f"{obs_info.name} 0"
-                        merged_ni_list = "".join(ni_list)
-                        energy_shift = LabFrameEnergyShiftInfo(mcobs_name, merged_ni_list)
-                        
-                        key = (ens_info.ensemble_name, psq, irrep)
-                        if key not in energy_shifts_dict:
-                            energy_shifts_dict[key] = []
-                        energy_shifts_dict[key].append(energy_shift)
+            for shift_info in energy_shifts:
+                obs_info = shift_info.mcobs
+                obs_name = str(obs_info)
+                
+                momentum_info = self.extract_momentum_info_from_observable(obs_name)
+                if not momentum_info:
+                    continue 
+                
+                psq, irrep = momentum_info
+                
+                key = (ens_info.ensemble_name, psq, irrep)
+                if key not in energy_shifts_dict:
+                    energy_shifts_dict[key] = []
+                energy_shifts_dict[key].append(shift_info)
 
-        unique_ensemble_infos = list(all_ensemble_infos.values())
-        ensemble_momentum_groups = self.group_observables_by_ensemble_and_momentum(all_observables)
-
+        unique_ensemble_infos = list(set(all_ensemble_infos.values()))
+        
+        # setup particle masses to be of the form [(EnsembleInfo, List[ParticleInfo])]
+        ensemble_particle_infos = self._create_ensemble_particle_masses(ensemble_particle_infos, unique_ensemble_infos)
+        
         # 2. Build the XML structure
+        task_type = TaskType.FIT
+        fit_type = FitType.SPECTRUM
+        
         root = self._create_element("KBFit")
         
-        init_elem = self._create_element("Initialize", parent=root)
-        self._create_element("ProjectName", project_name, init_elem)
+        self.create_initialize_element(root, project_name,
+                                        output_directory, f"{project_name}.log",
+                                        echo_xml, ref_sampling_info)
         
-        if output_directory:
-            self._create_element("OutputDirectory", output_directory, init_elem)
+        task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
         
-        self._create_element("LogFile", f"{project_name}.log", init_elem)
+        minimizer_info.create_xml_content(task_elem)
         
-        if echo_xml:
-            self._create_element("EchoXML", parent=init_elem)
+        out_samps_elem = self._create_element("OutSamplingsFile", output_samplings_file, task_elem)
+        task_elem.append(out_samps_elem)
+
+        # enter into spectrum fit task
         
-        sampling_elem = self._create_mcsamplinginfo_element(ref_sampling_info)
-        init_elem.append(sampling_elem)
+        spectrum_elem = self._create_element(fit_type.value, parent=task_elem)
+
+
+        root_finder_config.create_xml_content(spectrum_elem)
+  
         
-        task_seq = self._create_element("TaskSequence", parent=root)
-        task = self._create_element("Task", parent=task_seq)
-        self._create_element("Action", "DoFit", task)
-        self._create_element("Type", TaskType.SPECTRUM.value, task)
-        
-        minimizer_elem = self._create_minimizer_info(minimizer_info)
-        task.append(minimizer_elem)
-        
-        self._create_element("OutSamplingsFile", "fit_param_samplings.hdf5[/samplings]", task)
-        
-        spectrum_elem = self._create_element("SpectrumFit", parent=task)
-        self._create_element("OmegaMu", str(omega_mu), spectrum_elem)
-        self._create_element("QuantizationCondition", quantization_condition.value, spectrum_elem)
-        
-        root_finder_elem = self._create_root_finder_config(root_finder_config)
-        spectrum_elem.append(root_finder_elem)
-        
-        if verbose:
-            self._create_element("Verbose", parent=spectrum_elem)
-        
-        ktilde_elem = self._create_ktilde_matrix_inverse(
-            k_elements, fit_forms, decay_channels, starting_values
-        )
-        spectrum_elem.append(ktilde_elem)
-        
-        self._create_element("DefaultEnergyFormat", default_energy_format.value, spectrum_elem)
+        self.create_common_task_elements()
         
         for ensemble_info in unique_ensemble_infos:
+            # Find the particle masses for this specific ensemble
+            ensemble_particles = None
+            for ens_info, particles in ensemble_particle_infos:
+                if ens_info.ensemble_name == ensemble_info.ensemble_name:
+                    ensemble_particles = particles
+                    break
+            
+            if ensemble_particles is None:
+                raise ValueError(f"No particle masses found for ensemble: {ensemble_info.ensemble_name}")
+            
             params_elem = self._create_mcensemble_parameters(
-                ensemble_info, reference_particle, particle_masses
+                ensemble_info, reference_particle, ensemble_particles
             )
             spectrum_elem.append(params_elem)
         
-        for (ensemble_name, psq, irrep), obs_list in ensemble_momentum_groups.items():
+        for (ensemble_name, psq, irrep), shifts in energy_shifts_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
             box_quant = self.create_box_quantization_from_momentum(psq, irrep)
-            
-            key = (ensemble_name, psq, irrep)
-            shifts = energy_shifts_dict.get(key, [])
             
             try:
                 cm_range = cm_energy_ranges.get(psq, (2.55, 2.85))
@@ -982,36 +964,98 @@ class KBfitXMLHelper:
         
         return '\n'.join(lines)
     
+
+    def create_initialize_element(self, root: ET.Element, project_name: str, output_directory: str, log_file: str,
+                                  echo_xml: bool, common_sampling_info: SamplingInfo) -> None:
+        init_elem = self._create_element("Initialize", parent=root)
+        self._create_element("ProjectName", project_name, init_elem)
+        
+        if output_directory:
+            self._create_element("OutputDirectory", output_directory, init_elem)
+
+        self._create_element("LogFile", log_file, init_elem)
+        
+        if echo_xml:
+            self._create_element("EchoXML", parent=init_elem)
+        
+        sampling_elem = self._create_mcsamplinginfo_element(common_sampling_info)
+        init_elem.append(sampling_elem)
+        
+    
+    def create_task_and_header_elements(self, root: ET.Element, task_type: TaskType,
+                                        fit_type: Optional[FitType] = None) -> ET.Element:
+        task_seq = self._create_element("TaskSequence", parent=root)
+        task = self._create_element("Task", parent=task_seq)
+        self._create_element("Action", task_type.value, task)
+        
+        if task_type == TaskType.FIT:
+            self._create_element("Type", fit_type.value, task)
+        
+        return task
+    
+    def create_common_task_elements(self, task_elem: ET.Element,
+                                   fit_forms: List[FitForm],
+                                   decay_channels: List[DecayChannelInfo],
+                                   omega_mu: float,
+                                   quantization_condition: QuantizationCondition,
+                                   verbose: bool, make_inverse: bool,
+                                   default_energy_format: EnergyFormat,
+                                   reference_particle_str: str,
+                                   ensemble_particle_infos: List[Tuple[EnsembleInfo, List[ParticleInfo]]]):
+        self._create_element("OmegaMu", str(omega_mu), task_elem)
+        self._create_element("QuantizationCondition", quantization_condition.value, task_elem)
+        
+        if verbose:
+            self._create_element("Verbose", parent=task_elem)
+        
+        ktilde_elem = self._create_ktilde_matrix_or_inverse(fit_forms, decay_channels, make_inverse)
+        
+        task_elem.append(ktilde_elem)
+        
+        self._create_element("DefaultEnergyFormat", default_energy_format.value, task_elem)
+        
+        for ensemble_info, particle_infos in ensemble_particle_infos:
+            ensemble_params_elem = self._create_mcensemble_parameters(
+                ensemble_info, reference_particle_str, particle_infos
+            )
+            task_elem.append(ensemble_params_elem)
+
+        
+
     @staticmethod
     def extract_momentum_info_from_observable(observable_name: str) -> Optional[Tuple[int, str]]:
         """
         Extract momentum squared and irrep from observable name.
         
         Args:
-            observable_name: Observable name like "isosinglet_S=0_A1g_1_PSQ=0_elab_2_ref"
+            observable_name: Observable name like "isosinglet_S=0_A1g_1_PSQ=0_elab_2_ref 0"
         
         Returns:
             Tuple of (psq, irrep) or None if not found
         """
-        psq_match = re.search(r'PSQ=(\d+)', observable_name)
-        irrep_match = re.search(r'_(A\d+g?)_', observable_name)
+        psq_match_type_1 = re.search(r'PSQ=(\d+)', observable_name)
+        psq_match_type_2 = re.search(r'P=\(([^)]+)\)', observable_name)
+        irrep_match = re.search(r'S=\d+_(A\d+g?)', observable_name)
         
-        if psq_match and irrep_match:
-            psq = int(psq_match.group(1))
+        if irrep_match:
             irrep = irrep_match.group(1)
-            return psq, irrep
+        else:
+            warnings.warn(f"Could not extract irrep from observable name: {observable_name}")
+            return None
         
-        # Try alternative format
-        p_match = re.search(r'P=\(([^)]+)\)', observable_name)
-        if p_match:
-            p_coords = p_match.group(1).split(',')
+        if psq_match_type_1:
+            psq = int(psq_match_type_1.group(1))
+            return psq, irrep
+        elif psq_match_type_2:
+            p_coords = psq_match_type_2.group(1).split(',')
             psq = sum(int(x)**2 for x in p_coords)
-            irrep_match = re.search(r'_(A\d+)_', observable_name)
+            irrep_match = re.search(r'S=\d+_(A\d+)', observable_name)
             if irrep_match:
                 irrep = irrep_match.group(1)
                 return psq, irrep
-        
-        return None
+        else:
+            warnings.warn(f"Could not extract momentum squared from observable name: {observable_name}")
+            return None
     
     @staticmethod
     def group_observables_by_momentum(observables: List[ObservableInfo]) -> Dict[Tuple[int, str], List[ObservableInfo]]:
@@ -1081,28 +1125,3 @@ class KBfitXMLHelper:
             2: (2.05, 3.0),
             3: (2.05, 3.0)
         }
-    
-    @staticmethod
-    def group_observables_by_ensemble_and_momentum(observables: List[ObservableInfo]) -> Dict[Tuple[str, int, str], List[ObservableInfo]]:
-        """
-        Group observables by ensemble, momentum squared, and irrep.
-        
-        Args:
-            observables: List of observable infos
-        
-        Returns:
-            Dictionary mapping (ensemble_name, psq, irrep) to list of observables
-        """
-        grouped = {}
-        
-        for obs in observables:
-            momentum_info = KBfitXMLHelper.extract_momentum_info_from_observable(obs.name)
-            if momentum_info:
-                psq, irrep = momentum_info
-                ensemble_name = obs.ensemble_info.ensemble_name
-                key = (ensemble_name, psq, irrep)
-                if key not in grouped:
-                    grouped[key] = []
-                grouped[key].append(obs)
-        
-        return grouped 
