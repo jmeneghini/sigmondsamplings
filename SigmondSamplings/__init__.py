@@ -12,9 +12,12 @@ from .sampling import (
 from .stats import SamplingStats
 from .utils import *
 from .kb_xml_helper import (
-    KBfitXMLHelper, BoxQuantizationInfo, MinimizerInfo, MinimizerMethod,
-    KElementInfo, FitParameterInfo, DecayChannelInfo, QuantizationCondition,
-    RootFinderConfig, ExpressionFitForm, PolynomialFitForm, SumOfPolesFitForm, SumOfPolesPlusPolynomialFitForm
+    KBfitXMLHelper, BoxQuantizationInfo, DecayChannelInfo, 
+    KElementInfo, QuantizationCondition,
+    EnergyFormat, OutputMode, Verbosity, MinimizerMethod,
+    MinimizerInfo, RootFinderConfig, TaskType, FitType,
+    ExpressionFitForm, ParticleInfo, LabFrameEnergyShiftInfo,
+    LabFrameEnergyInfo, LabFrameEnergyRangeInfo, FitForm
 )
 
 __version__ = "0.1.0"
@@ -39,12 +42,19 @@ __all__ = [
     'BoxQuantizationInfo',
     'ParticleInfo',
     'KElementInfo',
-    'FitParameterInfo',
     'DecayChannelInfo',
     'QuantizationCondition',
+    'EnergyFormat',
+    'OutputMode',
+    'Verbosity',
+    'MinimizerMethod',
+    'MinimizerInfo',
     'RootFinderConfig',
+    'TaskType',
+    'FitType',
+    'FitForm',
     'ExpressionFitForm',
-    'PolynomialFitForm',
-    'SumOfPolesFitForm',
-    'SumOfPolesPlusPolynomialFitForm'
+    'LabFrameEnergyShiftInfo',
+    'LabFrameEnergyInfo',
+    'LabFrameEnergyRangeInfo'
 ]
