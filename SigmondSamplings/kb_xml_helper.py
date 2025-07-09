@@ -469,6 +469,7 @@ class KBfitXMLHelper:
         sampling_files: List[str],
         fit_forms: List[FitForm],
         decay_channels: List[DecayChannelInfo],
+        max_Ls: int | List[int],
         omega_mu: float = 30.0,
         quantization_condition: QuantizationCondition = QuantizationCondition.KTILDE_INV_B,
         use_inverse_k_matrix: bool = True,
@@ -502,6 +503,8 @@ class KBfitXMLHelper:
             A list of ``FitForm`` objects.
         decay_channels
             A list of ``DecayChannelInfo`` objects.
+        max_Ls
+            The maximum L values for the KBBlocks.
         omega_mu
             The value of omega_mu for the fit.
         quantization_condition
@@ -569,7 +572,7 @@ class KBfitXMLHelper:
                                         output_directory, f"{project_name}.log",
                                         echo_xml, ref_sampling_info)
         
-        task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
+        task_elem = self.create_fit_task_elements(root, task_type, fit_type)
         
         self.create_fit_task_elements(task_elem, minimizer_info, output_samplings_file, add_ecm_qcm_stub=True)
         
@@ -583,7 +586,7 @@ class KBfitXMLHelper:
         block_data = []
         for (ensemble_name, psq, irrep), lab_energies in lab_energies_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
-            box_quant = self.create_box_quantization_from_momentum(psq, irrep)
+            box_quant = self.create_box_quantization_from_momentum(psq, irrep, max_Ls)
             block_data.append((ensemble_info, box_quant, lab_energies))
         
         self.create_kbblocks_and_observables(detres_elem, ref_sampling_info, sampling_files, verbose, block_data)
@@ -720,6 +723,7 @@ class KBfitXMLHelper:
         sampling_files: List[str],
         fit_forms: List[FitForm],   
         decay_channels: List[DecayChannelInfo],
+        max_Ls: int | List[int],
         omega_mu: float = 0.8,
         use_inverse_k_matrix: bool = True,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
@@ -763,6 +767,8 @@ class KBfitXMLHelper:
             A list of ``FitForm`` objects.
         decay_channels
             A list of ``DecayChannelInfo`` objects.
+        max_Ls
+            The maximum L values for the KBBlocks.
         omega_mu
             The value of omega_mu for the fit.
         use_inverse_k_matrix
@@ -853,7 +859,7 @@ class KBfitXMLHelper:
         block_data = []
         for (ensemble_name, psq, irrep), shifts in energy_shifts_dict.items():
             ensemble_info = all_ensemble_infos[ensemble_name]
-            box_quant = self.create_box_quantization_from_momentum(psq, irrep)
+            box_quant = self.create_box_quantization_from_momentum(psq, irrep, max_Ls)
             
             try:
                 cm_range = cm_energy_ranges.get(psq, (2.50, 2.90))
@@ -1067,7 +1073,7 @@ class KBfitXMLHelper:
         return grouped
     
     @staticmethod
-    def create_box_quantization_from_momentum(psq: int, irrep: str, lmax: int = 0) -> BoxQuantizationInfo:
+    def create_box_quantization_from_momentum(psq: int, irrep: str, lmax_values: int | List[int] = 0) -> BoxQuantizationInfo:
         """
         Create BoxQuantizationInfo from momentum squared and irrep.
         
@@ -1093,7 +1099,7 @@ class KBfitXMLHelper:
             momentum_ray=momentum_ray,
             momentum_int_squared=psq,
             lg_irrep=irrep,
-            lmax_values=lmax
+            lmax_values=lmax_values
         )
     
     @staticmethod
