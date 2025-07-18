@@ -349,7 +349,7 @@ class KBfitXMLHelper:
     def _create_kbblock_spectrum(self, ensemble_info: EnsembleInfo,
                                 box_quantization: BoxQuantizationInfo,
                                 energy_shifts: List[LabFrameEnergyShiftInfo],
-                                cm_energy_range: Tuple[float, float]) -> ET.Element:
+                                cm_energy_info: Tuple[float, float] | float) -> ET.Element:
         """Create KBBlock element for spectrum fits."""
         kb_block = self._create_kbblock_xml(ensemble_info, box_quantization)
         
@@ -358,9 +358,15 @@ class KBfitXMLHelper:
             shift.create_xml_content(kb_block)
         
         # CM frame energy range for the root finder
-        self._create_element("CMFrameEnergyMin", str(cm_energy_range[0]), kb_block)
-        self._create_element("CMFrameEnergyMax", str(cm_energy_range[1]), kb_block)
-        
+        if isinstance(cm_energy_info, tuple) and len(cm_energy_info) == 2:
+            self._create_element("CMFrameEnergyMin", str(cm_energy_info[0]), kb_block)
+            self._create_element("CMFrameEnergyMax", str(cm_energy_info[1]), kb_block)
+        elif isinstance(cm_energy_info, float):
+            # If a single float is provided, use it as the margin
+            self._create_element("CMFrameEnergyAutoRangeMargin", str(cm_energy_info), kb_block)
+        else:
+            raise ValueError("`cm_energy_info` must be a tuple of (min, max) or a single float margin.")
+
         return kb_block
     
     def _create_kbblock_print(self, ensemble_info: EnsembleInfo,
@@ -572,7 +578,7 @@ class KBfitXMLHelper:
                                         output_directory, f"{project_name}.log",
                                         echo_xml, ref_sampling_info)
         
-        task_elem = self.create_fit_task_elements(root, task_type, fit_type)
+        task_elem = self.create_task_and_header_elements(root, task_type, fit_type)
         
         self.create_fit_task_elements(task_elem, minimizer_info, output_samplings_file, add_ecm_qcm_stub=True)
         
@@ -724,12 +730,12 @@ class KBfitXMLHelper:
         fit_forms: List[FitForm],   
         decay_channels: List[DecayChannelInfo],
         max_Ls: int | List[int],
+        cm_energy_range_info: Dict[int, Tuple[float, float]] | Dict[int, float] | float,
         omega_mu: float = 0.8,
         use_inverse_k_matrix: bool = True,
         default_energy_format: EnergyFormat = EnergyFormat.REFERENCE_RATIO,
         minimizer_info: MinimizerInfo = MinimizerInfo(),
         root_finder_config: RootFinderConfig = RootFinderConfig(),
-        cm_energy_ranges: Optional[Dict[int, Tuple[float, float]]] = None,
         output_directory: str = ".",
         echo_xml: bool = True,
         verbose: bool = True,
@@ -769,6 +775,9 @@ class KBfitXMLHelper:
             A list of ``DecayChannelInfo`` objects.
         max_Ls
             The maximum L values for the KBBlocks.
+        cm_energy_range_info
+            The CM energy range information for the root finder.
+            This can be a dictionary mapping (psq, irrep) to a tuple of (
         omega_mu
             The value of omega_mu for the fit.
         use_inverse_k_matrix
@@ -861,12 +870,21 @@ class KBfitXMLHelper:
             ensemble_info = all_ensemble_infos[ensemble_name]
             box_quant = self.create_box_quantization_from_momentum(psq, irrep, max_Ls)
             
-            try:
-                cm_range = cm_energy_ranges.get(psq, (2.50, 2.90))
-            except:
-                cm_range = (2.50, 2.90)
+            if isinstance(cm_energy_range_info, dict):
+                # If cm_energy_range_info is a dict, get the range for this psq
+                if psq in cm_energy_range_info:
+                    cm_range_info = cm_energy_range_info[psq]
+                else:
+                    # Use default range if not specified
+                    cm_range_info = (2.05, 3.0)
+            elif isinstance(cm_energy_range_info, float):
+                # Single float margin for all
+                cm_range_info = cm_energy_range_info
+            else:
+                # Default margin
+                cm_range_info = 0.5
 
-            block_data.append((ensemble_info, box_quant, (shifts, cm_range)))
+            block_data.append((ensemble_info, box_quant, (shifts, cm_range_info)))
         
         self.create_kbblocks_and_observables(spectrum_elem, ref_sampling_info, sampling_files, verbose, block_data)
         
@@ -987,7 +1005,7 @@ class KBfitXMLHelper:
         block_data
             List of tuples containing (ensemble_info, box_quantization, block_specific_data)
             where block_specific_data can be:
-            - (energy_shifts, cm_range) tuple for spectrum
+            - (energy_shifts, cm_range | cm_range_margin) tuple for spectrum
             - List[LabFrameEnergyInfo] for detres
             - LabFrameEnergyRangeInfo for print
         """
@@ -995,8 +1013,8 @@ class KBfitXMLHelper:
         for ensemble_info, box_quant, block_specific_data in block_data:
             if isinstance(block_specific_data, tuple) and len(block_specific_data) == 2:
                 # Spectrum: (energy_shifts, cm_range)
-                energy_shifts, cm_range = block_specific_data
-                kb_block = self._create_kbblock_spectrum(ensemble_info, box_quant, energy_shifts, cm_range)
+                energy_shifts, cm_range_info = block_specific_data
+                kb_block = self._create_kbblock_spectrum(ensemble_info, box_quant, energy_shifts, cm_range_info)
             elif isinstance(block_specific_data, list):
                 # Detres: list of LabFrameEnergyInfo (may be empty)
                 kb_block = self._create_kbblock_detres(ensemble_info, box_quant, block_specific_data)
