@@ -81,40 +81,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="sigmondsamplings" class="level1">
 <h1>SigmondSamplings</h1>
-<p>A Python package for handling Sigmond samplings files, supporting both fstream and HDF5 formats with comprehensive statistical analysis capabilities and KB fit XML generation.</p>
-<p><a href="https://python.org"><img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" class="img-fluid" alt="Python Version"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" class="img-fluid" alt="License"></a> <a href="tests/"><img src="https://img.shields.io/badge/tests-116%20passed-brightgreen.svg" class="img-fluid" alt="Tests"></a></p>
+<p>A Python package for handling Sigmond samplings files with comprehensive statistical analysis capabilities for lattice QCD research.</p>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>SigmondSamplings is designed for lattice QCD researchers working with Monte Carlo sampling data. It provides a high-level Python interface to load, manipulate, and analyze Sigmond samplings files, with support for both bootstrap and jackknife resampling methods, plus powerful XML generation capabilities for KB fits.</p>
-<section id="key-features" class="level3">
-<h3 class="anchored" data-anchor-id="key-features">Key Features</h3>
-<ul>
-<li><strong>File Format Support</strong>: Load both fstream (<code>.smp</code>) and HDF5 (<code>.hdf5</code>) Sigmond files</li>
-<li><strong>Automatic Path Detection</strong>: Intelligent HDF5 path discovery and error handling</li>
-<li><strong>Statistical Operations</strong>: Bootstrap and jackknife error analysis with proper error propagation</li>
-<li><strong>Multi-Ensemble Support</strong>: Handle samplings from different ensembles with proper covariance treatment</li>
-<li><strong>Arithmetic Operations</strong>: Full support for sampling arithmetic with flexible compatibility checking</li>
-<li><strong>Complex Numbers</strong>: Native support for complex-valued observables</li>
-<li><strong>Correlation Analysis</strong>: Covariance and correlation matrix calculations with cross-ensemble handling</li>
-<li><strong>KB Fit XML Generation</strong>: Comprehensive XML generation for KB fits (determinant residual, single channel, print tasks)</li>
-<li><strong>Synthetic Data</strong>: Generate synthetic samplings for testing and validation</li>
-<li><strong>Comprehensive Testing</strong>: 116 unit tests covering all functionality</li>
-</ul>
+<p>SigmondSamplings provides a high-level Python interface to load, manipulate, and analyze Sigmond samplings files. It supports both bootstrap and jackknife resampling methods with robust error propagation and multi-ensemble analysis capabilities.</p>
 </section>
+<section id="key-features" class="level2">
+<h2 class="anchored" data-anchor-id="key-features">Key Features</h2>
+<ul>
+<li><strong>File Format Support</strong>: Load both fstream and HDF5 (<code>.hdf5</code>) Sigmond files</li>
+<li><strong>Statistical Operations</strong>: Bootstrap and jackknife error analysis with proper error propagation</li>
+<li><strong>Multi-Ensemble Support</strong>: Handle samplings from different ensembles with automatic covariance treatment</li>
+<li><strong>Arithmetic Operations</strong>: Fast and full support for sampling arithmetic via numpy, with observable compatibility checking</li>
+<li><strong>Complex Numbers</strong>: Native support for complex-valued observables</li>
+<li><strong>Correlation Analysis</strong>: Covariance and correlation matrix calculations</li>
+<li><strong>Synthetic Data</strong>: Generate synthetic samplings for testing and validation</li>
+</ul>
 </section>
 <section id="installation" class="level2">
 <h2 class="anchored" data-anchor-id="installation">Installation</h2>
 <section id="from-source" class="level3">
 <h3 class="anchored" data-anchor-id="from-source">From Source</h3>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/johndoe/SigmondSamplings.git</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> SigmondSamplings</span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>repository-url<span class="op">&gt;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> SigmondResamplings</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> .</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="development-installation" class="level3">
 <h3 class="anchored" data-anchor-id="development-installation">Development Installation</h3>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/johndoe/SigmondSamplings.git</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> SigmondSamplings</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">".[dev]"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">".[dev]"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="requirements" class="level3">
 <h3 class="anchored" data-anchor-id="requirements">Requirements</h3>
@@ -122,531 +116,140 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Python 3.8+</li>
 <li>NumPy ≥ 1.20.0</li>
 <li>SciPy ≥ 1.7.0</li>
-<li><code>sigmond_query</code> command-line tool (for loading Sigmond files)</li>
+<li><code>sigmond_query</code> command-line tool (see <a href="https://github.com/jmeneghini/sigmond/tree/pip">Sigmond</a>)</li>
 </ul>
 </section>
 </section>
 <section id="quick-start" class="level2">
 <h2 class="anchored" data-anchor-id="quick-start">Quick Start</h2>
-<section id="loading-sigmond-files" class="level3">
-<h3 class="anchored" data-anchor-id="loading-sigmond-files">Loading Sigmond Files</h3>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> SigmondLoader</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Initialize loader</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> SigmondLoader()</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Load fstream file</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>ensemble_info, sampling_info, observables <span class="op">=</span> loader.get_file_info(<span class="st">'data.smp'</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Load HDF5 file (with automatic path detection)</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>is_valid, file_type, paths <span class="op">=</span> loader.check_file_validity(<span class="st">'data.hdf5'</span>)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> paths:</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    file_with_path <span class="op">=</span> <span class="ss">f'data.hdf5[</span><span class="sc">{</span>paths[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">]'</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    ensemble_info, sampling_info, observables <span class="op">=</span> loader.get_file_info(file_with_path)</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Load specific observable</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>sampling <span class="op">=</span> loader.load_observable(<span class="st">'data.smp'</span>, <span class="st">'pion_mass'</span>)</span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Pion mass: </span><span class="sc">{</span>sampling<span class="sc">.</span>mean<span class="sc">:.6f}</span><span class="ss"> ± </span><span class="sc">{</span>sampling<span class="sc">.</span>error<span class="sc">:.6f}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> SigmondLoader, SamplingStats</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Load Sigmond files</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> SigmondLoader()</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>file_name <span class="op">=</span> <span class="st">'data.smp'</span> <span class="co"># fstream format</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>file_name <span class="op">=</span> <span class="st">'data.hdf5[\path</span><span class="ch">\t</span><span class="st">o\samplings]'</span> <span class="co"># HDF5 format (tag must be specified in filename)</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>ensemble_info, sampling_info, observables <span class="op">=</span> loader.get_file_info(<span class="st">'data.smp'</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Load specific observable</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>pion_mass <span class="op">=</span> loader.load_observable(<span class="st">'data.smp'</span>, <span class="st">'pion_mass'</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Pion mass: </span><span class="sc">{</span>pion_mass<span class="sc">.</span>mean<span class="sc">:.6f}</span><span class="ss"> ± </span><span class="sc">{</span>pion_mass<span class="sc">.</span>error<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-observable analysis</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>kaon_mass <span class="op">=</span> loader.load_observable(<span class="st">'data.smp'</span>, <span class="st">'kaon_mass'</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([pion_mass, kaon_mass])</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate correlations</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>corr_matrix <span class="op">=</span> stats.correlation_matrix()</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Correlation matrix:"</span>, corr_matrix)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="working-with-samplings" class="level3">
-<h3 class="anchored" data-anchor-id="working-with-samplings">Working with Samplings</h3>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> SigmondSampling, EnsembleInfo, SamplingInfo</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create sampling from data</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> np.array([<span class="fl">1.0</span>, <span class="fl">1.1</span>, <span class="fl">0.9</span>, <span class="fl">1.05</span>, <span class="fl">0.95</span>])  <span class="co"># full sample + resamples</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>ensemble_info <span class="op">=</span> EnsembleInfo(<span class="st">"test_ensemble"</span>, <span class="dv">1000</span>, <span class="dv">100</span>)</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">4</span>, <span class="dv">1234</span>)</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>sampling <span class="op">=</span> SigmondSampling(data, ensemble_info, sampling_info)</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Access properties</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Full sample value: </span><span class="sc">{</span>sampling<span class="sc">.</span>full_sample_value<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mean: </span><span class="sc">{</span>sampling<span class="sc">.</span>mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Error: </span><span class="sc">{</span>sampling<span class="sc">.</span>error<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Resampled values: </span><span class="sc">{</span>sampling<span class="sc">.</span>resampled_values<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="core-classes" class="level2">
+<h2 class="anchored" data-anchor-id="core-classes">Core Classes</h2>
+<section id="sigmondsampling" class="level3">
+<h3 class="anchored" data-anchor-id="sigmondsampling">SigmondSampling</h3>
+<p>Main class for individual observables with statistical methods:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Access properties</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Full sample: </span><span class="sc">{</span>sampling<span class="sc">.</span>full_sample_value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Mean: </span><span class="sc">{</span>sampling<span class="sc">.</span>mean<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Error: </span><span class="sc">{</span>sampling<span class="sc">.</span>error<span class="sc">:.6f}</span><span class="ss">"</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Arithmetic operations</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>mass_ratio <span class="op">=</span> kaon_mass <span class="op">/</span> pion_mass</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>mass_difference <span class="op">=</span> kaon_mass <span class="op">-</span> pion_mass</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="multi-ensemble-statistical-analysis" class="level3">
-<h3 class="anchored" data-anchor-id="multi-ensemble-statistical-analysis">Multi-Ensemble Statistical Analysis</h3>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> SamplingStats, create_uniform_sampling</span>
+<section id="samplingstats" class="level3">
+<h3 class="anchored" data-anchor-id="samplingstats">SamplingStats</h3>
+<p>Multi-observable statistical analysis:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([pion_mass, kaon_mass, mass_ratio])</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Create samplings from different ensembles (same sampling_info)</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">100</span>, <span class="dv">1234</span>)</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>ensemble1 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_a"</span>, <span class="dv">1000</span>, <span class="dv">100</span>)</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>ensemble2 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_b"</span>, <span class="dv">2000</span>, <span class="dv">100</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Statistical analysis</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>means <span class="op">=</span> stats.sample_means()</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>errors <span class="op">=</span> stats.sample_errors() </span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> stats.covariance_matrix()</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># These samplings are compatible despite different ensembles</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>sampling1 <span class="op">=</span> create_uniform_sampling(<span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="dv">100</span>, seed<span class="op">=</span><span class="dv">1234</span>)</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>sampling2 <span class="op">=</span> create_uniform_sampling(<span class="fl">1.0</span>, <span class="fl">2.0</span>, <span class="dv">100</span>, seed<span class="op">=</span><span class="dv">1234</span>)</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-observable analysis</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([sampling1, sampling2])</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Covariance between different ensembles is zero</span></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> stats.covariance_matrix()</span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Cross-ensemble covariance: </span><span class="sc">{</span>cov_matrix[<span class="dv">0</span>,<span class="dv">1</span>]<span class="sc">}</span><span class="ss">"</span>)  <span class="co"># Should be 0.0</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Standard statistical analysis</span></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>means <span class="op">=</span> stats.sample_means()</span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>errors <span class="op">=</span> stats.sample_errors()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Chi-squared analysis</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>chi_sq, dof <span class="op">=</span> stats.chi_squared(theory_values)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="kb-fit-xml-generation" class="level3">
-<h3 class="anchored" data-anchor-id="kb-fit-xml-generation">KB Fit XML Generation</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> (</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    KBfitXMLHelper, BoxQuantizationInfo, ParticleInfo, </span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    KElementInfo, FitParameterInfo</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<section id="sigmondloader" class="level3">
+<h3 class="anchored" data-anchor-id="sigmondloader">SigmondLoader</h3>
+<p>Main interface for loading Sigmond files:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> SigmondLoader()</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Check file validity</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>is_valid, file_type, paths <span class="op">=</span> loader.check_file_validity(<span class="st">'data.hdf5'</span>)</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Initialize XML helper</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>xml_helper <span class="op">=</span> KBfitXMLHelper()</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Load all observables</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>all_samplings <span class="op">=</span> loader.load_all_observables(<span class="st">'data.smp'</span>)</span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Create ensemble and sampling info</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>ensemble_info <span class="op">=</span> EnsembleInfo(<span class="st">"cls21_s64_t128_D200"</span>, <span class="dv">10000</span>, <span class="dv">500</span>)</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">1000</span>, <span class="dv">1234</span>)</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Define observables</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>observables <span class="op">=</span> [</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"isotriplet_nucleon_T1u_mom0_p0_0_0_A1p_mom0_0"</span>,</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"isotriplet_nucleon_T1u_mom1_p1_0_0_A1p_mom0_0"</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Create reference particle info</span></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>reference_particle <span class="op">=</span> ParticleInfo(<span class="st">"nucleon"</span>, <span class="dv">2</span>)  <span class="co"># spin-1/2</span></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate determinant residual fit XML</span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>detres_xml <span class="op">=</span> KBfitXMLHelper.create_detres_xml(</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    observables,</span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    ensemble_info,</span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    t_min<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    t_max<span class="op">=</span><span class="dv">15</span>,</span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    energy_fit_info<span class="op">=</span>{<span class="st">"fit_form"</span>: <span class="st">"polynomial"</span>, <span class="st">"order"</span>: <span class="dv">2</span>},</span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    amplitude_fit_info<span class="op">=</span>{<span class="st">"fit_form"</span>: <span class="st">"polynomial"</span>, <span class="st">"order"</span>: <span class="dv">1</span>}</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate single channel fit XML</span></span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>single_channel_xml <span class="op">=</span> KBfitXMLHelper.create_single_channel_xml(</span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    observables,</span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    ensemble_info,</span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    reference_particle,</span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>    t_min<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>    t_max<span class="op">=</span><span class="dv">15</span>,</span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    num_exponentials<span class="op">=</span><span class="dv">3</span></span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate print task XML</span></span>
-<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>print_xml <span class="op">=</span> KBfitXMLHelper.create_print_xml(</span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>    observables,</span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    ensemble_info,</span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    [reference_particle],</span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>    print_correlations<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>    print_effective_masses<span class="op">=</span><span class="va">True</span></span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a><span class="co"># Save to file</span></span>
-<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> <span class="bu">open</span>(<span class="st">"kb_fit_config.xml"</span>, <span class="st">"w"</span>) <span class="im">as</span> f:</span>
-<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>    f.write(detres_xml)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="api-reference" class="level2">
-<h2 class="anchored" data-anchor-id="api-reference">API Reference</h2>
-<section id="core-classes" class="level3">
-<h3 class="anchored" data-anchor-id="core-classes">Core Classes</h3>
-<section id="sigmondsampling" class="level4">
-<h4 class="anchored" data-anchor-id="sigmondsampling"><code>SigmondSampling</code></h4>
-<p>Represents a single observable with its sampling data.</p>
-<p><strong>Constructor:</strong></p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>SigmondSampling(data, ensemble_info, sampling_info, is_complex<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>Properties:</strong> - <code>full_sample_value</code>: Original (unsampled) value - <code>resampled_values</code>: Array of resampled values - <code>mean</code>: Sample mean - <code>std</code>: Sample standard deviation<br>
-- <code>error</code>: Statistical error (bootstrap or jackknife corrected) - <code>ensemble_info</code>: Ensemble metadata - <code>sampling_info</code>: Sampling method information - <code>is_complex</code>: Whether the sampling contains complex data</p>
-<p><strong>Arithmetic Operations:</strong> Samplings are compatible for arithmetic if they have the <strong>same <code>sampling_info</code></strong> (different ensembles allowed): - Addition: <code>sampling1 + sampling2</code> or <code>sampling + scalar</code> - Subtraction: <code>sampling1 - sampling2</code> or <code>sampling - scalar</code> - Multiplication: <code>sampling1 * sampling2</code> or <code>sampling * scalar</code> - Division: <code>sampling1 / sampling2</code> or <code>sampling / scalar</code></p>
-</section>
-<section id="samplingstats" class="level4">
-<h4 class="anchored" data-anchor-id="samplingstats"><code>SamplingStats</code></h4>
-<p>Multi-observable statistical analysis with support for mixed ensembles.</p>
-<p><strong>Constructor:</strong></p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>SamplingStats(samplings)  <span class="co"># List of SigmondSampling objects</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>Methods:</strong> - <code>sample_means()</code> → <code>np.ndarray</code>: Mean values - <code>sample_errors()</code> → <code>np.ndarray</code>: Statistical errors - <code>covariance_matrix()</code> → <code>np.ndarray</code>: Covariance matrix (zero between different ensembles) - <code>correlation_matrix()</code> → <code>np.ndarray</code>: Correlation matrix - <code>covariance(i, j)</code> → <code>float</code>: Covariance between observables i and j - <code>chi_squared(theory_values, use_correlation=True)</code> → <code>(chi_sq, dof)</code> - <code>effective_sample_size()</code> → <code>np.ndarray</code>: Effective sample sizes - <code>unique_ensembles</code> → <code>List[EnsembleInfo]</code>: List of unique ensembles in the dataset</p>
-</section>
-<section id="kbfitxmlhelper" class="level4">
-<h4 class="anchored" data-anchor-id="kbfitxmlhelper"><code>KBfitXMLHelper</code></h4>
-<p>XML generation for KB fits with comprehensive configuration options.</p>
-<p><strong>Key Methods:</strong> - <code>create_detres_xml()</code>: Generate determinant residual fit XML - <code>create_single_channel_xml()</code>: Generate single channel fit XML<br>
-- <code>create_print_xml()</code>: Generate print task XML - <code>extract_momentum_info_from_observable()</code>: Parse momentum info from observable names - <code>group_observables_by_momentum()</code>: Group observables by momentum quantum numbers - <code>create_box_quantization_from_momentum()</code>: Create box quantization from momentum info</p>
-</section>
-<section id="sigmondloader" class="level4">
-<h4 class="anchored" data-anchor-id="sigmondloader"><code>SigmondLoader</code></h4>
-<p>Main interface for loading Sigmond files.</p>
-<p><strong>Methods:</strong> - <code>check_file_validity(filepath)</code> → <code>(is_valid, file_type, hdf5_paths)</code> - <code>get_file_info(filepath)</code> → <code>(ensemble_info, sampling_info, observable_infos)</code> - <code>load_observable(filepath, observable_name)</code> → <code>SigmondSampling</code> - <code>load_all_observables(filepath)</code> → <code>List[SigmondSampling]</code> - <code>find_observables(filepath, pattern)</code> → <code>List[ObservableInfo]</code></p>
-</section>
-</section>
-<section id="information-classes" class="level3">
-<h3 class="anchored" data-anchor-id="information-classes">Information Classes</h3>
-<section id="ensembleinfo" class="level4">
-<h4 class="anchored" data-anchor-id="ensembleinfo"><code>EnsembleInfo</code></h4>
-<ul>
-<li><code>ensemble_name</code>: Ensemble identifier</li>
-<li><code>num_measurements</code>: Number of measurements</li>
-<li><code>num_bins</code>: Number of bins</li>
-<li><code>tweak_info</code>: Dictionary of ensemble tweaks</li>
-</ul>
-</section>
-<section id="samplinginfo" class="level4">
-<h4 class="anchored" data-anchor-id="samplinginfo"><code>SamplingInfo</code></h4>
-<ul>
-<li><code>method</code>: “bootstrap” or “jackknife”</li>
-<li><code>num_resamplings</code>: Number of resamples</li>
-<li><code>seed</code>: Random seed (bootstrap only)</li>
-<li><code>boot_skip</code>: Bootstrap skip parameter (bootstrap only)</li>
-</ul>
-</section>
-<section id="observableinfo" class="level4">
-<h4 class="anchored" data-anchor-id="observableinfo"><code>ObservableInfo</code></h4>
-<ul>
-<li><code>name</code>: Observable name</li>
-<li><code>index</code>: Observable index</li>
-<li><code>op_type</code>: Operator type</li>
-<li><code>re_im</code>: Real/imaginary/complex type (“re”, “im”, “cx”)</li>
-</ul>
-</section>
-<section id="boxquantizationinfo" class="level4">
-<h4 class="anchored" data-anchor-id="boxquantizationinfo"><code>BoxQuantizationInfo</code></h4>
-<ul>
-<li><code>momentum_ray</code>: Momentum ray type (“ar”, “oa”, “pd”, “cd”)</li>
-<li><code>momentum_int_squared</code>: Momentum squared integer</li>
-<li><code>lg_irrep</code>: Little group irreducible representation</li>
-<li><code>lmax_values</code>: Maximum angular momentum values</li>
-</ul>
-</section>
-<section id="particleinfo" class="level4">
-<h4 class="anchored" data-anchor-id="particleinfo"><code>ParticleInfo</code></h4>
-<ul>
-<li><code>name</code>: Particle name</li>
-<li><code>spin_times_two</code>: Particle spin × 2 (integer)</li>
-<li><code>identical</code>: Whether particles are identical</li>
-</ul>
-</section>
-<section id="kelementinfo" class="level4">
-<h4 class="anchored" data-anchor-id="kelementinfo"><code>KElementInfo</code></h4>
-<ul>
-<li><code>j_times_two</code>: Total angular momentum × 2</li>
-<li><code>k_index1</code>: First K-matrix index</li>
-<li><code>k_index2</code>: Second K-matrix index</li>
-</ul>
-</section>
-</section>
-<section id="utility-functions" class="level3">
-<h3 class="anchored" data-anchor-id="utility-functions">Utility Functions</h3>
-<section id="synthetic-data-generation" class="level4">
-<h4 class="anchored" data-anchor-id="synthetic-data-generation">Synthetic Data Generation</h4>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings.utils <span class="im">import</span> (</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    create_gaussian_sampling,</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    create_uniform_sampling,</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    create_complex_gaussian_sampling</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create sampling info first</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">1000</span>, <span class="dv">1234</span>)</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Real-valued Gaussian sampling</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>sampling <span class="op">=</span> create_gaussian_sampling(</span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    mean<span class="op">=</span><span class="fl">1.0</span>, std<span class="op">=</span><span class="fl">0.1</span>, </span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    sampling_info<span class="op">=</span>sampling_info,</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    observable_name<span class="op">=</span><span class="st">"test_obs"</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Complex-valued Gaussian sampling</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>complex_sampling <span class="op">=</span> create_complex_gaussian_sampling(</span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    mean_real<span class="op">=</span><span class="fl">1.0</span>, std_real<span class="op">=</span><span class="fl">0.1</span>,</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    mean_imag<span class="op">=</span><span class="fl">0.5</span>, std_imag<span class="op">=</span><span class="fl">0.05</span>,</span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    sampling_info<span class="op">=</span>sampling_info</span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Uniform sampling (simpler interface)</span></span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>uniform_sampling <span class="op">=</span> create_uniform_sampling(</span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    low<span class="op">=</span><span class="fl">0.0</span>, high<span class="op">=</span><span class="fl">1.0</span>, num_samples<span class="op">=</span><span class="dv">1000</span>, seed<span class="op">=</span><span class="dv">1234</span></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="complex-number-utilities" class="level4">
-<h4 class="anchored" data-anchor-id="complex-number-utilities">Complex Number Utilities</h4>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings.utils <span class="im">import</span> combine_real_imaginary, split_complex_sampling</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine real and imaginary samplings</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>complex_sampling <span class="op">=</span> combine_real_imaginary(real_sampling, imag_sampling)</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Split complex sampling</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>real_part, imag_part <span class="op">=</span> split_complex_sampling(complex_sampling)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-</section>
-<section id="compatibility-rules" class="level2">
-<h2 class="anchored" data-anchor-id="compatibility-rules">Compatibility Rules</h2>
-<section id="sampling-compatibility" class="level3">
-<h3 class="anchored" data-anchor-id="sampling-compatibility">Sampling Compatibility</h3>
-<p>Two samplings are compatible for arithmetic operations if they have: 1. <strong>Same <code>sampling_info</code></strong> (method, number of resamplings, seed) 2. <strong>Same data length</strong> 3. <strong>Different <code>ensemble_info</code> is allowed</strong></p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># These are compatible despite different ensembles</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ensemble1 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_a"</span>, <span class="dv">1000</span>, <span class="dv">100</span>)</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>ensemble2 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_b"</span>, <span class="dv">2000</span>, <span class="dv">100</span>)</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">100</span>, <span class="dv">1234</span>)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>sampling1 <span class="op">=</span> SigmondSampling(data1, ensemble1, sampling_info)</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>sampling2 <span class="op">=</span> SigmondSampling(data2, ensemble2, sampling_info)</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> sampling1 <span class="op">+</span> sampling2  <span class="co"># This works!</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="covariance-rules" class="level3">
-<h3 class="anchored" data-anchor-id="covariance-rules">Covariance Rules</h3>
-<ul>
-<li><strong>Same ensemble</strong>: Normal covariance calculation</li>
-<li><strong>Different ensembles</strong>: Covariance = 0.0</li>
-<li><strong>Diagonal elements</strong>: Always return variance (error²)</li>
-</ul>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([sampling1, sampling2])</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> stats.covariance_matrix()</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># cov_matrix[0,1] = 0.0 (different ensembles)</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># cov_matrix[0,0] = variance of sampling 0</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="kb-fit-xml-generation-1" class="level2">
-<h2 class="anchored" data-anchor-id="kb-fit-xml-generation-1">KB Fit XML Generation</h2>
-<section id="observable-momentum-parsing" class="level3">
-<h3 class="anchored" data-anchor-id="observable-momentum-parsing">Observable Momentum Parsing</h3>
-<p>The package can automatically extract momentum information from observable names:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>obs_name <span class="op">=</span> <span class="st">"isosinglet_S=0_A1g_1_PSQ=0_elab_2_ref"</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>momentum_info <span class="op">=</span> KBfitXMLHelper.extract_momentum_info_from_observable(obs_name)</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> momentum_info:</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    psq, irrep <span class="op">=</span> momentum_info</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"PSQ=</span><span class="sc">{</span>psq<span class="sc">}</span><span class="ss">, irrep=</span><span class="sc">{</span>irrep<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="xml-generation-examples" class="level3">
-<h3 class="anchored" data-anchor-id="xml-generation-examples">XML Generation Examples</h3>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Determinant residual fit</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>detres_xml <span class="op">=</span> KBfitXMLHelper.create_detres_xml(</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>observable_list,</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    ensemble_info<span class="op">=</span>ensemble_info,</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    t_min<span class="op">=</span><span class="dv">3</span>, t_max<span class="op">=</span><span class="dv">15</span>,</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    energy_fit_info<span class="op">=</span>{<span class="st">"fit_form"</span>: <span class="st">"polynomial"</span>, <span class="st">"order"</span>: <span class="dv">2</span>},</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    amplitude_fit_info<span class="op">=</span>{<span class="st">"fit_form"</span>: <span class="st">"string"</span>, <span class="st">"expression"</span>: <span class="st">"A0*exp(-E0*t)"</span>}</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Single channel fit</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>single_xml <span class="op">=</span> KBfitXMLHelper.create_single_channel_xml(</span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>observable_list,</span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    ensemble_info<span class="op">=</span>ensemble_info,</span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    reference_particle<span class="op">=</span>ParticleInfo(<span class="st">"nucleon"</span>, <span class="dv">2</span>),</span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    t_min<span class="op">=</span><span class="dv">3</span>, t_max<span class="op">=</span><span class="dv">15</span>,</span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    num_exponentials<span class="op">=</span><span class="dv">3</span></span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Print task with correlations</span></span>
-<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>print_xml <span class="op">=</span> KBfitXMLHelper.create_print_xml(</span>
-<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>observable_list,</span>
-<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>    ensemble_info<span class="op">=</span>ensemble_info,</span>
-<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    reference_particles<span class="op">=</span>[ParticleInfo(<span class="st">"nucleon"</span>, <span class="dv">2</span>)],</span>
-<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    print_correlations<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>    print_effective_masses<span class="op">=</span><span class="va">True</span>,</span>
-<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>    print_energy_differences<span class="op">=</span><span class="va">True</span></span>
-<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Find observables by pattern</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>pion_observables <span class="op">=</span> loader.find_observables(<span class="st">'data.smp'</span>, <span class="st">'*pion*'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="file-format-support" class="level2">
 <h2 class="anchored" data-anchor-id="file-format-support">File Format Support</h2>
 <section id="fstream-files-.smp" class="level3">
 <h3 class="anchored" data-anchor-id="fstream-files-.smp">Fstream Files (<code>.smp</code>)</h3>
-<p>Traditional Sigmond binary format. Files are loaded directly:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> SigmondLoader()</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>ensemble_info, sampling_info, observables <span class="op">=</span> loader.get_file_info(<span class="st">'data.smp'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Traditional Sigmond binary format - loaded directly.</p>
 </section>
 <section id="hdf5-files-.hdf5" class="level3">
 <h3 class="anchored" data-anchor-id="hdf5-files-.hdf5">HDF5 Files (<code>.hdf5</code>)</h3>
-<p>Modern HDF5 format with hierarchical structure. Requires path specification:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check available paths</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>is_valid, file_type, paths <span class="op">=</span> loader.check_file_validity(<span class="st">'data.hdf5'</span>)</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Available paths: </span><span class="sc">{</span>paths<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Load with specific path</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>file_with_path <span class="op">=</span> <span class="ss">f'data.hdf5[</span><span class="sc">{</span>paths[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">]'</span></span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>ensemble_info, sampling_info, observables <span class="op">=</span> loader.get_file_info(file_with_path)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Modern hierarchical format - requires path specification:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Auto-detect available paths</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>is_valid, file_type, paths <span class="op">=</span> loader.check_file_validity(<span class="st">'data.hdf5'</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Available paths: </span><span class="sc">{</span>paths<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Load with specific path</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>file_with_path <span class="op">=</span> <span class="ss">f'data.hdf5[</span><span class="sc">{</span>paths[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">]'</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>sampling <span class="op">=</span> loader.load_observable(file_with_path, <span class="st">'observable_name'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="statistical-methods" class="level2">
-<h2 class="anchored" data-anchor-id="statistical-methods">Statistical Methods</h2>
-<section id="bootstrap-vs-jackknife" class="level3">
-<h3 class="anchored" data-anchor-id="bootstrap-vs-jackknife">Bootstrap vs Jackknife</h3>
-<p>The package automatically handles the differences between bootstrap and jackknife methods:</p>
-<ul>
-<li><strong>Bootstrap</strong>: Error = std(resampled_values)</li>
-<li><strong>Jackknife</strong>: Error = sqrt(N-1) × std(resampled_values)</li>
-</ul>
+<section id="sampling-compatibility" class="level2">
+<h2 class="anchored" data-anchor-id="sampling-compatibility">Sampling Compatibility</h2>
+<p>Samplings are compatible for arithmetic operations if they have: 1. <strong>Same <code>sampling_info</code></strong> (method, number of resamplings, seed) 2. <strong>Same data length</strong> 3. <strong>Different <code>ensemble_info</code> is allowed</strong> (enables multi-ensemble analysis)</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compatible despite different ensembles</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>ensemble1 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_a"</span>, <span class="dv">1000</span>, <span class="dv">100</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>ensemble2 <span class="op">=</span> EnsembleInfo(<span class="st">"ensemble_b"</span>, <span class="dv">2000</span>, <span class="dv">100</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">100</span>, <span class="dv">1234</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>sampling1 <span class="op">=</span> SigmondSampling(data1, ensemble1, sampling_info)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>sampling2 <span class="op">=</span> SigmondSampling(data2, ensemble2, sampling_info)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> sampling1 <span class="op">+</span> sampling2  <span class="co"># This works!</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="multi-ensemble-analysis" class="level3">
-<h3 class="anchored" data-anchor-id="multi-ensemble-analysis">Multi-Ensemble Analysis</h3>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mix samplings from different ensembles</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>ensemble_a_samplings <span class="op">=</span> [create_uniform_sampling(i, i<span class="op">+</span><span class="dv">1</span>, <span class="dv">100</span>, seed<span class="op">=</span><span class="dv">1234</span>) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>)]</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>ensemble_b_samplings <span class="op">=</span> [create_uniform_sampling(i<span class="op">+</span><span class="dv">10</span>, i<span class="op">+</span><span class="dv">11</span>, <span class="dv">100</span>, seed<span class="op">=</span><span class="dv">1234</span>) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Combine for analysis</span></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>all_samplings <span class="op">=</span> ensemble_a_samplings <span class="op">+</span> ensemble_b_samplings</span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats(all_samplings)</span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Cross-ensemble covariances are automatically zero</span></span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> stats.covariance_matrix()</span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of unique ensembles: </span><span class="sc">{</span><span class="bu">len</span>(stats.unique_ensembles)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="multi-ensemble-analysis" class="level2">
+<h2 class="anchored" data-anchor-id="multi-ensemble-analysis">Multi-Ensemble Analysis</h2>
+<p>SigmondSamplings automatically handles covariance between different ensembles: - <strong>Same ensemble</strong>: Normal covariance calculation - <strong>Different ensembles</strong>: Covariance = 0.0 (automatic) - <strong>Diagonal elements</strong>: Always return variance (error²)</p>
 </section>
-</section>
-<section id="examples" class="level2">
-<h2 class="anchored" data-anchor-id="examples">Examples</h2>
-<section id="complete-analysis-workflow" class="level3">
-<h3 class="anchored" data-anchor-id="complete-analysis-workflow">Complete Analysis Workflow</h3>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> SigmondLoader, SamplingStats, create_gaussian_sampling, SamplingInfo</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Load data</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> SigmondLoader()</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>pion <span class="op">=</span> loader.load_observable(<span class="st">'hadrons.smp'</span>, <span class="st">'pion_mass'</span>)</span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>kaon <span class="op">=</span> loader.load_observable(<span class="st">'hadrons.smp'</span>, <span class="st">'kaon_mass'</span>)</span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Calculate derived quantities</span></span>
-<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>mass_ratio <span class="op">=</span> kaon <span class="op">/</span> pion</span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>mass_difference <span class="op">=</span> kaon <span class="op">-</span> pion</span>
-<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Add synthetic data from different ensemble</span></span>
-<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">100</span>, <span class="dv">5678</span>)</span>
-<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>synthetic_obs <span class="op">=</span> create_gaussian_sampling(<span class="fl">0.3</span>, <span class="fl">0.02</span>, sampling_info, <span class="st">"eta_mass"</span>)</span>
-<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Multi-ensemble statistical analysis</span></span>
-<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([pion, kaon, mass_ratio, synthetic_obs])</span>
-<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Analyzing </span><span class="sc">{</span>stats<span class="sc">.</span>num_observables<span class="sc">}</span><span class="ss"> observables from </span><span class="sc">{</span><span class="bu">len</span>(stats.unique_ensembles)<span class="sc">}</span><span class="ss"> ensembles"</span>)</span>
-<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(stats.summary())</span>
-<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Covariance matrix shows zero cross-ensemble correlations</span></span>
-<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> stats.covariance_matrix()</span>
-<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Covariance matrix shape:"</span>, cov_matrix.shape)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="kb-fit-xml-workflow" class="level3">
-<h3 class="anchored" data-anchor-id="kb-fit-xml-workflow">KB Fit XML Workflow</h3>
-<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> KBfitXMLHelper, EnsembleInfo, ParticleInfo</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Setup</span></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>ensemble_info <span class="op">=</span> EnsembleInfo(<span class="st">"cls21_s64_t128_D200"</span>, <span class="dv">10000</span>, <span class="dv">500</span>)</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>observables <span class="op">=</span> [</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"isotriplet_nucleon_T1u_mom0_p0_0_0_A1p_mom0_0"</span>,</span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"isotriplet_nucleon_T1u_mom1_p1_0_0_A1p_mom0_0"</span>,</span>
-<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"isotriplet_nucleon_T1u_mom2_p2_0_0_A1p_mom0_0"</span></span>
-<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Group by momentum</span></span>
-<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>grouped <span class="op">=</span> KBfitXMLHelper.group_observables_by_momentum(observables)</span>
-<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Momentum groups: </span><span class="sc">{</span><span class="bu">list</span>(grouped.keys())<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate XML configurations</span></span>
-<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>helper <span class="op">=</span> KBfitXMLHelper()</span>
-<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a><span class="co"># For determinant residual fits</span></span>
-<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>detres_xml <span class="op">=</span> helper.create_detres_xml(</span>
-<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>    observables, ensemble_info,</span>
-<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    t_min<span class="op">=</span><span class="dv">3</span>, t_max<span class="op">=</span><span class="dv">15</span>,</span>
-<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    energy_fit_info<span class="op">=</span>{<span class="st">"fit_form"</span>: <span class="st">"polynomial"</span>, <span class="st">"order"</span>: <span class="dv">2</span>}</span>
-<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Save to files</span></span>
-<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> <span class="bu">open</span>(<span class="st">"detres_fit.xml"</span>, <span class="st">"w"</span>) <span class="im">as</span> f:</span>
-<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>    f.write(detres_xml)</span>
-<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"KB fit XML files generated successfully!"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
+<section id="utility-functions" class="level2">
+<h2 class="anchored" data-anchor-id="utility-functions">Utility Functions</h2>
+<p>Generate synthetic data for testing:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> SigmondSamplings <span class="im">import</span> (</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    create_gaussian_sampling, create_uniform_sampling, </span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    create_complex_gaussian_sampling</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Create synthetic sampling</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>sampling_info <span class="op">=</span> SamplingInfo(<span class="st">"bootstrap"</span>, <span class="dv">1000</span>, <span class="dv">1234</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>synthetic <span class="op">=</span> create_gaussian_sampling(</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    mean<span class="op">=</span><span class="fl">1.0</span>, std<span class="op">=</span><span class="fl">0.1</span>, </span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    sampling_info<span class="op">=</span>sampling_info,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    observable_name<span class="op">=</span><span class="st">"test_observable"</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="testing" class="level2">
 <h2 class="anchored" data-anchor-id="testing">Testing</h2>
-<p>Run the test suite:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># All tests</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pytest</span> tests/</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Specific test module</span></span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pytest</span> tests/test_sampling.py <span class="at">-v</span></span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="co"># KB XML helper tests</span></span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="ex">pytest</span> tests/test_kb_xml_helper.py <span class="at">-v</span></span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a><span class="co"># With coverage</span></span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="ex">pytest</span> tests/ <span class="at">--cov</span><span class="op">=</span>SigmondSamplings <span class="at">--cov-report</span><span class="op">=</span>html</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>Test Coverage:</strong> - <code>test_sampling.py</code>: 40 tests - Core sampling functionality - <code>test_loader.py</code>: 16 tests - File loading and parsing - <code>test_stats.py</code>: 14 tests - Statistical analysis - <code>test_utils.py</code>: 20 tests - Utility functions - <code>test_kb_xml_helper.py</code>: 26 tests - KB XML generation</p>
-</section>
-<section id="performance-notes" class="level2">
-<h2 class="anchored" data-anchor-id="performance-notes">Performance Notes</h2>
-<ul>
-<li><strong>Memory Usage</strong>: Samplings store full resampling arrays in memory</li>
-<li><strong>Multi-Ensemble</strong>: Different ensembles are handled efficiently with zero covariance</li>
-<li><strong>File Loading</strong>: HDF5 files require <code>sigmond_query</code> subprocess calls</li>
-<li><strong>Arithmetic</strong>: Operations create new sampling objects (not in-place)</li>
-<li><strong>XML Generation</strong>: Large XML files may require significant memory</li>
-</ul>
-</section>
-<section id="troubleshooting" class="level2">
-<h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
-<section id="common-issues" class="level3">
-<h3 class="anchored" data-anchor-id="common-issues">Common Issues</h3>
-<ol type="1">
-<li><p><strong><code>sigmond_query</code> not found</strong></p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure sigmond_query is in PATH</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">which</span> sigmond_query</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Incompatible samplings</strong></p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Check sampling_info compatibility (ensembles can differ)</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Sampling info 1: </span><span class="sc">{</span>sampling1<span class="sc">.</span>sampling_info<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Sampling info 2: </span><span class="sc">{</span>sampling2<span class="sc">.</span>sampling_info<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Zero covariances</strong></p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># This is expected for different ensembles</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> SamplingStats([sampling1, sampling2])</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> sampling1.ensemble_info <span class="op">!=</span> sampling2.ensemble_info:</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Zero covariance expected - different ensembles"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>XML generation issues</strong></p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Ensure observables have proper momentum information</span></span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>obs_name <span class="op">=</span> <span class="st">"isotriplet_nucleon_T1u_mom0_p0_0_0_A1p_mom0_0"</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>momentum_info <span class="op">=</span> KBfitXMLHelper.extract_momentum_info_from_observable(obs_name)</span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> momentum_info:</span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Cannot parse momentum from: </span><span class="sc">{</span>obs_name<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-</ol>
-</section>
-</section>
-<section id="contributing" class="level2">
-<h2 class="anchored" data-anchor-id="contributing">Contributing</h2>
-<ol type="1">
-<li>Fork the repository</li>
-<li>Create a feature branch (<code>git checkout -b feature/amazing-feature</code>)</li>
-<li>Make changes and add tests</li>
-<li>Run the test suite (<code>pytest tests/</code>)</li>
-<li>Commit changes (<code>git commit -m 'Add amazing feature'</code>)</li>
-<li>Push to branch (<code>git push origin feature/amazing-feature</code>)</li>
-<li>Open a Pull Request</li>
-</ol>
-<section id="development-setup" class="level3">
-<h3 class="anchored" data-anchor-id="development-setup">Development Setup</h3>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/johndoe/SigmondSamplings.git</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> SigmondSamplings</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-e</span> <span class="st">".[dev]"</span></span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="ex">pytest</span> tests/</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run all tests</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytest tests/</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Run specific test module</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytest tests/test_sampling.py <span class="at">-v</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Run with coverage</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytest tests/ <span class="at">--cov</span><span class="op">=</span>SigmondSamplings <span class="at">--cov-report</span><span class="op">=</span>html</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="license" class="level2">
 <h2 class="anchored" data-anchor-id="license">License</h2>
-<p>This project is licensed under the MIT License - see the <a href="LICENSE">LICENSE</a> file for details.</p>
-</section>
-<section id="citation" class="level2">
-<h2 class="anchored" data-anchor-id="citation">Citation</h2>
-<p>If you use SigmondSamplings in your research, please cite:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode bibtex code-with-copy"><code class="sourceCode bibtex"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">@software{sigmondsampling2024,</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co">  title={SigmondSamplings: A Python Package for Lattice QCD Sampling Analysis},</span></span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="co">  author={John Doe},</span></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co">  year={2024},</span></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co">  url={https://github.com/johndoe/SigmondSamplings}</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="co">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="acknowledgments" class="level2">
-<h2 class="anchored" data-anchor-id="acknowledgments">Acknowledgments</h2>
-<ul>
-<li>The Sigmond collaboration for the original file formats</li>
-<li>The lattice QCD community for feedback and testing</li>
-<li>Contributors and maintainers</li>
-</ul>
+<p>This project is licensed under the MIT License - see the <code>LICENSE</code> file for details.</p>
 </section>
 </section>
 
