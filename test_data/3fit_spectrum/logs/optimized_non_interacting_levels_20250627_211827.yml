@@ -1,0 +1,10 @@
+fit_spectrum:
+  non_interacting_levels:
+    isosinglet S=0 A1g_1 PSQ=0: [[Phi(0)], [Phi(0), Phi(0)], [Rho(0)], [Phi(1), Phi(1)],
+      [Phi(2), Phi(2)], [Phi(3), Phi(3)], [Phi(3), Phi(3)]]
+    isosinglet S=0 A1_1 P=(0,0,1): [[Phi(1)], [Phi(1), Phi(0)], [Rho(1)], [Phi(2),
+        Phi(1)], [Phi(0), Phi(1)], [Phi(3), Phi(2)]]
+    isosinglet S=0 A1_1 P=(0,1,1): [[Phi(2)], [Phi(0), Phi(2)], [Rho(2)], [Phi(1),
+        Phi(1)], [Phi(1), Phi(3)], [Phi(2), Phi(2)], [Phi(1), Phi(1)], [Phi(2), Phi(2)]]
+    isosinglet S=0 A1_1 P=(1,1,1): [[Phi(3)], [Phi(0), Phi(3)], [Rho(3)], [Phi(1),
+        Phi(2)], [Phi(0), Phi(3)], [Phi(1), Phi(2)], [Phi(1), Phi(2)]]

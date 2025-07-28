@@ -152,7 +152,9 @@ class SigmondLoader:
     def _parse_observable_key(self, key_xml: str, ensemble_info: EnsembleInfo) -> ObservableInfo:
         """Parse an observable key from XML."""
         try:
-            root = ET.fromstring(key_xml.strip())
+            # Convert HDF5-safe format back to standard XML for parsing
+            standard_xml = key_xml.replace('<|', '</')
+            root = ET.fromstring(standard_xml.strip())
             info_element = root.find('.//Info')
             if info_element is not None:
                 info_text = info_element.text.strip()

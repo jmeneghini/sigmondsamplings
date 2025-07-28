@@ -1,0 +1,36 @@
+general:
+  ensemble_id: phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48
+  ensembles_file: /home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml
+  nnodes: 64
+  project_dir: /home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32
+  sampling_info:
+    mode: Jackknife
+  subtract_vev: true
+  tweak_ensemble:
+    rebin: 50
+rotate_corrs:
+  averaged_input_correlators_dir: /latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins
+  create_pdfs: true
+  create_pickles: false
+  create_summary: true
+  figheight: 6
+  figwidth: 8
+  generate_estimates: false
+  max_condition_number: 150
+  omit_operators: []
+  pivot_type: 0
+  plot: false
+  precompute: true
+  rotate_by_samplings: true
+  rotated_channels:
+  - isosinglet S=0 A1g_1 PSQ=0
+  - isosinglet S=0 A1_1 P=(0,0,1)
+  - isosinglet S=0 A1_1 P=(0,1,1)
+  - isosinglet S=0 A1_1 P=(1,1,1)
+  run_tag: ''
+  t0: 3
+  tD: 6
+  tN: 3
+  tmax: null
+  tmin: null
+  used_averaged_bins: true

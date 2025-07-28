@@ -1,0 +1,4891 @@
+<LogSigMonD>
+ <ProjectName>s32</ProjectName>
+ <StartDateTime>Sun_Jun_15_22:21:45_2025</StartDateTime>
+
+<BeginTasks>****************************************</BeginTasks>
+
+<Task>
+ <Count>0</Count>
+
+<DoCorrMatrixRotation>
+   <SinglePivot>
+      <InitiateNew>
+         <SinglePivotInitiate>
+            <CorrelatorMatrixInfo>
+               <HermitianMatrix/>
+               <SubtractVEV/>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Rho(0) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0)Phi(0) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(1)Phi(1) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(2)Phi(2) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(3)Phi(3) 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(4)Phi(4) 0</GIOperatorString>
+            </CorrelatorMatrixInfo>
+            <NormTime>3</NormTime>
+            <MetricTime>3</MetricTime>
+            <DiagonalizeTime>6</DiagonalizeTime>
+            <MinimumInverseConditionNumber>0.00666666666667</MinimumInverseConditionNumber>
+            <NegativeEigenvalueAlarm>-0.0333333333333</NegativeEigenvalueAlarm>
+         </SinglePivotInitiate>
+         <CreatePivot>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <DiagonalCorrelatorFractionalErrors>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.000711573499297</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.00101811959915</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Rho(0) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.000732912185303</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.00215879018322</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0)Phi(0) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.00179838536465</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.00286790898716</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(1)Phi(1) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.00107222085945</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.00361379820688</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(2)Phi(2) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.00118800196369</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.00689809124453</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(3)Phi(3) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.00152266039849</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.0125075746667</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(4)Phi(4) 0</GIOperatorString>
+                  <MetricTimeFractionalError>0.00188375741876</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.0212305393524</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+            </DiagonalCorrelatorFractionalErrors>
+            <AnalyzeMetric>
+               <NumberOfOperators>7</NumberOfOperators>
+               <ReturnCode>Success</ReturnCode>
+               <MetricAllEigenvalues>
+                  <Value>0.977187955621</Value>
+                  <Value>0.997796599107</Value>
+                  <Value>0.999359816247</Value>
+                  <Value>1.00025401039</Value>
+                  <Value>1.00152683795</Value>
+                  <Value>1.00303780027</Value>
+                  <Value>1.02083698041</Value>
+               </MetricAllEigenvalues>
+               <MetricRank>7</MetricRank>
+               <MetricRetainedEigenvalues>
+                  <Value>0.977187955621</Value>
+                  <Value>0.997796599107</Value>
+                  <Value>0.999359816247</Value>
+                  <Value>1.00025401039</Value>
+                  <Value>1.00152683795</Value>
+                  <Value>1.00303780027</Value>
+                  <Value>1.02083698041</Value>
+               </MetricRetainedEigenvalues>
+            </AnalyzeMetric>
+            <AnalyzeMatrix>
+               <ReturnCode>Success</ReturnCode>
+               <GMatrixAllEigenvalues>
+                  <Value>0.079507945042</Value>
+                  <Value>0.10764131837</Value>
+                  <Value>0.150706595687</Value>
+                  <Value>0.22908369386</Value>
+                  <Value>0.302915956489</Value>
+                  <Value>0.416591884229</Value>
+                  <Value>0.645374161985</Value>
+               </GMatrixAllEigenvalues>
+               <GMatrixRank>7</GMatrixRank>
+               <GMatrixRetainedEigenvalues>
+                  <Value>0.645374161985</Value>
+                  <Value>0.416591884229</Value>
+                  <Value>0.302915956489</Value>
+                  <Value>0.22908369386</Value>
+                  <Value>0.150706595687</Value>
+                  <Value>0.10764131837</Value>
+                  <Value>0.079507945042</Value>
+               </GMatrixRetainedEigenvalues>
+            </AnalyzeMatrix>
+         </CreatePivot>
+         <WritePivotToFile>
+            <PivotFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info--0-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1g_1_P0]</PivotFileName>
+            <Overwrite/>
+            <FileFormat>default</FileFormat>
+         </WritePivotToFile>
+      </InitiateNew>
+   </SinglePivot>
+   <DoRotation>
+      <VEVRotation>Success</VEVRotation>
+      <CorrelatorRotation>
+         <TimeValue>0</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>1</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>2</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>3</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>4</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>5</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>6</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>3.49843318403e-13</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>0</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>7</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.02139357816</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>4.7619047619</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>8</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.6196576978</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>14.2857142857</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>9</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.73651637341</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>19.0476190476</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>10</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.66170584357</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>33.3333333333</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>11</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.78721815989</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>28.5714285714</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>12</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.75078941663</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>14.2857142857</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>13</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.79680297979</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>14.2857142857</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>14</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>2.06563512909</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>23.8095238095</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>4.7619047619</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>15</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>1.95417874864</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>38.0952380952</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+   </DoRotation>
+   <WriteRotated>
+      <WriteSamplingsToFile>
+         <FileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_-0-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1g_1_P0]</FileName>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 0</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 1</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 2</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 3</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 4</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 5</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 6</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 3} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 4} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 5} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=0 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=1 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=2 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=3 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=4 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=5 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=6 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=7 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=8 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=9 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=10 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=11 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=12 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=13 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=14 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 6} time=15 HermMat SubVEV</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+      </WriteSamplingsToFile>
+   </WriteRotated>
+</DoCorrMatrixRotation>
+
+</Task>
+ <FinishDateTime>Sun_Jun_15_22:37:24_2025</FinishDateTime>
+</LogSigMonD>
+

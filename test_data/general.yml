@@ -1,0 +1,11 @@
+general:
+  project_dir: /home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32
+  ensemble_id: phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48
+  sampling_info:
+    mode: Bootstrap
+    number_resampling: 2000
+    seed: 0
+    bootskip: 0
+  tweak_ensemble:                 # not required
+    rebin: 50                     # default 1
+  subtract_vev: true

@@ -31,7 +31,7 @@ class EnsembleInfo:
     def __repr__(self):
         return f"EnsembleInfo('{self.ensemble_name}', {self.num_measurements}, {self.num_bins})"
 
-DEFAULT_ENSEMBLE = EnsembleInfo("independent", 1, 1, {"Description": "Independent sampling ensemble"})
+DEFAULT_ENSEMBLE = EnsembleInfo("indep", 1, 1)
 
 class SamplingInfo:
     """Information about the sampling method (Bootstrap/Jackknife)."""
@@ -68,7 +68,7 @@ class ObservableInfo:
         self.ensemble_info = ensemble_info
     
     @classmethod
-    def from_string(cls, obs_string: str, ensemble_info: EnsembleInfo) -> 'ObservableInfo':
+    def from_string(cls, obs_string: str, ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE) -> 'ObservableInfo':
         """
         Parse observable info from string format.
         

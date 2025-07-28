@@ -1,4 +1,4 @@
-# SigmondSamplings
+# sigmondsamplings
 
 A Python package for handling Sigmond samplings files with comprehensive statistical analysis capabilities for lattice QCD research.
 
@@ -22,7 +22,7 @@ SigmondSamplings provides a high-level Python interface to load, manipulate, and
 
 ```bash
 git clone <repository-url>
-cd SigmondResamplings
+cd sigmondsamplings
 pip install -e .
 ```
 

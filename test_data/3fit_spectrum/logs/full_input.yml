@@ -1,0 +1,210 @@
+fit_spectrum:
+  averaged_input_correlators_dir:
+  - /latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins
+  compute_overlaps: true
+  correlated: true
+  correlator_fits:
+    isosinglet S=0 P=(0,0,0) A1g_1 Phi(0) 0:
+      model: 1-exp-sym
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,0,0) A1g_1 ROT 0:
+      model: 1-exp-sym
+      ratio: false
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,0,0) A1g_1 ROT 1:
+      model: 1-exp-sym-const
+      ratio: false
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,0,1) A1_1 Phi(1) 0:
+      model: 1-exp-sym-const
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,0,1) A1_1 ROT 0:
+      model: 1-exp-sym
+      ratio: false
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,0,1) A1_1 ROT 1:
+      model: 1-exp-sym-const
+      ratio: false
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,1,1) A1_1 ROT 0:
+      model: 1-exp-sym
+      ratio: false
+      tmax: 15
+      tmin: 3
+    isosinglet S=0 P=(0,1,1) A1_1 ROT 1:
+      model: 1-exp-sym-const
+      ratio: false
+      tmax: 15
+      tmin: 3
+  create_pdfs: true
+  create_pickles: false
+  create_summary: true
+  default_interacting_corr_fit:
+    exclude_times: &id001 []
+    initial_params: &id002 {}
+    model: 1-exp
+    noise_cutoff: 0.0
+    non_interacting_operators: null
+    priors: &id003 {}
+    ratio: false
+    sim_fit: false
+    tmax: 14
+    tmax_plots: &id004 []
+    tmin: 3
+    tmin_plots:
+    - model: 1-exp
+      ratio: false
+      tmax: 14
+      tmin_max: 8
+      tmin_min: 3
+    tmin_try_max: null
+    tmin_try_min: null
+  default_noninteracting_corr_fit:
+    exclude_times: *id001
+    initial_params: *id002
+    model: 1-exp
+    noise_cutoff: 0.0
+    non_interacting_operators: null
+    priors: *id003
+    ratio: false
+    sim_fit: false
+    tmax: 12
+    tmax_plots: *id004
+    tmin: 3
+    tmin_plots: []
+    tmin_try_max: null
+    tmin_try_min: null
+  do_interacting_fits: true
+  figheight: 6
+  figwidth: 8
+  fitted_channels:
+  - isosinglet S=0 A1_1 P=(0,1,1)
+  - isosinglet S=0 A1g_1 PSQ=0
+  - isosinglet S=0 A1_1 P=(1,1,1)
+  - isosinglet S=0 A1_1 P=(0,0,1)
+  - isosinglet S=0 A1g_1 PSQ=0
+  - isosinglet S=0 A1_1 P=(0,0,1)
+  - isosinglet S=0 A1_1 P=(0,1,1)
+  - isosinglet S=0 A1_1 P=(1,1,1)
+  generate_estimates: true
+  minimizer_info:
+    chisquare_rel_tol: 0.0001
+    max_iterations: 2000
+    minimizer: lmder
+    parameter_rel_tol: 1.0e-06
+    verbosity: high
+  non_interacting_energy_sums: false
+  non_interacting_levels:
+    isosinglet S=0 A1_1 P=(0,0,1):
+    - - Phi(1)
+    - - Phi(1)
+      - Phi(0)
+    - - Phi(1)
+      - Phi(0)
+    - - Phi(2)
+      - Phi(1)
+    - - Phi(3)
+      - Phi(1)
+    - - Phi(3)
+      - Phi(2)
+    isosinglet S=0 A1_1 P=(0,1,1):
+    - - Phi(2)
+    - - Phi(0)
+      - Phi(2)
+    - - Rho(2)
+    - - Phi(1)
+      - Phi(1)
+    - - Phi(1)
+      - Phi(3)
+    - - Phi(2)
+      - Phi(2)
+    - - Phi(2)
+      - Phi(2)
+    - - Phi(2)
+      - Phi(3)
+    isosinglet S=0 A1_1 P=(1,1,1):
+    - - Phi(3)
+    - - Phi(0)
+      - Phi(3)
+    - - Rho(3)
+    - - Phi(1)
+      - Phi(2)
+    - - Phi(1)
+      - Phi(2)
+    - - Phi(1)
+      - Phi(2)
+    - - Phi(1)
+      - Phi(2)
+    isosinglet S=0 A1g_1 PSQ=0:
+    - - Phi(0)
+    - - Phi(0)
+      - Phi(0)
+    - - Phi(1)
+      - Phi(1)
+    - - Phi(1)
+      - Phi(1)
+    - - Phi(2)
+      - Phi(2)
+    - - Phi(3)
+      - Phi(3)
+    - - Phi(3)
+      - Phi(3)
+  only:
+  - isosinglet S=0 A1g_1 PSQ=0
+  - isosinglet S=0 A1_1 P=(0,0,1)
+  - isosinglet S=0 A1_1 P=(0,1,1)
+  - isosinglet S=0 A1_1 P=(1,1,1)
+  pivot_file: /home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info-Nbin50-SP-3tN-3t0-6tD_B-samplings.hdf5
+  pivot_type: 0
+  plot: true
+  precompute: true
+  reference_particle: Phi
+  rotate_run_tag: ''
+  run_tag: 6-27-25-no_ratio_interacting_vev_sub
+  single_hadrons:
+    Phi:
+    - isosinglet S=0 P=(0,0,0) A1g_1 Phi(0) 0
+    - isosinglet S=0 P=(0,0,1) A1_1 Phi(1) 0
+    - isosinglet S=0 P=(0,1,1) A1_1 Phi(2) 0
+    - isosinglet S=0 P=(1,1,1) A1_1 Phi(3) 0
+    Rho:
+    - isosinglet S=0 P=(0,0,0) A1g_1 Rho(0) 0
+    - isosinglet S=0 P=(0,0,1) A1_1 Rho(1) 0
+    - isosinglet S=0 P=(0,1,1) A1_1 Rho(2) 0
+    - isosinglet S=0 P=(1,1,1) A1_1 Rho(3) 0
+  single_hadrons_ratio: {}
+  summary_plot_max_levels: 0
+  t0: '3'
+  tD: '6'
+  tN: '3'
+  thresholds:
+  - - Phi
+    - Phi
+  - - Phi
+    - Phi
+    - Phi
+    - Phi
+  unique_non_interacting_levels: {}
+  use_overlaps_for_ratio: true
+  use_rotated_samplings: true
+  used_averaged_bins: true
+general:
+  ensemble_id: phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48
+  ensembles_file: /home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml
+  nnodes: 64
+  project_dir: /home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32
+  sampling_info:
+    boot_skip: 0
+    bootskip: 0
+    mode: Bootstrap
+    number_resampling: 2000
+    seed: 0
+  subtract_vev: true
+  tweak_ensemble:
+    rebin: 50

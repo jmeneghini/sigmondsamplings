@@ -1,0 +1,241 @@
+<?xml version="1.0" ?>
+   <SigMonD>
+      <Initialize>
+         <ProjectName>s32</ProjectName>
+         <LogFile>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/logs/sigmond_rotation_log-0.xml</LogFile>
+         <KnownEnsemblesFile>/home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml</KnownEnsemblesFile>
+         <MCBinsInfo>
+            <MCEnsembleInfo>phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48</MCEnsembleInfo>
+            <NumberOfMeasurements>1400000</NumberOfMeasurements>
+            <NumberOfBins>28000</NumberOfBins>
+            <TweakEnsemble>
+               <Rebin>50</Rebin>
+            </TweakEnsemble>
+         </MCBinsInfo>
+         <MCSamplingInfo>
+            <Jackknife/>
+         </MCSamplingInfo>
+         <MCObservables>
+            <BinData>
+               <FileName>/latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins</FileName>
+            </BinData>
+         </MCObservables>
+      </Initialize>
+      <TaskSequence>
+         <Task>
+            <Action>DoCorrMatrixRotation</Action>
+            <MinTimeSep>0</MinTimeSep>
+            <MaxTimeSep>15</MaxTimeSep>
+            <RotateMode>samplings_all</RotateMode>
+            <Type>SinglePivot</Type>
+            <SinglePivotInitiate>
+               <RotatedCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 0</GIOperatorString>
+               </RotatedCorrelator>
+               <CorrelatorMatrixInfo>
+                  <HermitianMatrix/>
+                  <SubtractVEV/>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Rho(0) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(0)Phi(0) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(1)Phi(1) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(2)Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(3)Phi(3) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 Phi(4)Phi(4) 0</GIOperatorString>
+               </CorrelatorMatrixInfo>
+               <NormTime>3</NormTime>
+               <MetricTime>3</MetricTime>
+               <DiagonalizeTime>6</DiagonalizeTime>
+               <MinimumInverseConditionNumber>0.006666666666666667</MinimumInverseConditionNumber>
+               <WritePivotToFile>
+                  <PivotFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info--0-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1g_1_P0]</PivotFileName>
+                  <Overwrite/>
+               </WritePivotToFile>
+            </SinglePivotInitiate>
+            <WriteRotatedCorrToFile>
+               <RotatedCorrFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_-0-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1g_1_P0]</RotatedCorrFileName>
+               <WriteMode>overwrite</WriteMode>
+            </WriteRotatedCorrToFile>
+         </Task>
+      </TaskSequence>
+   </SigMonD>
+<?xml version="1.0" ?>
+   <SigMonD>
+      <Initialize>
+         <ProjectName>s32</ProjectName>
+         <LogFile>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/logs/sigmond_rotation_log-1.xml</LogFile>
+         <KnownEnsemblesFile>/home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml</KnownEnsemblesFile>
+         <MCBinsInfo>
+            <MCEnsembleInfo>phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48</MCEnsembleInfo>
+            <NumberOfMeasurements>1400000</NumberOfMeasurements>
+            <NumberOfBins>28000</NumberOfBins>
+            <TweakEnsemble>
+               <Rebin>50</Rebin>
+            </TweakEnsemble>
+         </MCBinsInfo>
+         <MCSamplingInfo>
+            <Jackknife/>
+         </MCSamplingInfo>
+         <MCObservables>
+            <BinData>
+               <FileName>/latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins</FileName>
+            </BinData>
+         </MCObservables>
+      </Initialize>
+      <TaskSequence>
+         <Task>
+            <Action>DoCorrMatrixRotation</Action>
+            <MinTimeSep>0</MinTimeSep>
+            <MaxTimeSep>15</MaxTimeSep>
+            <RotateMode>samplings_all</RotateMode>
+            <Type>SinglePivot</Type>
+            <SinglePivotInitiate>
+               <RotatedCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 ROT 0</GIOperatorString>
+               </RotatedCorrelator>
+               <CorrelatorMatrixInfo>
+                  <HermitianMatrix/>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Phi(1) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Rho(1) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Phi(1)Phi(0) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Phi(2)Phi(1) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Phi(3)Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,1) A1_1 Phi(4)Phi(1) 0</GIOperatorString>
+               </CorrelatorMatrixInfo>
+               <NormTime>3</NormTime>
+               <MetricTime>3</MetricTime>
+               <DiagonalizeTime>6</DiagonalizeTime>
+               <MinimumInverseConditionNumber>0.006666666666666667</MinimumInverseConditionNumber>
+               <WritePivotToFile>
+                  <PivotFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info--1-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P001]</PivotFileName>
+                  <Overwrite/>
+               </WritePivotToFile>
+            </SinglePivotInitiate>
+            <WriteRotatedCorrToFile>
+               <RotatedCorrFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_-1-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P001]</RotatedCorrFileName>
+               <WriteMode>overwrite</WriteMode>
+            </WriteRotatedCorrToFile>
+         </Task>
+      </TaskSequence>
+   </SigMonD>
+<?xml version="1.0" ?>
+   <SigMonD>
+      <Initialize>
+         <ProjectName>s32</ProjectName>
+         <LogFile>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/logs/sigmond_rotation_log-2.xml</LogFile>
+         <KnownEnsemblesFile>/home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml</KnownEnsemblesFile>
+         <MCBinsInfo>
+            <MCEnsembleInfo>phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48</MCEnsembleInfo>
+            <NumberOfMeasurements>1400000</NumberOfMeasurements>
+            <NumberOfBins>28000</NumberOfBins>
+            <TweakEnsemble>
+               <Rebin>50</Rebin>
+            </TweakEnsemble>
+         </MCBinsInfo>
+         <MCSamplingInfo>
+            <Jackknife/>
+         </MCSamplingInfo>
+         <MCObservables>
+            <BinData>
+               <FileName>/latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins</FileName>
+            </BinData>
+         </MCObservables>
+      </Initialize>
+      <TaskSequence>
+         <Task>
+            <Action>DoCorrMatrixRotation</Action>
+            <MinTimeSep>0</MinTimeSep>
+            <MaxTimeSep>15</MaxTimeSep>
+            <RotateMode>samplings_all</RotateMode>
+            <Type>SinglePivot</Type>
+            <SinglePivotInitiate>
+               <RotatedCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 ROT 0</GIOperatorString>
+               </RotatedCorrelator>
+               <CorrelatorMatrixInfo>
+                  <HermitianMatrix/>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Rho(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(0)Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(1)Phi(1) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(1)Phi(3) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(1)Phi(5) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(2)Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(0,1,1) A1_1 Phi(2)Phi(4) 0</GIOperatorString>
+               </CorrelatorMatrixInfo>
+               <NormTime>3</NormTime>
+               <MetricTime>3</MetricTime>
+               <DiagonalizeTime>6</DiagonalizeTime>
+               <MinimumInverseConditionNumber>0.006666666666666667</MinimumInverseConditionNumber>
+               <WritePivotToFile>
+                  <PivotFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info--2-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P011]</PivotFileName>
+                  <Overwrite/>
+               </WritePivotToFile>
+            </SinglePivotInitiate>
+            <WriteRotatedCorrToFile>
+               <RotatedCorrFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_-2-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P011]</RotatedCorrFileName>
+               <WriteMode>overwrite</WriteMode>
+            </WriteRotatedCorrToFile>
+         </Task>
+      </TaskSequence>
+   </SigMonD>
+<?xml version="1.0" ?>
+   <SigMonD>
+      <Initialize>
+         <ProjectName>s32</ProjectName>
+         <LogFile>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/logs/sigmond_rotation_log-3.xml</LogFile>
+         <KnownEnsemblesFile>/home/jmeneghini/LatticeQCD/spectrums/analysis_software/PyCALQ/fvspectrum/sigmond_utils/ensembles.xml</KnownEnsemblesFile>
+         <MCBinsInfo>
+            <MCEnsembleInfo>phirho_s32_t48_mp0100_mr0310|1400000|1|32|32|32|48</MCEnsembleInfo>
+            <NumberOfMeasurements>1400000</NumberOfMeasurements>
+            <NumberOfBins>28000</NumberOfBins>
+            <TweakEnsemble>
+               <Rebin>50</Rebin>
+            </TweakEnsemble>
+         </MCBinsInfo>
+         <MCSamplingInfo>
+            <Jackknife/>
+         </MCSamplingInfo>
+         <MCObservables>
+            <BinData>
+               <FileName>/latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins</FileName>
+            </BinData>
+         </MCObservables>
+      </Initialize>
+      <TaskSequence>
+         <Task>
+            <Action>DoCorrMatrixRotation</Action>
+            <MinTimeSep>0</MinTimeSep>
+            <MaxTimeSep>15</MaxTimeSep>
+            <RotateMode>samplings_all</RotateMode>
+            <Type>SinglePivot</Type>
+            <SinglePivotInitiate>
+               <RotatedCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 ROT 0</GIOperatorString>
+               </RotatedCorrelator>
+               <CorrelatorMatrixInfo>
+                  <HermitianMatrix/>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(3) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Rho(3) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(0)Phi(3) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(1)Phi(2) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(1)Phi(6) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(2)Phi(5) 0</GIOperatorString>
+                  <GIOperatorString>isosinglet S=0 P=(1,1,1) A1_1 Phi(3)Phi(4) 0</GIOperatorString>
+               </CorrelatorMatrixInfo>
+               <NormTime>3</NormTime>
+               <MetricTime>3</MetricTime>
+               <DiagonalizeTime>6</DiagonalizeTime>
+               <MinimumInverseConditionNumber>0.006666666666666667</MinimumInverseConditionNumber>
+               <WritePivotToFile>
+                  <PivotFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_pivot_info--3-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P111]</PivotFileName>
+                  <Overwrite/>
+               </WritePivotToFile>
+            </SinglePivotInitiate>
+            <WriteRotatedCorrToFile>
+               <RotatedCorrFileName>/home/jmeneghini/LatticeQCD/spectrums/channel_based/phirho/g1000_imp/s32/2rotate_corrs/data/samples/rotate_corrs_-3-Nbin50-SP-3tN-3t0-6tD_J-samplings.hdf5[isosinglet_S0_A1_1_P111]</RotatedCorrFileName>
+               <WriteMode>overwrite</WriteMode>
+            </WriteRotatedCorrToFile>
+         </Task>
+      </TaskSequence>
+   </SigMonD>

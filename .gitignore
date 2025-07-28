@@ -190,4 +190,7 @@ figures/
 # Compiled documentation
 *.pdf
 !README.pdf
-!docs/*.pdf 
+!docs/*.pdf
+
+.claude/
+CLAUDE.md
