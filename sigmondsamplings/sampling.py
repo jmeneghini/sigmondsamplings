@@ -312,7 +312,7 @@ class SigmondSampling:
         return np.power(other, self)
 
     def __repr__(self):
-        return f"SigmondSampling(mean={self.mean:.6f}, error={self.error:.6f})"
+        return f"SigmondSampling(full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
     
     def __str__(self):
         return f"{self.mean:.6f} ± {self.error:.6f}"
