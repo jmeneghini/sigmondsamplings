@@ -4,22 +4,19 @@ Statistical analysis tools for Sigmond samplings.
 
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Union, Callable
-from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo
+from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo, SamplingInfo
 
 
 class SamplingStats:
     """Statistical analysis tools for multiple SigmondSampling objects."""
     
-    def __init__(self, samplings: List[SigmondSampling]):
+    def __init__(self, samplings: List[SigmondSampling] = None):
         """
         Initialize with a list of SigmondSampling objects.
         
         Args:
             samplings: List of SigmondSampling objects to analyze
         """
-        if not samplings:
-            raise ValueError("Empty list of samplings provided")
-        
         self.samplings = samplings
         self._check_consistency()
     
@@ -27,7 +24,6 @@ class SamplingStats:
         """Check that all samplings have consistent sampling info."""
         if not self.samplings:
             return
-        
         reference = self.samplings[0]
         for i, sampling in enumerate(self.samplings[1:], 1):
             if sampling.sampling_info != reference.sampling_info:
@@ -35,12 +31,17 @@ class SamplingStats:
             
             if len(sampling.data) != len(reference.data):
                 raise ValueError(f"Sampling {i} has different data length than sampling 0")
+
+    @property
+    def observable_infos(self) -> List[ObservableInfo]:
+        """Get the observable info from all samplings."""
+        return [s.observable_info for s in self.samplings]
     
     @property
-    def ensemble_info(self) -> EnsembleInfo:
-        """Get the ensemble info from the first sampling (for backward compatibility)."""
-        return self.samplings[0].ensemble_info
-    
+    def sampling_info(self) -> SamplingInfo:
+        """Get the sampling info from all samplings."""
+        return self.samplings[0].sampling_info
+
     @property
     def unique_ensembles(self) -> List[EnsembleInfo]:
         """Get list of unique ensemble infos from all observables."""
@@ -60,7 +61,11 @@ class SamplingStats:
     def num_samples(self) -> int:
         """Number of samples (excluding full sample value)."""
         return len(self.samplings[0].resampled_values)
-    
+
+    def full_samples(self) -> np.ndarray:
+        """Get the full sample values of all observables."""
+        return np.array([s.full_sample_value for s in self.samplings])
+
     def means(self) -> np.ndarray:
         """Get the means of all observables."""
         return np.array([s.mean for s in self.samplings])
@@ -76,7 +81,37 @@ class SamplingStats:
     def sample_errors(self) -> np.ndarray:
         """Get the errors of all observables (alias for errors)."""
         return self.errors()
-    
+
+    def add_samplings(self, new_samplings: List[SigmondSampling] | SigmondSampling):
+        """
+        Add new SigmondSampling objects to the analysis.
+
+        Args:
+            new_samplings: List of SigmondSampling objects to add
+        """
+        if isinstance(new_samplings, SigmondSampling):
+            new_samplings = [new_samplings]
+        self.samplings.extend(new_samplings)
+        self._check_consistency()
+
+    def update_sampling_index(self, index: int, new_data: np.ndarray):
+        """
+        Update the data for a specific sampling index. The size of the
+        new data array must match the number of SigmondSampling objects
+        present. Indexing starts at 0 with the full sample.
+
+        Args:
+            index: Resampling index to update
+            new_data: New data for the resampling
+        """
+        if index < 0 or index > self.num_samples:
+            raise IndexError("Resampling index out of range")
+        if len(new_data) != self.num_observables:
+            raise ValueError("New data length must match number of observables")
+
+        for i, sampling in enumerate(self.samplings):
+            sampling.resampled_values[index] = new_data[i]
+
     def covariance_matrix(self) -> np.ndarray:
         """
         Calculate the covariance matrix between all observables.
@@ -281,7 +316,7 @@ class SamplingStats:
             use_covariance = False
         
         # Use the existing error calculation from SigmondSampling objects
-        errors = self.errors()  # This uses the proper error calculation for each sampling
+        errors = self.errors()
         
         chi_squared_values = []
         

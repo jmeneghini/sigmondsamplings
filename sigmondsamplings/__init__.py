@@ -7,6 +7,8 @@ in both fstream and HDF5 formats using the sigmond_query tool.
 
 from .loader import SigmondLoader
 from .writer import SigmondWriter
+from .plotter import SigmondPlotter
+from .model_func import SigmondModelFunc
 from .sampling import (
     EnsembleInfo, SamplingInfo, ObservableInfo, SigmondSampling, DEFAULT_ENSEMBLE
 )

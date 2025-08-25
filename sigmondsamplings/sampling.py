@@ -60,12 +60,13 @@ class SamplingInfo:
 class ObservableInfo:
     """Information about a specific observable."""
     
-    def __init__(self, name: str, index: int, op_type: str, re_im: str, ensemble_info: EnsembleInfo):
+    def __init__(self, name: str, index: int, op_type: str, re_im: str, ensemble_info: EnsembleInfo, latex_str: str = None):
         self.name = name
         self.index = index
         self.op_type = op_type
         self.re_im = re_im
         self.ensemble_info = ensemble_info
+        self.latex_str = latex_str # used for plotting
     
     @classmethod
     def from_string(cls, obs_string: str, ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE) -> 'ObservableInfo':
@@ -99,6 +100,8 @@ class ObservableInfo:
         return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info.ensemble_name}')"
     
     def __str__(self):
+        if self.latex_str:
+            return self.latex_str
         return f"{self.name} {self.index}" # Simple MCObs string format
 
 
@@ -163,6 +166,64 @@ class SigmondSampling:
             return self.std * np.sqrt(n - 1)
         else:
             return self.std
+    
+    def confidence_interval(self, confidence_level: float = 0.68) -> tuple:
+        """
+        Calculate confidence interval for bootstrap resampling.
+        
+        Args:
+            confidence_level: Confidence level (0.68 = 1σ, 0.95 = 2σ, etc.)
+            
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+            
+        Raises:
+            ValueError: If sampling method is not bootstrap
+        """
+        if self.sampling_info.method != 'bootstrap':
+            raise ValueError("Confidence intervals are only supported for bootstrap resampling")
+        
+        # Calculate percentiles for the confidence interval
+        alpha = 1 - confidence_level
+        lower_percentile = 100 * alpha / 2
+        upper_percentile = 100 * (1 - alpha / 2)
+        
+        # Calculate bounds from resampled values
+        lower_bound = np.percentile(self.resampled_values, lower_percentile)
+        upper_bound = np.percentile(self.resampled_values, upper_percentile)
+        
+        return (lower_bound, upper_bound)
+    
+    def bootstrap_bias(self) -> float:
+        """
+        Calculate bootstrap bias estimate.
+        
+        Returns:
+            Bootstrap bias (mean of resamples - full sample value)
+            
+        Raises:
+            ValueError: If sampling method is not bootstrap
+        """
+        if self.sampling_info.method != 'bootstrap':
+            raise ValueError("Bootstrap bias is only available for bootstrap resampling")
+        
+        return self.mean - self.full_sample_value
+    
+    def bias_corrected_mean(self) -> float:
+        """
+        Calculate bias-corrected mean estimate.
+        
+        Returns:
+            Bias-corrected mean (full sample - bootstrap bias)
+            
+        Raises:
+            ValueError: If sampling method is not bootstrap
+        """
+        if self.sampling_info.method != 'bootstrap':
+            raise ValueError("Bias correction is only available for bootstrap resampling")
+        
+        bias = self.bootstrap_bias()
+        return self.full_sample_value - bias
         
     def to_real(self):
         """
