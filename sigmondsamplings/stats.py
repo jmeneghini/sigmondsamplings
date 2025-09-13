@@ -134,6 +134,16 @@ class SamplingStats:
         
         return cov_matrix
     
+    def covariance_matrix_cond_num(self) -> float:
+        """
+        Calculate the condition number of the covariance matrix.
+        
+        Returns:
+            Condition number of the covariance matrix
+        """
+        cov_matrix = self.covariance_matrix()
+        return np.linalg.cond(cov_matrix)
+    
     def correlation_matrix(self) -> np.ndarray:
         """
         Calculate the correlation matrix between all observables.
@@ -150,6 +160,16 @@ class SamplingStats:
         corr_matrix = cov_matrix / np.outer(stds, stds)
         
         return corr_matrix
+    
+    def correlation_matrix_cond_num(self) -> float:
+        """
+        Calculate the condition number of the correlation matrix.
+        
+        Returns:
+            Condition number of the correlation matrix
+        """
+        corr_matrix = self.correlation_matrix()
+        return np.linalg.cond(corr_matrix)
     
     def covariance(self, obs1_idx: int, obs2_idx: int) -> float:
         """
@@ -639,3 +659,4 @@ class SamplingStats:
             'effective_sample_sizes': self.effective_sample_size(),
             'correlation_matrix': self.correlation_matrix()
         } 
+    

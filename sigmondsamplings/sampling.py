@@ -166,6 +166,18 @@ class SigmondSampling:
             return self.std * np.sqrt(n - 1)
         else:
             return self.std
+
+    def estimate_str(this, sig_figs = 2): # format PDG-style
+        value = this.full_sample_value
+        error = this.error
+        # round error to `significant` digits
+        err_digits = f"{error:.{sig_figs}g}"
+        # find decimal places
+        decimals = max(0, -int(np.floor(np.log10(float(err_digits)))) + (sig_figs - 1))
+        # round both to same decimals
+        val_str = f"{value:.{decimals}f}"
+        err_str = f"{error:.{decimals}f}"
+        return f"{val_str}({err_str})"
     
     def confidence_interval(self, confidence_level: float = 0.68) -> tuple:
         """
@@ -191,7 +203,7 @@ class SigmondSampling:
         # Calculate bounds from resampled values
         lower_bound = np.percentile(self.resampled_values, lower_percentile)
         upper_bound = np.percentile(self.resampled_values, upper_percentile)
-        
+        print(f"Confidence interval: ({lower_bound}, {upper_bound})")
         return (lower_bound, upper_bound)
     
     def bootstrap_bias(self) -> float:
@@ -224,6 +236,37 @@ class SigmondSampling:
         
         bias = self.bootstrap_bias()
         return self.full_sample_value - bias
+    
+    def bounded(self, lower: float, upper: float) -> 'SigmondSampling':
+        """
+        Return a new SigmondSampling with resampled values clipped into [lower, upper].
+        
+        Any resampling below the lower bound is set to the lower bound.
+        Any resampling above the upper bound is set to the upper bound.
+        The full-sample value [0] is unchanged.
+        
+        Args:
+            lower: Lower bound
+            upper: Upper bound
+            
+        Returns:
+            SigmondSampling: new instance with bounded resamples
+        """
+        if lower >= upper:
+            raise ValueError("Lower bound must be less than upper bound")
+        
+        # Copy data so we don't mutate the original
+        bounded_data = self.data.copy()
+        
+        # Only apply clipping to resamples, not full sample
+        bounded_data[1:] = np.clip(bounded_data[1:], lower, upper)
+        
+        return SigmondSampling(
+            bounded_data,
+            self.observable_info,
+            self.sampling_info,
+            is_complex=self.is_complex
+        )
         
     def to_real(self):
         """
@@ -347,6 +390,34 @@ class SigmondSampling:
 
     def __radd__(self, other):
         return np.add(other, self)
+    
+    def __neg__(self):
+        return np.negative(self)
+    
+    def __pos__(self):
+        return np.positive(self)
+    
+    def __abs__(self):
+        return np.absolute(self)
+    
+    def unwrap(self, discont=np.pi, axis=-1):
+        """
+        Unwrap phase angles by changing jumps greater than discont to their 2*pi complement.
+        
+        Args:
+            discont: Maximum discontinuity between values (default: pi)
+            axis: Axis along which unwrap will operate (default: -1)
+            
+        Returns:
+            SigmondSampling with unwrapped phase data
+        """
+        unwrapped_data = np.unwrap(self.data, discont=discont, axis=axis)
+        return SigmondSampling(
+            unwrapped_data,
+            self.observable_info,
+            self.sampling_info,
+            self.is_complex
+        )
 
     def __sub__(self, other):
         return np.subtract(self, other)
@@ -376,4 +447,4 @@ class SigmondSampling:
         return f"SigmondSampling(full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
     
     def __str__(self):
-        return f"{self.mean:.6f} ± {self.error:.6f}"
+        return f"{self.full_sample_value:.6f} ± {self.error:.6f}"

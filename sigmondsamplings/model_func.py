@@ -4,10 +4,10 @@ Model function wrapper for SigmondSamplings with automatic parameter handling.
 
 import numpy as np
 import warnings
-from typing import Callable, List, Dict, Optional, Union
+from typing import Callable, List, Optional, Union
 from .sampling import SigmondSampling, ObservableInfo, SamplingInfo, DEFAULT_ENSEMBLE
 from .stats import SamplingStats
-from .plotter import SigmondPlotter
+import inspect
 
 
 class SigmondModelFunc:
@@ -24,7 +24,8 @@ class SigmondModelFunc:
     def __init__(self, func: Callable, 
                  parameter_infos: List[ObservableInfo],
                  sampling_info: SamplingInfo,
-                 latex_str: Optional[str] = None):
+                 latex_str: Optional[str] = None,
+                 independent_var_latex: Optional[str] = None):
         """
         Initialize the model function wrapper.
         
@@ -32,15 +33,16 @@ class SigmondModelFunc:
             func: Model function f(x, param1, param2, ...) 
             parameter_infos: List of ObservableInfo for each parameter
             sampling_info: SamplingInfo describing the resampling method
-            latex_str: Optional LaTeX string for the function (e.g., r"f" for $f(x)$)
+            latex_str: Optional LaTeX string for the function (e.g., r"A e^{-m{VAR}}" where {VAR} gets replaced)
+            independent_var_latex: Optional LaTeX string for independent variable (e.g., r"t" for time)
         """
         self.func = func
         self.parameter_infos = parameter_infos
         self.sampling_info = sampling_info
         self.latex_str = latex_str
+        self.independent_var_latex = independent_var_latex
         
         # Validate function signature matches parameter count
-        import inspect
         sig = inspect.signature(func)
         n_params = len(sig.parameters) - 1  # Subtract x parameter
         if n_params != len(parameter_infos):
@@ -48,7 +50,8 @@ class SigmondModelFunc:
     
     @classmethod
     def from_sampling_stats(cls, func: Callable, parameter_stats: SamplingStats, 
-                           latex_str: Optional[str] = None) -> 'SigmondModelFunc':
+                           latex_str: Optional[str] = None,
+                           independent_var_latex: Optional[str] = None) -> 'SigmondModelFunc':
         """
         Alternative constructor using a SamplingStats object for parameters.
         
@@ -56,6 +59,7 @@ class SigmondModelFunc:
             func: Model function f(x, param1, param2, ...)
             parameter_stats: SamplingStats object containing the parameter data
             latex_str: Optional LaTeX string for the function
+            independent_var_latex: Optional LaTeX string for independent variable
             
         Returns:
             SigmondModelFunc instance with parameters already set
@@ -65,7 +69,7 @@ class SigmondModelFunc:
         sampling_info = parameter_stats.sampling_info
         
         # Create the model instance
-        model = cls(func, parameter_infos, sampling_info, latex_str)
+        model = cls(func, parameter_infos, sampling_info, latex_str, independent_var_latex)
         
         # Set the parameters directly using the stats object
         model.params = parameter_stats
@@ -104,30 +108,35 @@ class SigmondModelFunc:
             
         # now update observable infos
         self.observable_infos = self.params.observable_infos
-    
-    def _create_result_latex(self, x_info: Optional[ObservableInfo] = None, index: Optional[int] = None) -> str:
+
+    def get_latex_str_with_var(self, var_latex: Optional[str] = None, index: Optional[int] = None) -> str:
         """
-        Helper method to create LaTeX string for model results.
+        Get the complete LaTeX string with independent variable substituted.
         
         Args:
-            x_info: Optional ObservableInfo from x-value input
-            index: Optional index for multiple results
-            
+            var_latex: Optional override for the independent variable LaTeX string
+            index: Optional index for the variable substitution
+
         Returns:
-            Formatted LaTeX string
+            Complete LaTeX string with variable substituted
         """
-        func_name = self.latex_str or self.func.__name__
+        if not self.latex_str:
+            return None
         
-        if x_info and x_info.latex_str:
-            # Use x-value's LaTeX string
-            x_latex = x_info.latex_str.strip('$')
-            return f"${func_name}({x_latex})$"
-        elif index is not None:
-            # Multiple results with index
-            return f"${func_name}(x_{{{index}}})$"
+        # Use provided var_latex, or stored independent_var_latex, or default 'x'
+        var_to_use = var_latex or self.independent_var_latex or 'x'
+        var_to_use = var_to_use.strip('$')  # Remove $ if present
+        if index is not None:
+            var_to_use = var_to_use + f"_{{{index}}}"
+
+        # Replace {VAR} placeholder with the actual variable
+        if '{VAR}' in self.latex_str:
+            return self.latex_str.replace('{VAR}', var_to_use)
+        elif '{var}' in self.latex_str:
+            return self.latex_str.replace('{var}', var_to_use)
         else:
-            # Single result or no specific x info
-            return f"${func_name}(x)$"
+            # If no placeholder, return as-is (assumes it's already complete)
+            return self.latex_str
 
     @property
     def parameters(self) -> List[SigmondSampling]:
@@ -186,7 +195,7 @@ class SigmondModelFunc:
                 result.observable_info = ObservableInfo(
                     f"{self.func.__name__}({x_info.name})", x_info.index, "n", "re",
                     x_info.ensemble_info,
-                    latex_str=self._create_result_latex(x_info)
+                    latex_str=self.get_latex_str_with_var(x_info.latex_str)
                 )
             
             return result
@@ -209,8 +218,9 @@ class SigmondModelFunc:
                     info = ObservableInfo(
                         f"{self.func.__name__}({x_info.name})", x_info.index, "n", "re",
                         x_info.ensemble_info,
-                        latex_str=self._create_result_latex(x_info, i)
+                        latex_str=self.get_latex_str_with_var(x_info.latex_str)
                     )
+                    print(x_info.latex_str)
                 result.observable_info = info
                 results.append(result)
             
@@ -240,7 +250,7 @@ class SigmondModelFunc:
                     info = ObservableInfo(
                         f"{self.func.__name__}_result", i, "n", "re",
                         self.parameter_infos[0].ensemble_info,
-                        latex_str=self._create_result_latex(index=None if return_single else i)
+                        latex_str=self.get_latex_str_with_var(index=i)
                     )
                 result.observable_info = info
                 results.append(result)
@@ -289,7 +299,38 @@ class SigmondModelFunc:
                 uppers = means + errors
             
             return means, lowers, uppers
-    
+
+    def evaluate_full_sample(self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]) -> np.ndarray:
+        """
+        Evaluate model at full sample points.
+        
+        Args:
+            x_values: Input values where to evaluate the model (can have uncertainties)
+            
+        Returns:
+            Array of shape (n_samples, len(x_values)) containing all evaluations
+        """
+        # Get all evaluations using the main __call__ method
+        if isinstance(x_values, SigmondSampling):
+            x_fulls = x_values.full_sample_value
+        elif isinstance(x_values, list):
+            if all(isinstance(x, SigmondSampling) for x in x_values):
+                x_fulls = np.array([x.full_sample_value for x in x_values])
+            elif all(isinstance(x, float) for x in x_values):
+                x_fulls = np.array(x_values)
+        elif isinstance(x_values, np.ndarray):
+            x_fulls = x_values
+        else:
+            raise ValueError("Invalid x_values type")
+
+        y_res = self(x_fulls)
+        if isinstance(y_res, SigmondSampling):
+            return y_res.full_sample_value
+        elif isinstance(y_res, list):
+            return np.array([r.full_sample_value for r in y_res])
+        else:
+            raise ValueError("Invalid y_res type")
+
     def evaluate_samples(self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]) -> np.ndarray:
         """
         Return all bootstrap/jackknife sample evaluations.
@@ -311,59 +352,6 @@ class SigmondModelFunc:
             # Multiple x values - stack the data arrays
             return np.column_stack([r.data for r in results])  # Shape: (n_samples, len(x_values))
     
-    def chi_squared(self, data_stats: SamplingStats, x_data: Union[np.ndarray, List[SigmondSampling]], use_correlation: bool = True) -> tuple:
-        """
-        Calculate chi-squared between model and data.
-        
-        Args:
-            data_stats: SamplingStats object containing the data
-            x_data: X-values corresponding to the data points (can have uncertainties)
-            use_correlation: Whether to use correlation matrix
-            
-        Returns:
-            Tuple of (chi_squared_value, degrees_of_freedom)
-        """
-        # Determine number of data points
-        if isinstance(x_data, list):
-            n_points = len(x_data)
-        else:
-            x_data = np.asarray(x_data)
-            n_points = len(x_data)
-        
-        if n_points != data_stats.num_observables:
-            raise ValueError("Number of x_data points must match number of data observables")
-        
-        # Evaluate model at data points using ufunc operations
-        model_results = self(x_data)
-        if not isinstance(model_results, list):
-            model_results = [model_results]
-        
-        # Extract theory values using parameter means
-        theory_values = np.array([result.mean for result in model_results])
-        
-        return data_stats.chi_squared(theory_values, use_correlation)
-    
-    def chi_squared_by_samplings(self, data_stats: SamplingStats, x_data: Union[np.ndarray, List[SigmondSampling]], 
-                                use_correlation: bool = True) -> SigmondSampling:
-        """
-        Calculate chi-squared for each resampling using the model predictions.
-        
-        Args:
-            data_stats: SamplingStats object containing the data
-            x_data: X-values corresponding to the data points
-            use_correlation: Whether to use correlation matrix
-            
-        Returns:
-            SigmondSampling containing chi-squared values for each resampling
-        """
-        # Get model results as SigmondSampling objects
-        model_results = self(x_data)
-        if not isinstance(model_results, list):
-            model_results = [model_results]
-        
-        # Use the existing chi_squared_by_samplings method from SamplingStats
-        return data_stats.chi_squared_by_samplings(model_results, use_correlation)
-    
     def __repr__(self):
         param_names = [info.name for info in self.parameter_infos]
         return f"SigmondModelFunc({self.func.__name__}, parameters={param_names})"
@@ -373,55 +361,13 @@ class SigmondModelFunc:
         param_str = ", ".join(param_labels)
         return f"{self.func.__name__}(x; {param_str})"
     
-    def plot_with_data(self, x_data: Union[np.ndarray, List[SigmondSampling]], 
-                       data_stats: Optional[SamplingStats] = None, 
-                       plotter: Optional[SigmondPlotter] = None, **kwargs):
-        """
-        Plot the model along with data using SigmondPlotter.
-        
-        Args:
-            x_data: X-values corresponding to the data points
-            data_stats: Optional SamplingStats containing the y-data to plot
-            plotter: Optional SigmondPlotter instance (creates new if None)
-            **kwargs: Additional arguments passed to plot_fit_result
-            
-        Returns:
-            matplotlib Axes object
-        """
-        # Handle SigmondSampling x_data by creating SamplingStats if needed
-        if isinstance(x_data, list) and all(isinstance(x, SigmondSampling) for x in x_data):
-            if data_stats is None:
-                data_stats = SamplingStats(x_data)
-            # Extract numeric x-values for plotting
-            x_numeric = np.array([x.mean for x in x_data])
-        elif isinstance(x_data, SigmondSampling):
-            if data_stats is None:
-                data_stats = SamplingStats([x_data])
-            x_numeric = np.array([x_data.mean])
-        else:
-            # Numeric x-data
-            x_numeric = np.asarray(x_data)
-            if data_stats is None:
-                raise ValueError("Must provide data_stats when x_data is numeric")
-        
-        if plotter is None:
-            plotter = SigmondPlotter(data_stats)
-        
-        # Create a model function compatible with the existing plotting infrastructure
-        def model_for_plotting(x_vals, params_array):
-            """Adapter function for the existing plotting system."""
-            return self.func(x_vals, *params_array)
-        
-        # Convert parameters to the expected dictionary format
-        fitted_params = self.get_parameter_dict()
-        
-        return plotter.plot_fit_result(x_numeric, fitted_params, model_for_plotting, **kwargs)
 
 
 # Convenience functions for common models
 def exponential_decay_model(sampling_info: SamplingInfo, 
                            ensemble_info = DEFAULT_ENSEMBLE,
-                           latex_str: str = r"A e^{-mt}") -> SigmondModelFunc:
+                           latex_str: str = r"A e^{-m{VAR}}",
+                           independent_var_latex: str = "t") -> SigmondModelFunc:
     """Create exponential decay model: A * exp(-m * x)"""
     def exp_func(x, A, m):
         return A * np.exp(-m * x)
@@ -429,12 +375,13 @@ def exponential_decay_model(sampling_info: SamplingInfo,
     amp_info = ObservableInfo("amplitude", 0, "n", "re", ensemble_info, r"$A$")
     mass_info = ObservableInfo("mass", 0, "n", "re", ensemble_info, r"$m$")
     
-    return SigmondModelFunc(exp_func, [amp_info, mass_info], sampling_info, latex_str)
+    return SigmondModelFunc(exp_func, [amp_info, mass_info], sampling_info, latex_str, independent_var_latex)
 
 
 def polynomial_model(degree: int, sampling_info: SamplingInfo,
                     ensemble_info = DEFAULT_ENSEMBLE, 
-                    latex_str: Optional[str] = None) -> SigmondModelFunc:
+                    latex_str: Optional[str] = None,
+                    independent_var_latex: str = "x") -> SigmondModelFunc:
     """Create polynomial model of specified degree"""
     def poly_func(x, *coeffs):
         return np.polyval(coeffs, x)
@@ -445,14 +392,15 @@ def polynomial_model(degree: int, sampling_info: SamplingInfo,
     ]
     
     if latex_str is None:
-        latex_str = "P" if degree > 1 else r"c_0 + c_1 x"
+        latex_str = "P({VAR})" if degree > 1 else r"c_0 + c_1 {VAR}"
     
-    return SigmondModelFunc(poly_func, param_infos, sampling_info, latex_str)
+    return SigmondModelFunc(poly_func, param_infos, sampling_info, latex_str, independent_var_latex)
 
 
 def gaussian_model(sampling_info: SamplingInfo,
                   ensemble_info = DEFAULT_ENSEMBLE,
-                  latex_str: str = r"A e^{-\frac{(x-\mu)^2}{2\sigma^2}}") -> SigmondModelFunc:
+                  latex_str: str = r"A e^{-\frac{({VAR}-\mu)^2}{2\sigma^2}}",
+                  independent_var_latex: str = "x") -> SigmondModelFunc:
     """Create Gaussian model: A * exp(-(x-mu)^2 / (2*sigma^2))"""
     def gauss_func(x, A, mu, sigma):
         return A * np.exp(-(x - mu)**2 / (2 * sigma**2))
@@ -461,4 +409,4 @@ def gaussian_model(sampling_info: SamplingInfo,
     mean_info = ObservableInfo("mean", 0, "n", "re", ensemble_info, r"$\mu$")
     sigma_info = ObservableInfo("sigma", 0, "n", "re", ensemble_info, r"$\sigma$")
     
-    return SigmondModelFunc(gauss_func, [amp_info, mean_info, sigma_info], sampling_info, latex_str)
+    return SigmondModelFunc(gauss_func, [amp_info, mean_info, sigma_info], sampling_info, latex_str, independent_var_latex)

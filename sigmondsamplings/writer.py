@@ -7,6 +7,8 @@ full Sigmond format functionality while using HDF5 as the primary working format
 import h5py
 import numpy as np
 import xml.etree.ElementTree as ET
+import shutil
+import os
 from typing import List, Optional, Tuple
 from pathlib import Path
 
@@ -22,9 +24,41 @@ class SigmondWriter:
     full Sigmond format compatibility.
     """
     
-    def __init__(self):
-        """Initialize the writer."""
-        pass
+    def __init__(self, create_backups: bool = True):
+        """
+        Initialize the writer.
+        
+        Args:
+            create_backups: Whether to create numbered backups before modifying existing files
+        """
+        self.create_backups = create_backups
+    
+    def _create_numbered_backup(self, filename: str) -> Optional[str]:
+        """
+        Create a numbered backup of the file before modification.
+        
+        Args:
+            filename: Path to the file to backup
+            
+        Returns:
+            Path to the backup file, or None if backups are disabled or file doesn't exist
+        """
+        if not self.create_backups or not Path(filename).exists():
+            return None
+        
+        counter = 1
+        while Path(f"{filename}.backup_{counter:03d}").exists():
+            counter += 1
+        
+        backup_path = f"{filename}.backup_{counter:03d}"
+        
+        try:
+            shutil.copy2(filename, backup_path)
+            print(f"Created backup: {backup_path}")
+            return backup_path
+        except Exception as e:
+            print(f"Warning: Failed to create backup of {filename}: {e}")
+            return None
     
     def _ensure_hdf5_format(self, filename: str, hdf5_root_path: Optional[str] = None) -> Tuple[str, str]:
         """
@@ -193,6 +227,9 @@ class SigmondWriter:
         """
         if Path(filename).exists() and not overwrite:
             raise FileExistsError(f"File {filename} already exists. Use overwrite=True to overwrite.")
+        elif Path(filename).exists() and overwrite:
+            # Create backup before overwriting
+            self._create_numbered_backup(filename)
         
         if not samplings:
             raise ValueError("No samplings provided")
@@ -305,6 +342,9 @@ class SigmondWriter:
         
         # Ensure we're working with HDF5 format
         hdf5_filename, root_path = self._ensure_hdf5_format(filename, hdf5_root_path)
+        
+        # Create backup before modification
+        self._create_numbered_backup(hdf5_filename)
         
         # Perform append on HDF5 file
         self._append_to_hdf5(hdf5_filename, new_samplings, root_path.strip('/'))
@@ -448,6 +488,9 @@ class SigmondWriter:
         # Ensure we're working with HDF5 format
         hdf5_filename, root_path = self._ensure_hdf5_format(filename, hdf5_root_path)
         
+        # Create backup before modification
+        self._create_numbered_backup(hdf5_filename)
+        
         # Load samplings from HDF5 file
         loader = SigmondLoader()
         full_hdf5_path = f"{hdf5_filename}[{root_path}]"
@@ -497,16 +540,5 @@ Available Methods:
 - modify_observable(): Modify existing data (auto-converts fstream)  
 - convert_format(): Convert any format to HDF5
 - write_hdf5(): Direct HDF5 writing with full format compliance
-
-API Design:
-- Simple list-based interface: pass List[SigmondSampling] instead of dictionaries
-- Keys automatically derived from sampling metadata (name, index, type, re/im)
-- Cleaner API with fewer parameters to manage
-
-Benefits:
-- No more fstream format issues during modifications
-- Consistent HDF5 working format with Sigmond compatibility
-- Automatic backup and preservation of original files
-- Clear user feedback about conversions and file locations
         """
         return info.strip()
