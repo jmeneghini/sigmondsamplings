@@ -14,16 +14,29 @@ from .sampling import SigmondSampling, ObservableInfo, EnsembleInfo, SamplingInf
 
 class SigmondLoader:
     """Loader for Sigmond samplings files using sigmond_query."""
-    
-    def __init__(self, sigmond_query_cmd: str = "sigmond_query"):
+
+    def __init__(self, filename: str = None, sigmond_query_cmd: str = "sigmond_query"):
         """
         Initialize the loader.
-        
+
         Args:
+            filename: Path to the samplings file to load and cache (optional for backward compatibility)
             sigmond_query_cmd: Command to run sigmond_query (default: "sigmond_query")
         """
         self.sigmond_query_cmd = sigmond_query_cmd
         self._check_sigmond_query()
+
+        # Cache for loaded data
+        self._filename = None
+        self._ensemble_info = None
+        self._sampling_info = None
+        self._observable_infos = None
+        self._all_data = None
+        self._all_samplings = None
+
+        # Load file if provided
+        if filename:
+            self.load_file(filename)
     
     def _check_sigmond_query(self):
         """Check if sigmond_query is available."""
@@ -165,50 +178,50 @@ class SigmondLoader:
         except ET.ParseError as e:
             raise ValueError(f"Could not parse key XML: {e}")
     
-    def get_file_info(self, filename: str) -> Tuple[EnsembleInfo, SamplingInfo, List[ObservableInfo]]:
+    def load_file(self, filename: str) -> None:
         """
-        Get header info and list of observable keys from a file.
-        
+        Load and cache all data from a file.
+
         Args:
             filename: Path to the samplings file (with [path] for HDF5 if needed)
-            
-        Returns:
-            Tuple of (ensemble_info, sampling_info, list_of_observable_infos)
         """
         # Check file validity first
         is_valid, file_type, hdf5_paths = self.check_file_validity(filename)
-        
+
         if not is_valid:
             raise ValueError(f"File {filename} is not a valid Sigmond samplings file")
-        
+
         if file_type == "hdf5" and '[' not in filename:
             if hdf5_paths:
                 paths_str = '\n'.join(hdf5_paths)
                 raise ValueError(f"HDF5 file requires path specification. Available paths:\n{paths_str}")
             else:
                 raise ValueError("HDF5 file requires path specification, but no paths found")
-        
+
+        # Cache filename
+        self._filename = filename
+
         # Get header info
         header_output = self._run_sigmond_query(filename, "-i")
-        ensemble_info, sampling_info = self._parse_header_xml(header_output)
-        
+        self._ensemble_info, self._sampling_info = self._parse_header_xml(header_output)
+
         # Get keys
         keys_output = self._run_sigmond_query(filename, "-k")
-        observable_infos = []
-        
+        self._observable_infos = []
+
         # Parse keys from output
         lines = keys_output.split('\n')
         current_key_lines = []
         in_key = False
-        
+
         for line in lines:
             if line.startswith('Record ') and ':' in line:
                 if current_key_lines:
                     # Process previous key
                     key_xml = '\n'.join(current_key_lines)
                     try:
-                        obs_info = self._parse_observable_key(key_xml, ensemble_info)
-                        observable_infos.append(obs_info)
+                        obs_info = self._parse_observable_key(key_xml, self._ensemble_info)
+                        self._observable_infos.append(obs_info)
                     except (ValueError, NotImplementedError):
                         pass  # Skip problematic keys
                 current_key_lines = []
@@ -219,114 +232,169 @@ class SigmondLoader:
                 # Process current key when we hit empty line
                 key_xml = '\n'.join(current_key_lines)
                 try:
-                    obs_info = self._parse_observable_key(key_xml, ensemble_info)
-                    observable_infos.append(obs_info)
+                    obs_info = self._parse_observable_key(key_xml, self._ensemble_info)
+                    self._observable_infos.append(obs_info)
                 except (ValueError, NotImplementedError):
                     pass  # Skip problematic keys
                 current_key_lines = []
                 in_key = False
-        
+
         # Process last key
         if current_key_lines:
             key_xml = '\n'.join(current_key_lines)
             try:
-                obs_info = self._parse_observable_key(key_xml, ensemble_info)
-                observable_infos.append(obs_info)
+                obs_info = self._parse_observable_key(key_xml, self._ensemble_info)
+                self._observable_infos.append(obs_info)
             except (ValueError, NotImplementedError):
                 pass
-        
-        return ensemble_info, sampling_info, observable_infos
-        
-        
-    
-    def load_observable(self, filename: str, observable_info: ObservableInfo) -> SigmondSampling:
-        """
-        Load a specific observable from the file.
-        
-        Args:
-            filename: Path to the samplings file
-            observable_info: Information about the observable to load
-            
-        Returns:
-            SigmondSampling object containing the data
-        """
-        ensemble_info, sampling_info, observable_infos = self.get_file_info(filename)
-        
-        try:
-            record_index = observable_infos.index(observable_info)
-        except ValueError:
-            raise ValueError(f"Observable {observable_info} not found in file's list of observables.")
 
-        # Get values for all observables
+        # Get all values and cache them
         values_output = self._run_sigmond_query(filename, "-v")
-        
-        # Parse the values output to find our specific observable
-        lines = values_output.split('\n')
-        current_record = -1
-        current_values = []
-        
-        for line in lines:
-            if line.startswith('Record ') and ':' in line:
-                if current_record == record_index:
-                    # We have finished parsing our record, so we can return
-                    data = np.array(current_values)
-                    is_complex = np.iscomplexobj(data)
-                    return SigmondSampling(data, observable_info, 
-                                         sampling_info, is_complex)
+        self._all_data = self._parse_all_values(values_output)
 
-                current_record += 1
-                current_values = []
-                
-            elif current_record == record_index:
-                # We are at the correct record, start parsing values
-                if '[' in line and ']' in line and '=' in line:
-                    value_str = line.split('=')[1].strip()
-                    try:
-                        value = float(value_str)
-                        current_values.append(value)
-                    except ValueError:
-                        try:
-                            # Try complex number
-                            value = complex(value_str)
-                            current_values.append(value)
-                        except ValueError:
-                            pass
+        # Build the complete samplings cache
+        self._all_samplings = self._build_all_samplings_cache()
 
-        # Handle case where the desired record is the last one in the file
-        if current_record == record_index and current_values:
-            data = np.array(current_values)
-            is_complex = np.iscomplexobj(data)
-            return SigmondSampling(data, observable_info, 
-                                 sampling_info, is_complex)
-
-        raise ValueError(f"Observable {observable_info} not found in file")
-    
-    def load_observables(self, filename: str, observable_infos: List[ObservableInfo]) -> Dict[str, SigmondSampling]:
+    def get_file_info(self, filename: str = None) -> Tuple[EnsembleInfo, SamplingInfo, List[ObservableInfo]]:
         """
-        Load multiple observables from the file, automatically handling complex ones.
-        
+        Get header info and list of observable keys from a file.
+
         Args:
-            filename: Path to the samplings file
-            observable_infos: List of ObservableInfo objects to load. For complex
-                              observables, providing just the 're' or 'im' part
-                              is sufficient.
-            
+            filename: Path to the samplings file (with [path] for HDF5 if needed).
+                     If None, uses cached data from previously loaded file.
+
+        Returns:
+            Tuple of (ensemble_info, sampling_info, list_of_observable_infos)
+        """
+        if filename is not None:
+            # Load new file if filename provided
+            self.load_file(filename)
+        elif self._filename is None:
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
+
+        return self._ensemble_info, self._sampling_info, self._observable_infos
+        
+        
+    
+    def _build_all_samplings_cache(self) -> Dict[str, SigmondSampling]:
+        """
+        Build the complete cache of all samplings from loaded data.
+
         Returns:
             Dictionary mapping observable string to SigmondSampling objects
         """
-        all_observables = self.load_all_observables(filename)
-        
+        if len(self._all_data) != len(self._observable_infos):
+            raise ValueError("Mismatch between number of observables in header and data records.")
+
+        # Group observables by name and index to find complex pairs
+        grouped_observables = {}
+        for i, obs_info in enumerate(self._observable_infos):
+            key = (obs_info.name, obs_info.index)
+            if key not in grouped_observables:
+                grouped_observables[key] = {}
+            grouped_observables[key][obs_info.re_im] = (obs_info, i)
+
+        result = {}
+        for key, parts in grouped_observables.items():
+            obs_name, obs_index = key
+
+            # Unique key for the output dictionary
+            output_key = f"{obs_name} {obs_index}"
+
+            if 're' in parts and 'im' in parts:
+                re_info, re_idx = parts['re']
+                im_info, im_idx = parts['im']
+
+                re_data = self._all_data[re_idx]
+                im_data = self._all_data[im_idx]
+                complex_data = re_data + 1j * im_data
+
+                sampling = SigmondSampling(complex_data, re_info,
+                                         self._sampling_info, is_complex=True)
+                result[output_key] = sampling
+
+            elif 're' in parts:
+                re_info, re_idx = parts['re']
+                re_data = self._all_data[re_idx]
+
+                sampling = SigmondSampling(re_data, re_info,
+                                         self._sampling_info, is_complex=np.iscomplexobj(re_data))
+                result[output_key] = sampling
+
+            elif 'im' in parts:
+                im_info, im_idx = parts['im']
+                im_data = self._all_data[im_idx]
+
+                # Store as real array, since it's just one component
+                sampling = SigmondSampling(im_data, im_info,
+                                         self._sampling_info, is_complex=np.iscomplexobj(im_data))
+                result[output_key] = sampling
+
+        return result
+
+    def load_observable(self, filename: str = None, observable_info: ObservableInfo = None) -> SigmondSampling:
+        """
+        Load a specific observable from the file.
+
+        Args:
+            filename: Path to the samplings file (if None, uses cached data)
+            observable_info: Information about the observable to load
+
+        Returns:
+            SigmondSampling object containing the data
+        """
+        if filename is not None:
+            self.load_file(filename)
+        elif self._filename is None:
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
+
+        if observable_info is None:
+            raise ValueError("observable_info is required")
+
+        try:
+            record_index = self._observable_infos.index(observable_info)
+        except ValueError:
+            raise ValueError(f"Observable {observable_info} not found in file's list of observables.")
+
+        # Use cached data
+        data = self._all_data[record_index]
+        is_complex = np.iscomplexobj(data)
+        return SigmondSampling(data, observable_info, self._sampling_info, is_complex)
+    
+    def load_observables(self, filename: str = None, observable_infos: List[ObservableInfo] = None) -> Dict[str, SigmondSampling]:
+        """
+        Load multiple observables from the file, automatically handling complex ones.
+
+        Args:
+            filename: Path to the samplings file (if None, uses cached data)
+            observable_infos: List of ObservableInfo objects to load. For complex
+                              observables, providing just the 're' or 'im' part
+                              is sufficient.
+
+        Returns:
+            Dictionary mapping observable string to SigmondSampling objects
+        """
+        if filename is not None:
+            self.load_file(filename)
+        elif self._filename is None:
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
+
+        if observable_infos is None:
+            raise ValueError("observable_infos is required")
+
+        all_observables = self._all_samplings
+
         result = {}
         requested_keys = set()
         for obs_info in observable_infos:
             # Create key in the same format as load_all_observables uses: "name index"
             key = f"{obs_info.name} {obs_info.index}"
             requested_keys.add(key)
-            
+
         for name, sampling in all_observables.items():
             if name in requested_keys:
                 result[name] = sampling
-        
+
         return result
     
     def _parse_all_values(self, values_output: str) -> List[np.ndarray]:
@@ -359,86 +427,43 @@ class SigmondLoader:
             
         return all_records_values
 
-    def load_all_observables(self, filename: str) -> Dict[str, SigmondSampling]:
+    def load_all_observables(self, filename: str = None) -> Dict[str, SigmondSampling]:
         """
         Load all observables from the file, automatically handling complex observables.
-        
+
         Args:
-            filename: Path to the samplings file
-            
+            filename: Path to the samplings file (if None, uses cached data)
+
         Returns:
             Dictionary mapping observable string to SigmondSampling objects
         """
-        ensemble_info, sampling_info, observable_infos = self.get_file_info(filename)
-        
-        # Get all values
-        values_output = self._run_sigmond_query(filename, "-v")
-        all_data = self._parse_all_values(values_output)
+        if filename is not None:
+            self.load_file(filename)
+        elif self._filename is None:
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
 
-        if len(all_data) != len(observable_infos):
-            raise ValueError("Mismatch between number of observables in header and data records.")
-
-        # Group observables by name and index to find complex pairs
-        grouped_observables = {}
-        for i, obs_info in enumerate(observable_infos):
-            key = (obs_info.name, obs_info.index)
-            if key not in grouped_observables:
-                grouped_observables[key] = {}
-            grouped_observables[key][obs_info.re_im] = (obs_info, i)
-
-        result = {}
-        for key, parts in grouped_observables.items():
-            obs_name, obs_index = key
-            
-            # Unique key for the output dictionary
-            output_key = f"{obs_name} {obs_index}"
-
-            if 're' in parts and 'im' in parts:
-                re_info, re_idx = parts['re']
-                im_info, im_idx = parts['im']
-
-                re_data = all_data[re_idx]
-                im_data = all_data[im_idx]
-                complex_data = re_data + 1j * im_data
-                
-                sampling = SigmondSampling(complex_data, re_info, 
-                                         sampling_info, is_complex=True)
-                result[output_key] = sampling
-
-            elif 're' in parts:
-                re_info, re_idx = parts['re']
-                re_data = all_data[re_idx]
-                
-                sampling = SigmondSampling(re_data, re_info,
-                                         sampling_info, is_complex=np.iscomplexobj(re_data))
-                result[output_key] = sampling
-
-            elif 'im' in parts:
-                im_info, im_idx = parts['im']
-                im_data = all_data[im_idx]
-
-                # Store as real array, since it's just one component
-                sampling = SigmondSampling(im_data, im_info,
-                                         sampling_info, is_complex=np.iscomplexobj(im_data))
-                result[output_key] = sampling
-
-        return result
+        return self._all_samplings
     
-    def find_observables(self, filename: str, name_patterns: Union[List[str], str] = None, 
+    def find_observables(self, filename: str = None, name_patterns: Union[List[str], str] = None,
                         index: int = None, scalar_type: str = None) -> List[ObservableInfo]:
         """
         Find observables matching given criteria.
-        
+
         Args:
-            filename: Path to the samplings file
+            filename: Path to the samplings file (if None, uses cached data)
             name_pattern: Regex pattern to match observable names
             index: Specific index to match
             scalar_type: Specific scalar type ('re' or 'im')
-            
+
         Returns:
             List of matching ObservableInfo objects
         """
-        _, _, observable_infos = self.get_file_info(filename)
+        if filename is not None:
+            self.load_file(filename)
+        elif self._filename is None:
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
+
+        observable_infos = self._observable_infos
         
         results = []
         if isinstance(name_patterns, str):

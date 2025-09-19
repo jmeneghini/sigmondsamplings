@@ -83,6 +83,7 @@ class AbstractProjectDataParser(ABC):
         """
         pass
     
+    # TODO: SHOULD BE IN SIGMONDLOADER
     def load_observables_by_pattern(self, 
                                    name_patterns: Union[str, List[str]],
                                    **kwargs) -> Dict[str, SigmondSampling]:

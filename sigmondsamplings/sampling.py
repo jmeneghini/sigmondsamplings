@@ -7,6 +7,12 @@ import xml.etree.ElementTree as ET
 from typing import Union, Optional, Dict, Any
 import re
 
+try:
+    from uncertainties import ufloat
+    UNCERTAINTIES_AVAILABLE = True
+except ImportError:
+    UNCERTAINTIES_AVAILABLE = False
+
 
 # Default ensemble for general use - accessible to users
 
@@ -166,11 +172,9 @@ class SigmondSampling:
             return self.std * np.sqrt(n - 1)
         else:
             return self.std
-
-    def estimate_str(this, sig_figs = 2): # format PDG-style
-        value = this.full_sample_value
-        error = this.error
-        # round error to `significant` digits
+        
+    @staticmethod
+    def make_estimate_str(value: float, error: float, sig_figs: int = 2) -> str:
         err_digits = f"{error:.{sig_figs}g}"
         # find decimal places
         decimals = max(0, -int(np.floor(np.log10(float(err_digits)))) + (sig_figs - 1))
@@ -178,6 +182,51 @@ class SigmondSampling:
         val_str = f"{value:.{decimals}f}"
         err_str = f"{error:.{decimals}f}"
         return f"{val_str}({err_str})"
+
+    def estimate_str(self, sig_figs = 2): # format PDG-style
+        value = self.full_sample_value
+        error = self.error
+        return self.make_estimate_str(value, error, sig_figs)
+
+    def to_ufloat(self):
+        """
+        Convert to uncertainties.ufloat object for PDG formatting.
+
+        Returns:
+            uncertainties.ufloat: Object with value and uncertainty
+
+        Raises:
+            ImportError: If uncertainties package is not available
+        """
+        if not UNCERTAINTIES_AVAILABLE:
+            raise ImportError("uncertainties package is required for ufloat conversion. Install with: pip install uncertainties")
+
+        if self.is_complex:
+            raise ValueError("Complex samplings cannot be converted to ufloat. Use .to_real() first.")
+
+        return ufloat(self.full_sample_value, self.error)
+
+    def pdg_format(self, format_spec: str = '.2uS') -> str:
+        """
+        Format value and error using PDG conventions via uncertainties package.
+
+        Args:
+            format_spec: Format specification for uncertainties package
+                       Common options:
+                       - '.1uS': Shorthand notation like 1.23(4)
+                       - '.1uP': Pretty-print with ± symbol
+                       - '.1uL': LaTeX notation
+                       - '.1ue': Scientific notation
+
+        Returns:
+            str: Formatted string using PDG conventions
+
+        Raises:
+            ImportError: If uncertainties package is not available
+            ValueError: If sampling is complex
+        """
+        ufloat_obj = self.to_ufloat()
+        return f"{ufloat_obj:{format_spec}}"
     
     def confidence_interval(self, confidence_level: float = 0.68) -> tuple:
         """
@@ -341,7 +390,7 @@ class SigmondSampling:
 
         return True
     
-    def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any) -> Union['SigmondSampling', type(NotImplemented)]:
+    def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any) -> Union['SigmondSampling', Any]:
         """Implements NumPy ufunc protocol for SigmondSampling."""
         if method != '__call__' or kwargs:
             return NotImplemented
@@ -442,9 +491,22 @@ class SigmondSampling:
 
     def __rpow__(self, other):
         return np.power(other, self)
+    
+    def __lt__(self, other):
+        return self.full_sample_value < (other.full_sample_value if isinstance(other, SigmondSampling) else other)
+    
+    def __le__(self, other):
+        return self.full_sample_value <= (other.full_sample_value if isinstance(other, SigmondSampling) else other)
+    
+    def __gt__(self, other):
+        return self.full_sample_value > (other.full_sample_value if isinstance(other, SigmondSampling) else other)
+    
+    def __ge__(self, other):
+        return self.full_sample_value >= (other.full_sample_value if isinstance(other, SigmondSampling) else other)
 
     def __repr__(self):
         return f"SigmondSampling(full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
     
     def __str__(self):
         return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
+

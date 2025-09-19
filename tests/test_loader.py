@@ -5,8 +5,8 @@ Unit tests for the loader module using actual Sigmond files.
 import unittest
 import os
 from unittest.mock import patch, MagicMock
-from SigmondSamplings.loader import SigmondLoader
-from SigmondSamplings.sampling import ObservableInfo, EnsembleInfo, SamplingInfo
+from sigmondsamplings.loader import SigmondLoader
+from sigmondsamplings.sampling import ObservableInfo, EnsembleInfo, SamplingInfo
 
 
 class TestSigmondLoader(unittest.TestCase):
@@ -322,6 +322,8 @@ Full Sampling Mean Value = 2.0
                 return MagicMock(returncode=0, stdout=self.mock_header_response)
             elif '-k' in cmd:
                 return MagicMock(returncode=0, stdout=self.mock_keys_response)
+            elif '-v' in cmd:
+                return MagicMock(returncode=0, stdout=self.mock_values_response)
             else:
                 return MagicMock(returncode=0, stdout="")
         

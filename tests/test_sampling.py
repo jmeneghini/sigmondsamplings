@@ -4,9 +4,14 @@ Unit tests for the sampling module.
 
 import unittest
 import numpy as np
-from SigmondSamplings.sampling import (
-    EnsembleInfo, SamplingInfo, ObservableInfo, SigmondSampling
+from sigmondsamplings.sampling import (
+    EnsembleInfo, SamplingInfo, ObservableInfo, SigmondSampling, UNCERTAINTIES_AVAILABLE
 )
+
+try:
+    from uncertainties import ufloat
+except ImportError:
+    pass
 
 
 class TestEnsembleInfo(unittest.TestCase):
@@ -314,12 +319,127 @@ class TestSigmondSampling(unittest.TestCase):
     def test_str_repr(self):
         """Test string representations."""
         sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
-        
+
         str_repr = str(sampling)
         self.assertIn("±", str_repr)
-        
+
         repr_str = repr(sampling)
         self.assertIn("SigmondSampling", repr_str)
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_to_ufloat(self):
+        """Test conversion to ufloat object."""
+        sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+        ufloat_obj = sampling.to_ufloat()
+
+        # Check that value and error match
+        self.assertAlmostEqual(ufloat_obj.nominal_value, sampling.full_sample_value, places=6)
+        self.assertAlmostEqual(ufloat_obj.std_dev, sampling.error, places=6)
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_to_ufloat_complex_error(self):
+        """Test that complex samplings raise error when converting to ufloat."""
+        complex_data = self.data + 1j * self.data * 0.1
+        sampling = SigmondSampling(complex_data, self.observable_info, self.sampling_info,
+                                  is_complex=True)
+
+        with self.assertRaises(ValueError):
+            sampling.to_ufloat()
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_pdg_format_shorthand(self):
+        """Test PDG formatting with shorthand notation."""
+        sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+        formatted = sampling.pdg_format('.1uS')
+
+        # Should contain parentheses for shorthand notation
+        self.assertIn('(', formatted)
+        self.assertIn(')', formatted)
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_pdg_format_pretty(self):
+        """Test PDG formatting with pretty-print notation."""
+        sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+        formatted = sampling.pdg_format('.1uP')
+
+        # Should contain ± symbol for pretty-print
+        self.assertIn('±', formatted)
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_pdg_format_scientific(self):
+        """Test PDG formatting with scientific notation."""
+        # Use larger values to trigger scientific notation
+        large_data = self.data * 1e6
+        sampling = SigmondSampling(large_data, self.observable_info, self.sampling_info)
+        formatted = sampling.pdg_format('.1ue')
+
+        # Should contain 'e' for scientific notation
+        self.assertIn('e', formatted.lower())
+
+    def test_uncertainties_unavailable_error(self):
+        """Test proper error when uncertainties package not available."""
+        # Temporarily monkey-patch to simulate missing package
+        original_available = SigmondSampling.__module__.__dict__.get('UNCERTAINTIES_AVAILABLE')
+
+        # Patch the module-level variable
+        import sigmondsamplings.sampling as sampling_module
+        original_available = sampling_module.UNCERTAINTIES_AVAILABLE
+        sampling_module.UNCERTAINTIES_AVAILABLE = False
+
+        try:
+            sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+
+            with self.assertRaises(ImportError):
+                sampling.to_ufloat()
+
+            with self.assertRaises(ImportError):
+                sampling.pdg_format()
+        finally:
+            # Restore original value
+            sampling_module.UNCERTAINTIES_AVAILABLE = original_available
+
+
+class TestUncertaintiesIntegration(unittest.TestCase):
+    """Test uncertainties package integration."""
+
+    def setUp(self):
+        """Set up test data with known values for easier testing."""
+        # Use simple data: full sample = 1.0, resamples with std = 0.1
+        self.data = np.array([1.0, 1.1, 0.9, 1.05, 0.95])
+        self.ensemble_info = EnsembleInfo("test_ensemble", 1000, 100)
+        self.sampling_info = SamplingInfo("bootstrap", 4, 1234)
+        self.observable_info = ObservableInfo("test_obs", 0, 'n', 're', self.ensemble_info)
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_ufloat_arithmetic_compatibility(self):
+        """Test that ufloat objects from SigmondSampling work with uncertainties arithmetic."""
+        sampling1 = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+        sampling2 = SigmondSampling(self.data * 2, self.observable_info, self.sampling_info)
+
+        ufloat1 = sampling1.to_ufloat()
+        ufloat2 = sampling2.to_ufloat()
+
+        # Test arithmetic operations
+        result_add = ufloat1 + ufloat2
+        result_mul = ufloat1 * ufloat2
+
+        # Check that results are ufloat objects (type name varies by uncertainties version)
+        self.assertIn(type(result_add).__name__, ['Variable', 'AffineScalarFunc'])
+        self.assertIn(type(result_mul).__name__, ['Variable', 'AffineScalarFunc'])
+
+    @unittest.skipUnless(UNCERTAINTIES_AVAILABLE, "uncertainties package not available")
+    def test_format_comparison_with_estimate_str(self):
+        """Compare PDG formatting with existing estimate_str method."""
+        sampling = SigmondSampling(self.data, self.observable_info, self.sampling_info)
+
+        # Get both formats
+        estimate_str = sampling.estimate_str(sig_figs=1)
+        pdg_format = sampling.pdg_format('.1uS')
+
+        # Both should contain the main value
+        value_str = f"{sampling.full_sample_value:.1f}"
+        self.assertIn(value_str[0], estimate_str)  # At least first digit should match
+        self.assertIn(value_str[0], pdg_format)
 
 
 if __name__ == '__main__':

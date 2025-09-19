@@ -423,7 +423,7 @@ class SigmondWriter:
         Args:
             input_filename: Input file path
             output_filename: Output file path
-            output_format: Output format ('hdf5' - other formats deprecated)
+            output_format: Output format ('hdf5')
             hdf5_root_path: Root path for HDF5 output
             overwrite: Whether to overwrite existing output file
             
