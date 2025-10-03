@@ -70,6 +70,19 @@ class SamplingStats:
         """Get the means of all observables."""
         return np.array([s.mean for s in self.samplings])
     
+    def values_at_index(self, sample_idx: int) -> np.ndarray:
+        """
+        Get the values of all observables for a specific resampling index.
+        
+        Args:
+            sample_idx: Resampling index (0 for full sample, 1..N for resamplings)
+        Returns:
+            Array of observable values for the specified sample index
+        """
+        if sample_idx < 0 or sample_idx > self.num_samples:
+            raise IndexError("Resampling index out of range")
+        return np.array([s.data[sample_idx] for s in self.samplings])
+    
     def sample_means(self) -> np.ndarray:
         """Get the means of all observables (alias for means)."""
         return self.means()
@@ -228,7 +241,7 @@ class SamplingStats:
         return cov / (err1 * err2)
     
     def chi_squared(self, theory_values: np.ndarray, 
-                   use_correlation: bool = True) -> Tuple[float, int]:
+                   use_correlation: bool = True, resamp_idx: int = 0) -> float:
         """
         Calculate chi-squared with respect to theory values.
         
@@ -236,15 +249,16 @@ class SamplingStats:
             theory_values: Array of theoretical values to compare against
             use_correlation: Whether to use full covariance matrix (True) or 
                            just diagonal errors (False)
+            resamp_idx: Resampling index to use (0 for full sample, 1..N for resamplings)
             
         Returns:
-            Tuple of (chi_squared_value, degrees_of_freedom)
+            Chi-squared value
         """
         if len(theory_values) != self.num_observables:
             raise ValueError("Theory values length must match number of observables")
         
-        means = self.means()
-        diff = means - theory_values
+        obs = self.values_at_index(resamp_idx)
+        diff = obs - theory_values
         
         if use_correlation:
             cov_matrix = self.covariance_matrix()
@@ -259,8 +273,7 @@ class SamplingStats:
             errors = self.errors()
             chi_sq = np.sum((diff / errors) ** 2)
         
-        dof = self.num_observables
-        return chi_sq, dof
+        return chi_sq
     
     def effective_sample_size(self) -> np.ndarray:
         """

@@ -66,7 +66,8 @@ class SamplingInfo:
 class ObservableInfo:
     """Information about a specific observable."""
     
-    def __init__(self, name: str, index: int, op_type: str, re_im: str, ensemble_info: EnsembleInfo, latex_str: str = None):
+    def __init__(self, name: str, index: int = 0, op_type: str = "n",
+                 re_im: str = "re", ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE, latex_str: str = None):
         self.name = name
         self.index = index
         self.op_type = op_type
