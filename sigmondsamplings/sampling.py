@@ -102,13 +102,18 @@ class ObservableInfo:
                 self.op_type == other.op_type and 
                 self.re_im == other.re_im and
                 self.ensemble_info == other.ensemble_info)
+        
+    def _repr_latex__(self):
+        """LaTeX representation for Jupyter notebooks."""
+        if self.latex_str:
+            return f"${self.latex_str}$"
+        else:
+            return self.__str__()
     
     def __repr__(self):
         return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info.ensemble_name}')"
     
     def __str__(self):
-        if self.latex_str:
-            return self.latex_str
         return f"{self.name} {self.index}" # Simple MCObs string format
 
 
@@ -142,6 +147,11 @@ class SigmondSampling:
         """Get ensemble info from the observable."""
         return self.observable_info.ensemble_info
     
+    @ensemble_info.setter
+    def ensemble_info(self, value: EnsembleInfo):
+        """Set ensemble info for the observable."""
+        self.observable_info.ensemble_info = value
+    
     @property
     def full_sample_value(self):
         """The full sample value (mean of all measurements)."""
@@ -173,21 +183,6 @@ class SigmondSampling:
             return self.std * np.sqrt(n - 1)
         else:
             return self.std
-        
-    @staticmethod
-    def make_estimate_str(value: float, error: float, sig_figs: int = 2) -> str:
-        err_digits = f"{error:.{sig_figs}g}"
-        # find decimal places
-        decimals = max(0, -int(np.floor(np.log10(float(err_digits)))) + (sig_figs - 1))
-        # round both to same decimals
-        val_str = f"{value:.{decimals}f}"
-        err_str = f"{error:.{decimals}f}"
-        return f"{val_str}({err_str})"
-
-    def estimate_str(self, sig_figs = 2): # format PDG-style
-        value = self.full_sample_value
-        error = self.error
-        return self.make_estimate_str(value, error, sig_figs)
 
     def to_ufloat(self):
         """

@@ -37,7 +37,6 @@ class AbstractProjectDataParser(ABC):
         self.project_base_dir = Path(project_base_dir) if project_base_dir else Path.cwd()
         self.all_observables = None
         self._loader = None
-        self._initialize_loader()
     
     @abstractmethod
     def _initialize_loader(self) -> None:

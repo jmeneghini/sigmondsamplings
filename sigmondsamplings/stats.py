@@ -28,9 +28,62 @@ class SamplingStats:
         for i, sampling in enumerate(self.samplings[1:], 1):
             if sampling.sampling_info != reference.sampling_info:
                 raise ValueError(f"Sampling {i} has different sampling info than sampling 0")
-            
+
             if len(sampling.data) != len(reference.data):
                 raise ValueError(f"Sampling {i} has different data length than sampling 0")
+
+    def __len__(self) -> int:
+        """Return the number of observables."""
+        return len(self.samplings) if self.samplings else 0
+
+    def __getitem__(self, key: Union[int, slice, List[int], np.ndarray]) -> 'SamplingStats':
+        """
+        Create a new SamplingStats object by indexing the current object.
+
+        Args:
+            key: Index specification - can be:
+                - int: Single observable index
+                - slice: Range of observables
+                - List[int] or np.ndarray: Specific observable indices
+
+        Returns:
+            New SamplingStats object containing the selected observables
+        """
+        if not self.samplings:
+            raise IndexError("Cannot index empty SamplingStats")
+
+        if isinstance(key, int):
+            # Single index - convert to list for consistent handling
+            if key < 0:
+                key = len(self.samplings) + key
+            if key < 0 or key >= len(self.samplings):
+                raise IndexError(f"Index {key} out of range for {len(self.samplings)} observables")
+            selected_samplings = [self.samplings[key]]
+
+        elif isinstance(key, slice):
+            # Slice indexing
+            selected_samplings = self.samplings[key]
+
+        elif isinstance(key, (list, np.ndarray)):
+            # List or array of indices
+            key = np.array(key)
+            if key.dtype != int:
+                raise TypeError("Index array must contain integers")
+
+            # Handle negative indices
+            key = np.where(key < 0, len(self.samplings) + key, key)
+
+            # Check bounds
+            if np.any(key < 0) or np.any(key >= len(self.samplings)):
+                raise IndexError(f"Index out of range for {len(self.samplings)} observables")
+
+            selected_samplings = [self.samplings[i] for i in key]
+
+        else:
+            raise TypeError(f"Invalid index type: {type(key)}. Must be int, slice, list, or numpy array")
+
+        # Create new SamplingStats object with selected samplings
+        return SamplingStats(selected_samplings)
 
     @property
     def observable_infos(self) -> List[ObservableInfo]:
@@ -61,6 +114,21 @@ class SamplingStats:
     def num_samples(self) -> int:
         """Number of samples (excluding full sample value)."""
         return len(self.samplings[0].resampled_values)
+    
+    def print_observables(self):
+        """Print a summary of all observables."""
+        for i, s in enumerate(self.samplings):
+            print(f"Observable {i}: {s.observable_info.name} = {s.pdg_format()}")
+    
+    def max_value(self) -> SigmondSampling:
+        """Get the observable with the maximum mean value."""
+        max_idx = np.argmax(self.full_samples())
+        return self.samplings[max_idx]
+    
+    def min_value(self) -> SigmondSampling:
+        """Get the observable with the minimum mean value."""
+        min_idx = np.argmin(self.full_samples())
+        return self.samplings[min_idx]
 
     def full_samples(self) -> np.ndarray:
         """Get the full sample values of all observables."""
@@ -222,6 +290,25 @@ class SamplingStats:
             cov *= (n - 1)
         
         return cov
+    
+    def min_and_max_val_with_buffer(self, buffer: float = 0.3) -> Tuple[SigmondSampling, SigmondSampling]:
+        """
+        Get min and max values for plotting, with buffer.
+        delta = max - min
+        min_buff = min - buffer * delta
+        max_buff = max + buffer * delta
+        
+        Args:
+            buffer: Fractional buffer to add to min/max range
+        Returns:
+            Tuple of (min_values, max_values) with buffer applied
+        """
+
+        delta = self.max_value() - self.min_value()
+        min_buff = self.min_value() - buffer * delta
+        max_buff = self.max_value() + buffer * delta
+        
+        return min_buff, max_buff
     
     def correlation(self, obs1_idx: int, obs2_idx: int) -> float:
         """
