@@ -18,6 +18,7 @@ try:
 except ImportError:
     # Handle direct execution
     import os
+
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from writer import SigmondWriter
     from loader import SigmondLoader
@@ -55,7 +56,9 @@ def resolve_paths(input_files: List[str], base_path: Optional[str] = None) -> Li
     return resolved_paths
 
 
-def load_all_samplings(input_files: List[str], verbose: bool = False) -> Dict[str, SigmondSampling]:
+def load_all_samplings(
+    input_files: List[str], verbose: bool = False
+) -> Dict[str, SigmondSampling]:
     """
     Load all samplings from multiple input files.
 
@@ -66,7 +69,7 @@ def load_all_samplings(input_files: List[str], verbose: bool = False) -> Dict[st
     Returns:
         Dictionary mapping observable keys to SigmondSampling objects
     """
-    loader = SigmondLoader()
+    loader = SigmondLoader(enable_caching=False)
     all_samplings = {}
 
     for i, input_file in enumerate(input_files, 1):
@@ -75,19 +78,23 @@ def load_all_samplings(input_files: List[str], verbose: bool = False) -> Dict[st
 
         try:
             # Handle HDF5 files that might need path specification
-            if input_file.lower().endswith('.hdf5') and '[' not in input_file:
+            if input_file.lower().endswith(".hdf5") and "[" not in input_file:
                 is_valid, file_type, hdf5_paths = loader.check_file_validity(input_file)
-                if is_valid and file_type == 'hdf5' and hdf5_paths:
+                if is_valid and file_type == "hdf5" and hdf5_paths:
                     if len(hdf5_paths) > 1:
-                        print(f"Warning: HDF5 file {input_file} has multiple paths. Using: {hdf5_paths[0]}")
+                        print(
+                            f"Warning: HDF5 file {input_file} has multiple paths. Using: {hdf5_paths[0]}"
+                        )
                         if verbose:
                             print(f"Available paths: {', '.join(hdf5_paths)}")
                     input_file_with_path = f"{input_file}[{hdf5_paths[0]}]"
-                    samplings = loader.load_all_observables(input_file_with_path)
+                    loader.load_file(input_file_with_path)
                 else:
-                    samplings = loader.load_all_observables(input_file)
+                    loader.load_file(input_file)
             else:
-                samplings = loader.load_all_observables(input_file)
+                loader.load_file(input_file)
+
+            samplings = loader.get_observables()
 
             if verbose:
                 print(f"  Loaded {len(samplings)} observables")
@@ -95,7 +102,9 @@ def load_all_samplings(input_files: List[str], verbose: bool = False) -> Dict[st
             # Check for conflicts with existing observables
             conflicts = set(all_samplings.keys()) & set(samplings.keys())
             if conflicts:
-                print(f"Warning: Observable conflicts detected in {Path(input_file).name}:")
+                print(
+                    f"Warning: Observable conflicts detected in {Path(input_file).name}:"
+                )
                 for conflict in sorted(conflicts):
                     print(f"  - {conflict} (overwriting previous)")
 
@@ -109,7 +118,9 @@ def load_all_samplings(input_files: List[str], verbose: bool = False) -> Dict[st
     return all_samplings
 
 
-def validate_compatibility(samplings: Dict[str, SigmondSampling], verbose: bool = False) -> None:
+def validate_compatibility(
+    samplings: Dict[str, SigmondSampling], verbose: bool = False
+) -> None:
     """
     Validate that all samplings are compatible for combination.
 
@@ -130,7 +141,9 @@ def validate_compatibility(samplings: Dict[str, SigmondSampling], verbose: bool 
     ref_ensemble_info = reference_sampling.observable_info.ensemble_info
 
     if verbose:
-        print(f"Reference sampling info: {ref_sampling_info.method}, {ref_sampling_info.num_resamplings} resamplings")
+        print(
+            f"Reference sampling info: {ref_sampling_info.method}, {ref_sampling_info.num_resamplings} resamplings"
+        )
         print(f"Reference ensemble: {ref_ensemble_info.ensemble_name}")
 
     incompatible_samplings = []
@@ -148,7 +161,9 @@ def validate_compatibility(samplings: Dict[str, SigmondSampling], verbose: bool 
                 incompatible_ensembles.append(ensemble_name)
 
     if incompatible_samplings:
-        print(f"Error: Found {len(incompatible_samplings)} samplings with incompatible sampling info:")
+        print(
+            f"Error: Found {len(incompatible_samplings)} samplings with incompatible sampling info:"
+        )
         for key in incompatible_samplings[:5]:  # Show first 5
             print(f"  - {key}")
         if len(incompatible_samplings) > 5:
@@ -162,11 +177,14 @@ def validate_compatibility(samplings: Dict[str, SigmondSampling], verbose: bool 
             print(f"  - {ensemble}")
 
 
-def combine_files(input_files: List[str], output_file: str,
-                 hdf5_root_path: str = "/data/",
-                 base_path: Optional[str] = None,
-                 verbose: bool = False,
-                 overwrite: bool = False) -> str:
+def combine_files(
+    input_files: List[str],
+    output_file: str,
+    hdf5_root_path: str = "/data/",
+    base_path: Optional[str] = None,
+    verbose: bool = False,
+    overwrite: bool = False,
+) -> str:
     """
     Combine multiple Sigmond files into a single HDF5 file.
 
@@ -204,14 +222,16 @@ def combine_files(input_files: List[str], output_file: str,
     print("All samplings are compatible")
 
     # Ensure output is HDF5 format
-    if not output_file.lower().endswith('.hdf5'):
-        output_file = output_file.rsplit('.', 1)[0] + '.hdf5'
+    if not output_file.lower().endswith(".hdf5"):
+        output_file = output_file.rsplit(".", 1)[0] + ".hdf5"
         print(f"Output file adjusted to HDF5 format: {output_file}")
 
     # Check if output file exists
     output_path = Path(output_file)
     if output_path.exists() and not overwrite:
-        raise FileExistsError(f"Output file {output_file} already exists. Use --overwrite to replace it.")
+        raise FileExistsError(
+            f"Output file {output_file} already exists. Use --overwrite to replace it."
+        )
 
     # Write combined file using SigmondWriter
     print(f"Writing combined file to {output_file}...")
@@ -224,7 +244,7 @@ def combine_files(input_files: List[str], output_file: str,
         filename=output_file,
         samplings=samplings_list,
         root_path=hdf5_root_path,
-        overwrite=overwrite
+        overwrite=overwrite,
     )
 
     print(f"Successfully combined {len(input_files)} files into {final_output}")
@@ -254,21 +274,34 @@ Examples:
 
 Note: All input files must have compatible sampling information (bootstrap/jackknife
 parameters) but can come from different ensembles.
-        """
+        """,
     )
 
-    parser.add_argument("input_files", nargs="+",
-                       help="Input Sigmond files (.smp, .fstream, .hdf5)")
-    parser.add_argument("-o", "--output", required=True,
-                       help="Output HDF5 file path")
-    parser.add_argument("--hdf5-root-path", default="/data/",
-                       help="Root path for output HDF5 file (default: /data/)")
-    parser.add_argument("--base-path",
-                       help="Base path for resolving relative input paths (default: current directory)")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                       help="Print detailed progress information")
-    parser.add_argument("--overwrite", "-f", action="store_true",
-                       help="Overwrite output file if it exists")
+    parser.add_argument(
+        "input_files", nargs="+", help="Input Sigmond files (.smp, .fstream, .hdf5)"
+    )
+    parser.add_argument("-o", "--output", required=True, help="Output HDF5 file path")
+    parser.add_argument(
+        "--hdf5-root-path",
+        default="/data/",
+        help="Root path for output HDF5 file (default: /data/)",
+    )
+    parser.add_argument(
+        "--base-path",
+        help="Base path for resolving relative input paths (default: current directory)",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print detailed progress information",
+    )
+    parser.add_argument(
+        "--overwrite",
+        "-f",
+        action="store_true",
+        help="Overwrite output file if it exists",
+    )
 
     args = parser.parse_args()
 
@@ -279,7 +312,7 @@ parameters) but can come from different ensembles.
             hdf5_root_path=args.hdf5_root_path,
             base_path=args.base_path,
             verbose=args.verbose,
-            overwrite=args.overwrite
+            overwrite=args.overwrite,
         )
     except Exception as e:
         print(f"Error: {e}")
