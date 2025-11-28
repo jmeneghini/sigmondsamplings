@@ -15,9 +15,10 @@ try:
         get_irrep_latex_str,
     )
 except ImportError:
-    raise ImportError(
-        "KBfit constants are required. Make sure kbfit is installed and accessible."
-    )
+    # warning only; KBfit not strictly required for this module
+    PARTICLE_LATEX_MAP = {}
+    IRREP_LATEX_MAP = {} 
+    print("Warning: KBfit not installed; particle and irrep LaTeX mappings will be unavailable.")
 
 
 def get_energy_type_latex_str(energy_type: str, level_index: int = None) -> str:
@@ -37,7 +38,7 @@ def get_energy_type_latex_str(energy_type: str, level_index: int = None) -> str:
 
 
 def parse_energy_attributes(
-    name: str, delimiters: str = r"[_\-\.\s/]"
+    name: str, delimiters: str = r"[_\.\s/]"
 ) -> Dict[str, Any]:
     """
     Parse energy level attributes from observable name with flexible delimiters.
@@ -66,6 +67,13 @@ def parse_energy_attributes(
     psq_match = re.search(psq_pattern, name, re.IGNORECASE)
     if psq_match:
         result["psq"] = int(psq_match.group(1))
+        
+    # Check for PSQ=int pattern
+    else:
+        psq_pattern_eq = f"{start_bound}PSQ=(\\d+){end_bound}"
+        psq_match_eq = re.search(psq_pattern_eq, name, re.IGNORECASE)
+        if psq_match_eq:
+            result["psq"] = int(psq_match_eq.group(1))
 
     # Level index - standalone number (not part of PSQ or other patterns)
     # Find all standalone numbers and pick the one that's not PSQ
@@ -75,6 +83,7 @@ def parse_energy_attributes(
         # Skip if this number is already captured as PSQ
         if psq_match and match.span() == psq_match.span():
             continue
+        
         # Take the first standalone number as level index
         result["level_index"] = number
         break
@@ -114,6 +123,23 @@ def parse_energy_attributes(
         particle = match.group(1)
         if particle not in particles:
             particles.append(particle)
+    if particles:
+        result["particles"] = particles
+        
+    # recheck for particle(psq) patter
+    particle_psq_pattern = (
+        f"{start_bound}("
+        + "|".join(re.escape(p) for p in particle_names)
+        + r")(?:\((\d+)\))?"
+        + f"{end_bound}"
+    )
+    for match in re.finditer(particle_psq_pattern, name):
+        particle = match.group(1)
+        psq_str = match.group(2)
+        if particle not in particles:
+            particles.append(particle)
+        if psq_str is not None:
+            result["psq"] = int(psq_str)
     if particles:
         result["particles"] = particles
 
@@ -296,6 +322,32 @@ class EnergyObsInfo(ObservableInfo):
             include_level_index=include_level_index,
         )
 
+    def __eq__(self, other):
+        """Check equality including energy-specific attributes."""
+        if not isinstance(other, EnergyObsInfo):
+            return False
+        return (
+            super().__eq__(other)
+            and self.irrep == other.irrep
+            and self.psq == other.psq
+            and self.energy_type == other.energy_type
+            and self.particles == other.particles
+            and self.level_index == other.level_index
+            and self.ref_particle == other.ref_particle
+        )
+
+    def __hash__(self):
+        """Make EnergyObsInfo hashable including energy-specific attributes."""
+        return hash((
+            super().__hash__(),
+            self.irrep,
+            self.psq,
+            self.energy_type,
+            tuple(self.particles) if self.particles else None,
+            self.level_index,
+            self.ref_particle
+        ))
+
     def __repr__(self):
         parts = [f"name='{self.name}'", f"index={self.index}"]
         if self.irrep:
@@ -360,6 +412,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
             # Temporarily set attributes to use canonical_name property
             self.psq = psq
             self.particles = particles
+            self.ref_particle = ref_particle
             name = self.canonical_name
 
         # Auto-generate LaTeX if needed
@@ -438,8 +491,10 @@ class SHEnergyObsInfo(EnergyObsInfo):
         """Generate canonical form: PSQ{psq}_{particle_name}."""
         if not (self.psq is not None and self.particle):
             raise ValueError("Cannot generate canonical name: missing psq or particle")
-
-        return f"PSQ{self.psq}_{self.particle}"
+        name = f"PSQ{self.psq}_{self.particle}"
+        if self.ref_particle is not None:
+            name += "_ref"
+        return name
 
 
 def detect_energy_level_type(parsed_attributes: dict) -> str:

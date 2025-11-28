@@ -7,6 +7,7 @@ in both fstream and HDF5 formats using the sigmond_query tool.
 
 from .loader import SigmondLoader
 from .spectrum_loader import SpectrumLoader
+from .spectra_collection import SpectraCollection
 from .writer import SigmondWriter
 from .plotter import SigmondPlotter
 from .model_func import SigmondModelFunc
@@ -54,6 +55,7 @@ __all__ = [
     # Core SigmondSamplings functionality
     "SigmondLoader",
     "SpectrumLoader",
+    "SpectraCollection",
     "SigmondWriter",
     "SigmondSampling",
     "SamplingInfo",
@@ -99,6 +101,8 @@ __all__ = [
     "split_complex_sampling",
     "bootstrap_resample",
     "jackknife_resample",
+    "compute_autocorrelation",
+    "integrated_autocorrelation_time",
     "effective_sample_size",
-    "block_average",
+    "rebin_data",
 ]

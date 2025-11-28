@@ -6,11 +6,12 @@ import subprocess
 import xml.etree.ElementTree as ET
 import numpy as np
 import re
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from pathlib import Path
 import logging
 
 from .sampling import SigmondSampling, ObservableInfo, EnsembleInfo, SamplingInfo
+from .spectra_collection import SpectraCollection
 
 # Optional cache manager import
 try:
@@ -19,18 +20,28 @@ try:
 except ImportError:
     CACHE_AVAILABLE = False
     CacheManager = None
-    
+
 logger = logging.getLogger(__name__)
 
 
 class SigmondLoader:
-    """Loader for Sigmond samplings files using sigmond_query."""
+    """
+    Loader for Sigmond samplings files using sigmond_query.
+
+    Provides queryable SpectraCollection of all loaded observables:
+        loader.observables - All loaded samplings
+
+    Use SpectraCollection filtering methods to query:
+        loader.observables.filter(index=0)
+        loader.observables.find(lambda obs: 'PSQ' in obs.name)
+        loader.observables.find(lambda obs: re.search(r'PSQ.*', obs.name))
+    """
 
     def __init__(
         self,
         filename: str = None,
         sigmond_query_cmd: str = "sigmond_query",
-        enable_caching: bool = True,
+        enable_caching: bool = False,
         cache_app: str = "sigmond-samplings",
     ):
         """
@@ -39,7 +50,7 @@ class SigmondLoader:
         Args:
             filename: Path to the samplings file to load upon construction (optional)
             sigmond_query_cmd: Command to run sigmond_query (default: "sigmond_query")
-            enable_caching: Whether to enable disk caching of loaded observables (default: True)
+            enable_caching: Whether to enable disk caching of loaded observables (default: False)
             cache_app: Application name for cache directory (default: "sigmond-samplings")
         """
         self.sigmond_query_cmd = sigmond_query_cmd
@@ -56,7 +67,7 @@ class SigmondLoader:
 
         # Single source of truth for data
         self._filename = None
-        self._all_samplings = {}
+        self._all_samplings = SpectraCollection([])
         # Load file if provided
         if filename:
             self.load_file(filename)
@@ -64,26 +75,37 @@ class SigmondLoader:
     @property
     def _observable_infos(self) -> List[ObservableInfo]:
         """Generate observable infos on-demand from samplings."""
-        return [sampling.observable_info for sampling in self._all_samplings.values()]
+        return [sampling.observable_info for sampling in self._all_samplings]
 
     @property
     def _all_data(self) -> List[np.ndarray]:
         """Generate data arrays on-demand from samplings."""
-        return [sampling.data for sampling in self._all_samplings.values()]
+        return [sampling.data for sampling in self._all_samplings]
 
     @property
     def _ensemble_info(self) -> Optional[EnsembleInfo]:
         """Get ensemble info from first sampling."""
         if not self._all_samplings:
             return None
-        return next(iter(self._all_samplings.values())).ensemble_info
+        return self._all_samplings[0].ensemble_info
 
     @property
     def _sampling_info(self) -> Optional[SamplingInfo]:
         """Get sampling info from first sampling."""
         if not self._all_samplings:
             return None
-        return next(iter(self._all_samplings.values())).sampling_info
+        return self._all_samplings[0].sampling_info
+
+    @property
+    def observables(self) -> SpectraCollection:
+        """
+        All loaded observables as a queryable SpectraCollection.
+
+        Use filter() or find() methods to query:
+            loader.observables.filter(index=0)
+            loader.observables.find(lambda obs: 'PSQ' in obs.name)
+        """
+        return self._all_samplings
 
     @classmethod
     def from_samplings_list(
@@ -102,11 +124,7 @@ class SigmondLoader:
 
         loader = cls()
         loader._filename = "<from_samplings_list>"
-
-        # Build samplings dictionary
-        for s in samplings_list:
-            key = f"{s.observable_info.name} {s.observable_info.index}"
-            loader._all_samplings[key] = s
+        loader._all_samplings = SpectraCollection(samplings_list)
 
         return loader
 
@@ -221,7 +239,7 @@ class SigmondLoader:
                 raise e
         self._filename = filename
 
-    def _load_samplings_impl(self, filename: str) -> Dict[str, SigmondSampling]:
+    def _load_samplings_impl(self, filename: str) -> SpectraCollection:
         """Load all samplings from a file - the method that gets cached."""
         # Get header info
         header_output = self._run_sigmond_query(filename, "-i")
@@ -234,10 +252,11 @@ class SigmondLoader:
         # Get all values
         values_output = self._run_sigmond_query(filename, "-v")
         all_data = self._parse_all_values(values_output)
-        # Build samplings dictionary
-        return self._build_samplings_dict(
-            observable_infos, all_data, ensemble_info, sampling_info
+        # Build samplings collection
+        samplings_list = self._build_samplings_list(
+            observable_infos, all_data, sampling_info
         )
+        return SpectraCollection(samplings_list)
 
     def _parse_header_xml(self, xml_string: str) -> Tuple[EnsembleInfo, SamplingInfo]:
         """Parse the header XML to extract ensemble and sampling info."""
@@ -270,7 +289,8 @@ class SigmondLoader:
                 tweak_info[child.tag] = child.text
 
         ensemble_info = EnsembleInfo(
-            ensemble_name, num_measurements, num_bins, tweak_info
+            ensemble_name = ensemble_name, num_measurements = num_measurements,
+            num_bins = num_bins, tweak_info = tweak_info
         )
 
         # Extract sampling info
@@ -400,14 +420,13 @@ class SigmondLoader:
 
         return all_records_values
 
-    def _build_samplings_dict(
+    def _build_samplings_list(
         self,
         observable_infos: List[ObservableInfo],
         all_data: List[np.ndarray],
-        ensemble_info: EnsembleInfo,
         sampling_info: SamplingInfo,
-    ) -> Dict[str, SigmondSampling]:
-        """Build the samplings dictionary from parsed data."""
+    ) -> List[SigmondSampling]:
+        """Build the samplings list from parsed data."""
         if len(all_data) != len(observable_infos):
             raise ValueError(
                 "Mismatch between number of observables in header and data records."
@@ -421,11 +440,8 @@ class SigmondLoader:
                 grouped_observables[key] = {}
             grouped_observables[key][obs_info.re_im] = (obs_info, i)
 
-        result = {}
+        result = []
         for key, parts in grouped_observables.items():
-            obs_name, obs_index = key
-            output_key = f"{obs_name} {obs_index}"
-
             if "re" in parts and "im" in parts:
                 re_info, re_idx = parts["re"]
                 im_info, im_idx = parts["im"]
@@ -435,67 +451,21 @@ class SigmondLoader:
                 sampling = SigmondSampling(
                     complex_data, re_info, sampling_info, is_complex=True
                 )
-                result[output_key] = sampling
+                result.append(sampling)
             elif "re" in parts:
                 re_info, re_idx = parts["re"]
                 re_data = all_data[re_idx]
                 sampling = SigmondSampling(
                     re_data, re_info, sampling_info, is_complex=np.iscomplexobj(re_data)
                 )
-                result[output_key] = sampling
+                result.append(sampling)
             elif "im" in parts:
                 im_info, im_idx = parts["im"]
                 im_data = all_data[im_idx]
                 sampling = SigmondSampling(
                     im_data, im_info, sampling_info, is_complex=np.iscomplexobj(im_data)
                 )
-                result[output_key] = sampling
-
-        return result
-
-    def get_observables(
-        self,
-        name_patterns: Union[List[str], str] = None,
-        index: int = None,
-        scalar_type: str = None,
-    ) -> Dict[str, SigmondSampling]:
-        """
-        Get observables matching given criteria.
-
-        Args:
-            name_patterns: Regex pattern(s) to match observable names
-            index: Specific index to match
-            scalar_type: Specific scalar type ('re' or 'im')
-
-        Returns:
-            Dictionary of matching observables
-        """
-        if not self._all_samplings:
-            raise ValueError("No file loaded. Call load_file() first.")
-
-        if isinstance(name_patterns, str):
-            name_patterns = [name_patterns]
-
-        result = {}
-        for key, sampling in self._all_samplings.items():
-            obs_info = sampling.observable_info
-            match = True
-
-            if name_patterns is not None:
-                pattern_found = any(
-                    re.search(pattern, obs_info.name) for pattern in name_patterns
-                )
-                if not pattern_found:
-                    match = False
-
-            if index is not None and obs_info.index != index:
-                match = False
-
-            if scalar_type is not None and obs_info.re_im != scalar_type:
-                match = False
-
-            if match:
-                result[key] = sampling
+                result.append(sampling)
 
         return result
 

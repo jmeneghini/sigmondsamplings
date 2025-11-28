@@ -17,8 +17,7 @@ def create_gaussian_sampling(
     mean: float,
     std: float,
     sampling_info: SamplingInfo,
-    observable_name: str = "synthetic",
-    ensemble_info: Optional[EnsembleInfo] = None,
+    observable_info: ObservableInfo,
 ) -> SigmondSampling:
     """
     Create a SigmondSampling object with Gaussian-distributed data.
@@ -43,12 +42,6 @@ def create_gaussian_sampling(
     data = np.zeros(num_samples + 1)
     data[0] = mean  # Full sample value
     data[1:] = resampled_values
-
-    # Use provided ensemble_info or default
-    if ensemble_info is None:
-        ensemble_info = DEFAULT_ENSEMBLE
-
-    observable_info = ObservableInfo(observable_name, 0, "n", "re", ensemble_info)
 
     return SigmondSampling(data, observable_info, sampling_info)
 
@@ -284,64 +277,161 @@ def split_complex_sampling(
     return real_sampling, imag_sampling
 
 
-def effective_sample_size(data: np.ndarray, max_lag: Optional[int] = None) -> float:
+def compute_autocorrelation(data: np.ndarray, max_lag: Optional[int] = None) -> np.ndarray:
     """
-    Calculate effective sample size using autocorrelation.
+    Compute normalized autocorrelation function of time-series data.
+
+    The autocorrelation function is defined as:
+        C(t) = <x(t) x(0)> - <x>^2
+               -------------------
+                  <x^2> - <x>^2
 
     Args:
-        data: Data array
-        max_lag: Maximum lag to consider (default: len(data)//4)
+        data: Time-series data array (e.g., raw Monte Carlo bins)
+        max_lag: Maximum lag to compute (default: len(data)//2)
 
     Returns:
-        Effective sample size
+        Autocorrelation array of length (max_lag + 1), with C(0) = 1.0
+
+    Example:
+        >>> bins = np.random.randn(1000)
+        >>> acf = compute_autocorrelation(bins, max_lag=50)
+        >>> acf[0]  # Should be 1.0
+        1.0
+    """
+    n = len(data)
+    if max_lag is None:
+        max_lag = n // 2
+
+    max_lag = min(max_lag, n - 1)
+
+    # Center the data
+    data_centered = data - np.mean(data)
+
+    # Compute autocorrelation using FFT for efficiency
+    autocorr = np.correlate(data_centered, data_centered, mode="full")
+    autocorr = autocorr[n - 1 : n + max_lag]  # Keep only positive lags
+
+    # Normalize by variance and number of samples at each lag
+    variance = autocorr[0]
+    if variance > 0:
+        autocorr = autocorr / variance
+    else:
+        autocorr = np.zeros_like(autocorr)
+
+    return autocorr
+
+
+def integrated_autocorrelation_time(
+    data: np.ndarray, max_lag: Optional[int] = None, window_method: str = "auto"
+) -> float:
+    """
+    Compute integrated autocorrelation time using automatic windowing.
+
+    The integrated autocorrelation time is:
+        τ_int = 1/2 + Σ_{t=1}^{W} C(t)
+
+    where W is determined by the windowing method to reduce noise.
+
+    Args:
+        data: Time-series data array (e.g., raw Monte Carlo bins)
+        max_lag: Maximum lag to consider (default: len(data)//4)
+        window_method: Windowing method ('auto' or 'madras-sokal')
+            - 'auto': Stop when lag >= 2*tau_int (adaptive windowing)
+            - 'madras-sokal': Use Madras-Sokal criterion
+
+    Returns:
+        Integrated autocorrelation time τ_int (always >= 0.5)
+
+    Example:
+        >>> bins = np.random.randn(1000)
+        >>> tau = integrated_autocorrelation_time(bins)
+        >>> print(f"τ_int = {tau:.2f}")
     """
     n = len(data)
     if max_lag is None:
         max_lag = n // 4
 
-    # Calculate autocorrelation
-    data_centered = data - np.mean(data)
-    autocorr = np.correlate(data_centered, data_centered, mode="full")
-    autocorr = autocorr[n - 1 :] / autocorr[n - 1]
+    # Compute autocorrelation
+    autocorr = compute_autocorrelation(data, max_lag)
 
-    # Calculate integrated autocorrelation time
+    # Integrated autocorrelation time using automatic windowing
     tau_int = 0.5
-    for i in range(1, min(max_lag, len(autocorr))):
-        tau_int += autocorr[i]
-        if i >= 2 * tau_int:
-            break
+    if window_method == "auto" or window_method == "madras-sokal":
+        # Madras-Sokal automatic windowing
+        for i in range(1, len(autocorr)):
+            tau_int += autocorr[i]
+            # Stop when window is large enough relative to tau_int
+            if i >= 2 * tau_int:
+                break
+    else:
+        # Sum all available lags
+        tau_int += np.sum(autocorr[1:])
 
+    # Ensure tau_int >= 0.5
+    return max(0.5, tau_int)
+
+
+def effective_sample_size(data: np.ndarray, max_lag: Optional[int] = None) -> float:
+    """
+    Calculate effective number of independent samples accounting for autocorrelation.
+
+    The effective sample size is:
+        N_eff = N / (2 * τ_int)
+
+    where N is the number of samples and τ_int is the integrated autocorrelation time.
+
+    Args:
+        data: Time-series data array (e.g., raw Monte Carlo bins)
+        max_lag: Maximum lag to consider (default: len(data)//4)
+
+    Returns:
+        Effective sample size (1 <= N_eff <= N)
+
+    Example:
+        >>> bins = np.random.randn(1000)
+        >>> n_eff = effective_sample_size(bins)
+        >>> print(f"Effective samples: {n_eff:.1f} / {len(bins)}")
+    """
+    n = len(data)
+    tau_int = integrated_autocorrelation_time(data, max_lag)
     return n / (2 * tau_int)
 
 
-def block_average(data: np.ndarray, block_size: int) -> Tuple[np.ndarray, np.ndarray]:
+def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
     """
-    Perform block averaging on data.
+    Rebin data by averaging consecutive bins to reduce autocorrelation.
 
     Args:
-        data: Data array
-        block_size: Size of each block
+        bins: Original bins array
+        rebin_size: Number of consecutive bins to combine into one
 
     Returns:
-        Tuple of (block_means, block_errors)
+        Rebinned array with length len(bins) // rebin_size
+
+    Example:
+        >>> bins = np.array([1, 2, 3, 4, 5, 6])
+        >>> rebin_data(bins, 2)
+        array([1.5, 3.5, 5.5])  # Averages (1,2), (3,4), (5,6)
     """
-    n = len(data)
-    num_blocks = n // block_size
+    if rebin_size <= 0:
+        raise ValueError("rebin_size must be positive")
 
-    if num_blocks == 0:
-        raise ValueError("Block size too large for data")
+    if rebin_size == 1:
+        return bins
 
-    # Reshape data into blocks
-    truncated_data = data[: num_blocks * block_size]
-    blocks = truncated_data.reshape(num_blocks, block_size)
+    n_bins = len(bins)
+    n_rebinned = n_bins // rebin_size
 
-    # Calculate block means
-    block_means = np.mean(blocks, axis=1)
+    if n_rebinned == 0:
+        raise ValueError(f"rebin_size {rebin_size} too large for {n_bins} bins")
 
-    # Calculate error of block means
-    block_error = np.std(block_means, ddof=1) / np.sqrt(num_blocks)
+    # Truncate to multiple of rebin_size and reshape
+    truncated = bins[:n_rebinned * rebin_size]
+    reshaped = truncated.reshape(n_rebinned, rebin_size)
 
-    return block_means, block_error
+    # Average over the rebin_size axis
+    return np.mean(reshaped, axis=1)
 
 
 def get_psq_from_string(name: str) -> Optional[int]:

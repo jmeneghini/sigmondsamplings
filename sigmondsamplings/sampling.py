@@ -25,13 +25,54 @@ class EnsembleInfo:
         self,
         ensemble_name: str,
         num_measurements: int,
-        num_bins: int,
+        num_bins: Optional[int] = None,
+        rebin_size: Optional[int] = None,
         tweak_info: Optional[Dict[str, Any]] = None,
     ):
+        """
+        Initialize EnsembleInfo.
+
+        Args:
+            ensemble_name: Name of the ensemble
+            num_measurements: Total number of measurements
+            num_bins: Target number of bins after rebinning (optional).
+                     If provided, rebin_size will be calculated automatically.
+            rebin_size: Rebinning factor (optional). Alternative to num_bins.
+            tweak_info: Additional tweak information
+
+        Note:
+            - If both num_bins and rebin_size are None: no rebinning
+            - If num_bins is provided: rebin_size will be calculated
+            - If rebin_size is provided via tweak_info['rebin']: use that
+            - Cannot specify both num_bins and rebin_size explicitly
+        """
+        if num_bins is not None and rebin_size is not None:
+            # verify consistency
+            if num_measurements // rebin_size != num_bins:
+                raise ValueError(
+                    "Inconsistent num_bins and rebin_size provided."
+                )
+
         self.ensemble_name = ensemble_name
         self.num_measurements = num_measurements
-        self.num_bins = num_bins
         self.tweak_info = tweak_info or {}
+
+        # Calculate num_bins and rebin_size based on what's provided
+        if rebin_size is not None:
+            # Given rebin_size, calculate num_bins
+            self.tweak_info["rebin"] = rebin_size
+            self.num_bins = num_measurements // rebin_size
+        elif num_bins is not None:
+            # Given num_bins, calculate rebin_size
+            self.num_bins = num_bins
+            self.tweak_info["rebin"] = num_measurements // num_bins
+        elif "rebin" in self.tweak_info:
+            # rebin_size in tweak_info, calculate num_bins
+            self.num_bins = num_measurements // self.tweak_info["rebin"]
+        else:
+            # No rebinning
+            self.num_bins = num_measurements
+            self.tweak_info["rebin"] = 1
 
     def __eq__(self, other):
         if not isinstance(other, EnsembleInfo):
@@ -77,6 +118,18 @@ class SamplingInfo:
             and self.boot_skip == other.boot_skip
             and self.extra_params == other.extra_params
         )
+
+    def __hash__(self):
+        """Make SamplingInfo hashable."""
+        # Convert extra_params dict to tuple of items for hashing
+        extra_items = tuple(sorted(self.extra_params.items())) if self.extra_params else ()
+        return hash((
+            self.method,
+            self.num_resamplings,
+            self.seed,
+            self.boot_skip,
+            extra_items
+        ))
 
     def __repr__(self):
         return f"SamplingInfo('{self.method}', n={self.num_resamplings}, seed={self.seed}, boot_skip={self.boot_skip})"
@@ -133,6 +186,16 @@ class ObservableInfo:
             and self.ensemble_info == other.ensemble_info
         )
 
+    def __hash__(self):
+        """Make ObservableInfo hashable for use as dictionary keys."""
+        return hash((
+            self.name,
+            self.index,
+            self.op_type,
+            self.re_im,
+            self.ensemble_info.ensemble_name if self.ensemble_info else None
+        ))
+
     def _repr_latex__(self):
         """LaTeX representation for Jupyter notebooks."""
         if self.latex_str:
@@ -178,6 +241,133 @@ class SigmondSampling:
         self.observable_info = observable_info
         self.sampling_info = sampling_info
         self.is_complex = is_complex
+
+    @classmethod
+    def from_bins(
+        cls,
+        bins_data: Union[np.ndarray, list],
+        observable_info: ObservableInfo,
+        sampling_info: SamplingInfo,
+        statistic: str = "mean",
+        is_complex: bool = False,
+    ) -> "SigmondSampling":
+        """
+        Create a SigmondSampling from raw time-series bins data.
+
+        This method takes raw bins data, optionally rebins it based on the
+        EnsembleInfo settings, performs bootstrap or jackknife resampling,
+        and computes the requested statistic for each resample.
+
+        Rebinning parameters are read from observable_info.ensemble_info:
+        - If ensemble_info.num_bins is set: rebin to target that many bins
+        - If ensemble_info.tweak_info['rebin'] is set: use that rebin_size
+        - Otherwise: no rebinning
+
+        Args:
+            bins_data: Raw time-series bins (1D array or list)
+            observable_info: Observable information containing ensemble_info
+                           with rebinning parameters
+            sampling_info: Sampling method (bootstrap/jackknife) and parameters
+            statistic: Statistic to compute per resample. Options:
+                      "mean" (default), "variance", "std", "median", "min", "max"
+            is_complex: Whether the bins data is complex-valued
+
+        Returns:
+            SigmondSampling object with resampled statistics
+
+        Example:
+            >>> raw_bins = np.random.normal(5.0, 1.0, 1000)
+            >>> # Specify rebinning in EnsembleInfo
+            >>> ens_info = EnsembleInfo("cls21_d200", 1000, num_bins=500)
+            >>> obs_info = ObservableInfo("energy", 0, "n", "re", ens_info)
+            >>> samp_info = SamplingInfo("bootstrap", 500, seed=1234)
+            >>>
+            >>> # Create mean sampling with rebinning
+            >>> mean_samp = SigmondSampling.from_bins(
+            ...     raw_bins, obs_info, samp_info
+            ... )
+            >>>
+            >>> # Create variance sampling from the same bins
+            >>> var_samp = SigmondSampling.from_bins(
+            ...     raw_bins, obs_info, samp_info, statistic="variance"
+            ... )
+        """
+        # Import here to avoid circular dependency
+        from .utils import rebin_data
+
+        # Convert to numpy array
+        if not isinstance(bins_data, np.ndarray):
+            bins_data = np.array(bins_data)
+
+        if bins_data.ndim != 1:
+            raise ValueError("bins_data must be 1-dimensional")
+
+        ensemble_info = observable_info.ensemble_info
+
+        # Get rebin_size from EnsembleInfo
+        rebin_size = ensemble_info.tweak_info.get("rebin", 1)
+
+        # Apply rebinning if requested
+        if rebin_size > 1:
+            bins_data = rebin_data(bins_data, rebin_size)
+
+        # Define statistic functions
+        stat_funcs = {
+            "mean": np.mean,
+            "variance": lambda x: np.var(x, ddof=1),
+            "std": lambda x: np.std(x, ddof=1),
+            "median": np.median,
+            "min": np.min,
+            "max": np.max,
+        }
+
+        if statistic not in stat_funcs:
+            raise ValueError(
+                f"Unknown statistic '{statistic}'. Options: {list(stat_funcs.keys())}"
+            )
+
+        stat_func = stat_funcs[statistic]
+
+        # Calculate full sample statistic
+        full_sample_value = stat_func(bins_data)
+
+        # Perform resampling based on method
+        method = sampling_info.method.lower()
+        n_bins = len(bins_data)
+
+        if method == "bootstrap":
+            # Bootstrap: resample with replacement
+            n_resamples = sampling_info.num_resamplings
+            rng = np.random.RandomState(sampling_info.seed)
+
+            resampled_values = []
+            for _ in range(n_resamples):
+                indices = rng.choice(n_bins, size=n_bins, replace=True)
+                resampled_bins = bins_data[indices]
+                resampled_values.append(stat_func(resampled_bins))
+
+            resampled_values = np.array(resampled_values)
+
+        elif method == "jackknife":
+            # Jackknife: leave-one-out resampling
+            resampled_values = []
+            for i in range(n_bins):
+                # Leave out bin i
+                jackknife_bins = np.concatenate([bins_data[:i], bins_data[i + 1 :]])
+                resampled_values.append(stat_func(jackknife_bins))
+
+            resampled_values = np.array(resampled_values)
+
+        else:
+            raise ValueError(
+                f"Unknown sampling method '{method}'. Use 'bootstrap' or 'jackknife'"
+            )
+
+        # Construct the data array
+        data = np.concatenate([[full_sample_value], resampled_values])
+
+        # Create and return the SigmondSampling object
+        return cls(data, observable_info, sampling_info, is_complex=is_complex)
 
     @property
     def ensemble_info(self) -> EnsembleInfo:
@@ -561,6 +751,25 @@ class SigmondSampling:
         return self.full_sample_value >= (
             other.full_sample_value if isinstance(other, SigmondSampling) else other
         )
+
+    def __eq__(self, other):
+        """Check equality based on observable_info, sampling_info, and is_complex."""
+        if not isinstance(other, SigmondSampling):
+            return False
+        return (
+            self.observable_info == other.observable_info
+            and self.sampling_info == other.sampling_info
+            and self.is_complex == other.is_complex
+        )
+
+    def __hash__(self):
+        """Make SigmondSampling hashable for use as dictionary keys."""
+        return hash((
+            self.observable_info,
+            self.sampling_info.method,
+            self.sampling_info.num_resamplings,
+            self.is_complex
+        ))
 
     def __repr__(self):
         return f"SigmondSampling(full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
