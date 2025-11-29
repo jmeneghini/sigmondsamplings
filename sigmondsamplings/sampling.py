@@ -4,7 +4,7 @@ Core sampling classes for handling Sigmond samplings data.
 
 import numpy as np
 import xml.etree.ElementTree as ET
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, List
 import re
 
 try:
@@ -83,6 +83,26 @@ class EnsembleInfo:
             and self.num_bins == other.num_bins
             and self.tweak_info == other.tweak_info
         )
+
+    def __hash__(self):
+        """Make EnsembleInfo hashable for use as dictionary keys."""
+        # Convert tweak_info dict to frozenset of items for hashing
+        # Only hash hashable values; skip unhashable ones
+        hashable_tweaks = []
+        for k, v in self.tweak_info.items():
+            try:
+                hash(v)  # Check if value is hashable
+                hashable_tweaks.append((k, v))
+            except TypeError:
+                # Skip unhashable values (e.g., lists, dicts)
+                pass
+
+        return hash((
+            self.ensemble_name,
+            self.num_measurements,
+            self.num_bins,
+            frozenset(hashable_tweaks),
+        ))
 
     def __repr__(self):
         return f"EnsembleInfo('{self.ensemble_name}', {self.num_measurements}, {self.num_bins})"
@@ -246,54 +266,56 @@ class SigmondSampling:
     def from_bins(
         cls,
         bins_data: Union[np.ndarray, list],
-        observable_info: ObservableInfo,
+        observable_info: Union[ObservableInfo, List[ObservableInfo]],
         sampling_info: SamplingInfo,
-        statistic: str = "mean",
+        statistic: Union[str, List[str]] = "mean",
         is_complex: bool = False,
-    ) -> "SigmondSampling":
+    ) -> Union["SigmondSampling", List["SigmondSampling"]]:
         """
-        Create a SigmondSampling from raw time-series bins data.
+        Create a SigmondSampling from raw time-series bins data using Block Bootstrap.
 
-        This method takes raw bins data, optionally rebins it based on the
-        EnsembleInfo settings, performs bootstrap or jackknife resampling,
-        and computes the requested statistic for each resample.
+        This method performs "Stitch" Block Bootstrapping to preserve autocorrelation:
+        1. Determines block_size from ensemble_info.
+        2. Chops data into blocks (truncating the remainder).
+        3. Resamples entire blocks with replacement.
+        4. Stitches blocks back together to form synthetic time-series.
+        5. Computes the requested statistic(s) on the stitched series.
 
-        Rebinning parameters are read from observable_info.ensemble_info:
-        - If ensemble_info.num_bins is set: rebin to target that many bins
-        - If ensemble_info.tweak_info['rebin'] is set: use that rebin_size
-        - Otherwise: no rebinning
+        Block sizing logic:
+        - If ensemble_info.tweak_info['rebin'] is set: block_size = rebin
+        - If ensemble_info.num_bins is set: block_size = len(data) // num_bins
+        - Otherwise: block_size = 1 (Standard IID Bootstrap)
 
         Args:
             bins_data: Raw time-series bins (1D array or list)
-            observable_info: Observable information containing ensemble_info
-                           with rebinning parameters
-            sampling_info: Sampling method (bootstrap/jackknife) and parameters
-            statistic: Statistic to compute per resample. Options:
-                      "mean" (default), "variance", "std", "median", "min", "max"
-            is_complex: Whether the bins data is complex-valued
+            observable_info: Observable info containing blocking/ensemble parameters.
+            sampling_info: Sampling method (bootstrap/jackknife) and parameters.
+            statistic: Statistic(s) to compute ("mean", "variance", etc.).
+            is_complex: Whether the bins data is complex-valued.
 
         Returns:
-            SigmondSampling object with resampled statistics
-
-        Example:
-            >>> raw_bins = np.random.normal(5.0, 1.0, 1000)
-            >>> # Specify rebinning in EnsembleInfo
-            >>> ens_info = EnsembleInfo("cls21_d200", 1000, num_bins=500)
-            >>> obs_info = ObservableInfo("energy", 0, "n", "re", ens_info)
-            >>> samp_info = SamplingInfo("bootstrap", 500, seed=1234)
-            >>>
-            >>> # Create mean sampling with rebinning
-            >>> mean_samp = SigmondSampling.from_bins(
-            ...     raw_bins, obs_info, samp_info
-            ... )
-            >>>
-            >>> # Create variance sampling from the same bins
-            >>> var_samp = SigmondSampling.from_bins(
-            ...     raw_bins, obs_info, samp_info, statistic="variance"
-            ... )
+            SigmondSampling object(s) containing the statistic and its error distribution.
         """
-        # Import here to avoid circular dependency
-        from .utils import rebin_data
+        # Normalize statistic input
+        if isinstance(statistic, str):
+            statistics = [statistic]
+            return_single = True
+        else:
+            statistics = statistic
+            return_single = False
+
+        # Normalize observable_info input
+        if isinstance(observable_info, list):
+            observable_infos = observable_info
+            if len(observable_infos) != len(statistics):
+                raise ValueError(
+                    f"Number of observable_info objects ({len(observable_infos)}) "
+                    f"must match number of statistics ({len(statistics)})"
+                )
+            auto_generate_names = False
+        else:
+            observable_infos = [observable_info]
+            auto_generate_names = len(statistics) > 1
 
         # Convert to numpy array
         if not isinstance(bins_data, np.ndarray):
@@ -302,72 +324,144 @@ class SigmondSampling:
         if bins_data.ndim != 1:
             raise ValueError("bins_data must be 1-dimensional")
 
-        ensemble_info = observable_info.ensemble_info
+        # --- BLOCKING LOGIC ---
+        ensemble_info = observable_infos[0].ensemble_info
+        N_total = len(bins_data)
 
-        # Get rebin_size from EnsembleInfo
-        rebin_size = ensemble_info.tweak_info.get("rebin", 1)
+        # Determine Block Size
+        if "rebin" in ensemble_info.tweak_info:
+            block_size = int(ensemble_info.tweak_info["rebin"])
+            n_blocks = N_total // block_size
+        elif ensemble_info.num_bins:
+            n_blocks = int(ensemble_info.num_bins)
+            block_size = N_total // n_blocks
+        else:
+            # Default to size 1 (Standard IID Bootstrap)
+            block_size = 1
+            n_blocks = N_total
 
-        # Apply rebinning if requested
-        if rebin_size > 1:
-            bins_data = rebin_data(bins_data, rebin_size)
+        if block_size < 1: 
+            block_size = 1
+            n_blocks = N_total
+
+        # Truncate data to fit perfectly into blocks
+        n_keep = n_blocks * block_size
+        data_truncated = bins_data[:n_keep]
+
+        # Reshape into (n_blocks, block_size) for easy block manipulation
+        # We do NOT average (squish) here; we keep the raw structure for the stitch
+        blocks_view = data_truncated.reshape(n_blocks, block_size)
 
         # Define statistic functions
+        # Note: We ensure they can handle axis=1 for vectorized resampling
         stat_funcs = {
             "mean": np.mean,
-            "variance": lambda x: np.var(x, ddof=1),
-            "std": lambda x: np.std(x, ddof=1),
+            "variance": lambda x, **kwargs: np.var(x, ddof=1, **kwargs),
+            "std": lambda x, **kwargs: np.std(x, ddof=1, **kwargs),
             "median": np.median,
             "min": np.min,
             "max": np.max,
         }
 
-        if statistic not in stat_funcs:
-            raise ValueError(
-                f"Unknown statistic '{statistic}'. Options: {list(stat_funcs.keys())}"
-            )
+        def get_stat_func(stat_name: str):
+            if stat_name not in stat_funcs and "raw_moment" not in stat_name:
+                raise ValueError(
+                    f"Unknown statistic '{stat_name}'. Options: {list(stat_funcs.keys())}"
+                )
+            if "moment" in stat_name:
+                power = int(stat_name.split("_")[2])
+                return lambda x, **kwargs: np.mean(x**power, **kwargs)
+            else:
+                return stat_funcs[stat_name]
 
-        stat_func = stat_funcs[statistic]
+        # Validate statistics
+        for stat_name in statistics:
+            get_stat_func(stat_name)
 
-        # Calculate full sample statistic
-        full_sample_value = stat_func(bins_data)
-
-        # Perform resampling based on method
+        # --- RESAMPLING LOGIC ---
         method = sampling_info.method.lower()
-        n_bins = len(bins_data)
-
+        
         if method == "bootstrap":
-            # Bootstrap: resample with replacement
             n_resamples = sampling_info.num_resamplings
             rng = np.random.RandomState(sampling_info.seed)
 
-            resampled_values = []
-            for _ in range(n_resamples):
-                indices = rng.choice(n_bins, size=n_bins, replace=True)
-                resampled_bins = bins_data[indices]
-                resampled_values.append(stat_func(resampled_bins))
+            # 1. Resample INDICES of BLOCKS (not individual points)
+            # Shape: (n_resamples, n_blocks)
+            block_indices = rng.randint(0, n_blocks, size=(n_resamples, n_blocks))
 
-            resampled_values = np.array(resampled_values)
+            # 2. Construct Resampled Blocks (The Stitch)
+            # Advanced Indexing: result is (n_resamples, n_blocks, block_size)
+            resampled_blocks = blocks_view[block_indices]
+
+            # 3. Flatten back to time-series
+            # Shape: (n_resamples, n_keep)
+            resampled_traces = resampled_blocks.reshape(n_resamples, n_keep)
 
         elif method == "jackknife":
-            # Jackknife: leave-one-out resampling
-            resampled_values = []
-            for i in range(n_bins):
-                # Leave out bin i
-                jackknife_bins = np.concatenate([bins_data[:i], bins_data[i + 1 :]])
-                resampled_values.append(stat_func(jackknife_bins))
-
-            resampled_values = np.array(resampled_values)
-
+            # Block Jackknife: Leave one BLOCK out, not one point
+            # Number of samples = number of blocks
+            n_resamples = n_blocks 
+            
+            # Since Jackknife is deterministic and n_blocks is usually small (<1000),
+            # we can pre-generate the mask or handle it in the loop.
+            # We won't pre-generate a massive array for Jackknife to save RAM,
+            # we will handle it in the loop below.
+            resampled_traces = None
         else:
-            raise ValueError(
-                f"Unknown sampling method '{method}'. Use 'bootstrap' or 'jackknife'"
-            )
+            raise ValueError(f"Unknown sampling method '{method}'")
 
-        # Construct the data array
-        data = np.concatenate([[full_sample_value], resampled_values])
+        # --- COMPUTE STATISTICS ---
+        results = []
+        for idx, stat_name in enumerate(statistics):
+            stat_func = get_stat_func(stat_name)
 
-        # Create and return the SigmondSampling object
-        return cls(data, observable_info, sampling_info, is_complex=is_complex)
+            # 1. Full sample statistic (calculated on the truncated data used for blocks)
+            full_sample_value = stat_func(data_truncated)
+
+            # 2. Resampled statistics
+            if method == "bootstrap":
+                # Vectorized computation on the stitched traces
+                # axis=1 computes the statistic across the time-series for each resample
+                resampled_values = stat_func(resampled_traces, axis=1)
+
+            elif method == "jackknife":
+                # Block Jackknife Loop
+                resampled_values = np.empty(n_blocks, dtype=bins_data.dtype)
+                
+                # Create a mask of all true
+                all_indices = np.arange(n_blocks)
+                
+                for i in range(n_blocks):
+                    # Keep all blocks EXCEPT i
+                    # We pick indices where index != i
+                    keep_indices = np.delete(all_indices, i)
+                    
+                    # Stitch the remaining blocks
+                    jk_blocks = blocks_view[keep_indices]
+                    jk_trace = jk_blocks.flatten() # Shape: ((n_blocks-1)*block_size, )
+                    
+                    resampled_values[i] = stat_func(jk_trace)
+
+            # Construct the data array [Val, Resample_1, Resample_2, ...]
+            data = np.concatenate([[full_sample_value], resampled_values])
+
+            # Name generation
+            if auto_generate_names:
+                base_obs_info = observable_infos[0]
+                obs_info = ObservableInfo(
+                    name=f"{base_obs_info.name}_{stat_name}",
+                    index=base_obs_info.index,
+                    op_type=base_obs_info.op_type,
+                    re_im=base_obs_info.re_im,
+                    ensemble_info=base_obs_info.ensemble_info,
+                    latex_str=base_obs_info.latex_str,
+                )
+            else:
+                obs_info = observable_infos[idx]
+
+            results.append(cls(data, obs_info, sampling_info, is_complex=is_complex))
+
+        return results[0] if return_single else results
 
     @property
     def ensemble_info(self) -> EnsembleInfo:

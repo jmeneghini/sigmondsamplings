@@ -270,6 +270,33 @@ class SpectraCollection:
         """Return True if collection is non-empty."""
         return bool(self._data)
 
+    def __add__(self, other):
+        """
+        Add two SpectraCollection objects together, combining their data.
+
+        Args:
+            other: Another SpectraCollection to combine with this one
+
+        Returns:
+            New SpectraCollection with combined data (deduplicated)
+
+        Example:
+            >>> collection1 = SpectraCollection([samp1, samp2])
+            >>> collection2 = SpectraCollection([samp3, samp4])
+            >>> combined = collection1 + collection2
+            >>> len(combined)  # 4 (or fewer if duplicates exist)
+        """
+        if not isinstance(other, SpectraCollection):
+            raise TypeError(
+                f"unsupported operand type(s) for +: 'SpectraCollection' and '{type(other).__name__}'"
+            )
+
+        # Combine data from both collections (deduplication happens in __init__)
+        combined_data = list(self._data) + list(other._data)
+
+        # Return new collection with same return_type as self
+        return SpectraCollection(combined_data, return_type=self._return_type)
+
     def apply(self, func_or_method, *args, **kwargs):
         """
         Apply a method or function to all samplings in the collection.
