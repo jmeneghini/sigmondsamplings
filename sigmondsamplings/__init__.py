@@ -7,7 +7,7 @@ in both fstream and HDF5 formats using the sigmond_query tool.
 
 from .loader import SigmondLoader
 from .spectrum_loader import SpectrumLoader
-from .spectra_collection import SpectraCollection
+from .obervable_collection import ObservableCollection
 from .writer import SigmondWriter
 from .plotter import SigmondPlotter
 from .model_func import SigmondModelFunc
@@ -55,7 +55,7 @@ __all__ = [
     # Core SigmondSamplings functionality
     "SigmondLoader",
     "SpectrumLoader",
-    "SpectraCollection",
+    "ObservableCollection",
     "SigmondWriter",
     "SigmondSampling",
     "SamplingInfo",

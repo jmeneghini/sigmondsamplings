@@ -11,7 +11,7 @@ from pathlib import Path
 import logging
 
 from .sampling import SigmondSampling, ObservableInfo, EnsembleInfo, SamplingInfo
-from .spectra_collection import SpectraCollection
+from .obervable_collection import ObservableCollection
 
 # Optional cache manager import
 try:
@@ -28,10 +28,10 @@ class SigmondLoader:
     """
     Loader for Sigmond samplings files using sigmond_query.
 
-    Provides queryable SpectraCollection of all loaded observables:
+    Provides queryable ObservableCollection of all loaded observables:
         loader.observables - All loaded samplings
 
-    Use SpectraCollection filtering methods to query:
+    Use ObservableCollection filtering methods to query:
         loader.observables.filter(index=0)
         loader.observables.find(lambda obs: 'PSQ' in obs.name)
         loader.observables.find(lambda obs: re.search(r'PSQ.*', obs.name))
@@ -67,7 +67,7 @@ class SigmondLoader:
 
         # Single source of truth for data
         self._filename = None
-        self._all_samplings = SpectraCollection([])
+        self._all_samplings = ObservableCollection([])
         # Load file if provided
         if filename:
             self.load_file(filename)
@@ -97,9 +97,9 @@ class SigmondLoader:
         return self._all_samplings[0].sampling_info
 
     @property
-    def observables(self) -> SpectraCollection:
+    def observables(self) -> ObservableCollection:
         """
-        All loaded observables as a queryable SpectraCollection.
+        All loaded observables as a queryable ObservableCollection.
 
         Use filter() or find() methods to query:
             loader.observables.filter(index=0)
@@ -124,7 +124,7 @@ class SigmondLoader:
 
         loader = cls()
         loader._filename = "<from_samplings_list>"
-        loader._all_samplings = SpectraCollection(samplings_list)
+        loader._all_samplings = ObservableCollection(samplings_list)
 
         return loader
 
@@ -239,7 +239,7 @@ class SigmondLoader:
                 raise e
         self._filename = filename
 
-    def _load_samplings_impl(self, filename: str) -> SpectraCollection:
+    def _load_samplings_impl(self, filename: str) -> ObservableCollection:
         """Load all samplings from a file - the method that gets cached."""
         # Get header info
         header_output = self._run_sigmond_query(filename, "-i")
@@ -256,7 +256,7 @@ class SigmondLoader:
         samplings_list = self._build_samplings_list(
             observable_infos, all_data, sampling_info
         )
-        return SpectraCollection(samplings_list)
+        return ObservableCollection(samplings_list)
 
     def _parse_header_xml(self, xml_string: str) -> Tuple[EnsembleInfo, SamplingInfo]:
         """Parse the header XML to extract ensemble and sampling info."""

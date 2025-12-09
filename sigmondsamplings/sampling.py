@@ -73,6 +73,18 @@ class EnsembleInfo:
             # No rebinning
             self.num_bins = num_measurements
             self.tweak_info["rebin"] = 1
+            
+    @property
+    def slug(self) -> str:
+        """
+        Returns a file-safe version of the ensemble name.
+        Replaces non-alphanumeric characters with underscores.
+        Example: 'Ensemble A/1' -> 'Ensemble_A_1'
+        """
+        # Keep letters, numbers, hyphens; replace everything else with '_'
+        # Also strip leading/trailing underscores for cleanliness
+        safe_name = re.sub(r'[^a-zA-Z0-9\-]', '_', self.ensemble_name)
+        return safe_name.strip('_')
 
     def __eq__(self, other):
         if not isinstance(other, EnsembleInfo):
@@ -127,6 +139,11 @@ class SamplingInfo:
         self.seed = seed
         self.boot_skip = boot_skip
         self.extra_params = kwargs
+        
+    @property
+    def slug(self):
+        """Fixed-width identifier for filenames."""
+        return f"{self.method[:4]}_n{self.num_resamplings:04d}_s{self.seed:03d}"
 
     def __eq__(self, other):
         if not isinstance(other, SamplingInfo):
@@ -489,7 +506,7 @@ class SigmondSampling:
         return np.mean(self.resampled_values)
 
     @property
-    def std(self):
+    def _std(self):
         """Standard deviation of the resampled values."""
         return np.std(self.resampled_values, ddof=1)
 
@@ -497,13 +514,13 @@ class SigmondSampling:
     def error(self):
         """Statistical error estimate."""
         if self.sampling_info.method == "bootstrap":
-            return self.std
+            return self._std
         elif self.sampling_info.method == "jackknife":
             # Jackknife error correction
             n = len(self.resampled_values)
-            return self.std * np.sqrt(n - 1)
+            return self._std * np.sqrt(n - 1)
         else:
-            return self.std
+            return self._std
 
     def to_ufloat(self):
         """

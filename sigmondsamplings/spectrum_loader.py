@@ -16,18 +16,18 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
-from .spectra_collection import SpectraCollection
+from .obervable_collection import ObservableCollection
 
 
 class SpectrumLoader(SigmondLoader):
     """
     Enhanced SigmondLoader that organizes energy level observables into spectra.
 
-    Provides queryable SpectraCollection objects for interacting and single-hadron spectra:
+    Provides queryable ObservableCollection objects for interacting and single-hadron spectra:
     - loader.interacting_spectra - All multi-hadron energy levels
     - loader.single_hadron_spectra - All single-hadron energy levels
 
-    Use SpectraCollection filtering methods to query:
+    Use ObservableCollection filtering methods to query:
         loader.interacting_spectra.filter(irrep='A1g', psq=0)
         loader.single_hadron_spectra.filter(particle='pi', psq=0)
 
@@ -92,53 +92,53 @@ class SpectrumLoader(SigmondLoader):
             energy_samplings.append(energy_sampling)
 
         # Replace _all_samplings with energy level samplings
-        temp_all_samplings = SpectraCollection(energy_samplings)
+        temp_all_samplings = ObservableCollection(energy_samplings)
         if len(temp_all_samplings) != len(self._all_samplings):
             logging.warning(
                 f"After organizing, {len(temp_all_samplings)} energy level samplings remain "
                 f"out of {len(self._all_samplings)} total samplings."
             )
-        self._all_samplings = SpectraCollection(energy_samplings)
+        self._all_samplings = ObservableCollection(energy_samplings)
         self._organized = True
 
     # Filtered Collections
     @cached_property
-    def interacting_spectra(self) -> SpectraCollection:
+    def interacting_spectra(self) -> ObservableCollection:
         """All interacting (multi-hadron) energy level spectra.
 
-        Returns SpectraCollection that can be further filtered:
+        Returns ObservableCollection that can be further filtered:
             loader.interacting_spectra.filter(irrep='A1g', psq=0)
         """
-        return self._all_samplings.find(
-            lambda obs: isinstance(obs, EnergyObsInfo) and not isinstance(obs, SHEnergyObsInfo)
+        return self._all_samplings.filter(
+            predicate = lambda obs: isinstance(obs, EnergyObsInfo) and not isinstance(obs, SHEnergyObsInfo)
         )
 
     @cached_property
-    def single_hadron_spectra(self) -> SpectraCollection:
+    def single_hadron_spectra(self) -> ObservableCollection:
         """All single hadron energy level spectra.
 
-        Returns SpectraCollection that can be further filtered:
+        Returns ObservableCollection that can be further filtered:
             loader.single_hadron_spectra.filter(particle='pi', psq=0)
         """
-        return self._all_samplings.find(
-            lambda obs: isinstance(obs, SHEnergyObsInfo)
+        return self._all_samplings.filter(
+            predicate = lambda obs: isinstance(obs, SHEnergyObsInfo)
         )
 
     # Discovery Properties
     @cached_property
     def irreps(self) -> List[str]:
         """All available irreps in interacting spectra."""
-        return sorted(set(s.observable_info.irrep for s in self.interacting_spectra))
+        return sorted(set(self.interacting_spectra.obs.irrep))
 
     @cached_property
     def psq_values(self) -> List[int]:
         """All available PSQ values in all spectra."""
-        return sorted(set(s.observable_info.psq for s in self._all_samplings))
+        return sorted(set(self._all_samplings.obs_info.psq))
 
     @cached_property
     def energy_types(self) -> List[str]:
         """All available energy types in all spectra."""
-        return sorted(set(s.observable_info.energy_type for s in self._all_samplings))
+        return sorted(set(self._all_samplings.obs_info.energy_type))
 
     @cached_property
     def particles(self) -> List[str]:
@@ -148,234 +148,6 @@ class SpectrumLoader(SigmondLoader):
             for s in self.single_hadron_spectra
             if s.observable_info.particle
         ))
-
-    # Access Methods
-    def get_interacting_spectrum(
-        self,
-        irrep: str,
-        psq: int,
-        energy_type: str,
-        reference: bool = False,
-    ) -> List[SigmondSampling]:
-        """
-        Get a single interacting (multi-hadron) spectrum for specific quantum numbers.
-
-        Args:
-            irrep: Irreducible representation (required)
-            psq: Momentum squared (required)
-            energy_type: Energy type (elab, ecm, delab, decm) (required)
-            reference: Whether to get reference-divided spectrum
-
-        Returns:
-            List of SigmondSampling objects ordered by energy value
-        """
-        # Filter for matching interacting levels
-        def predicate(obs_info):
-            if not isinstance(obs_info, EnergyObsInfo) or isinstance(obs_info, SHEnergyObsInfo):
-                return False
-            ref = obs_info.ref_particle is not None
-            return (obs_info.irrep == irrep and obs_info.psq == psq and
-                    obs_info.energy_type == energy_type and ref == reference)
-
-        filtered = self._all_samplings.find(predicate)
-        # Sort by energy value
-        levels = list(filtered)
-        return sorted(levels, key=lambda x: x.full_sample_value)
-
-    def get_single_hadron_spectrum(
-        self,
-        particle: str,
-        psq: int,
-        energy_type: str = "elab",
-        reference: bool = False,
-    ) -> Optional[SigmondSampling]:
-        """
-        Get a single single-hadron spectrum for specific quantum numbers.
-
-        Args:
-            particle: Particle name (required)
-            psq: Momentum squared (required)
-            energy_type: Energy type (default: 'elab')
-            reference: Whether to get reference-divided spectrum
-
-        Returns:
-            Single SigmondSampling object for the particle, or None if not found
-        """
-        # Filter for matching single hadron
-        def predicate(obs_info):
-            if not isinstance(obs_info, SHEnergyObsInfo):
-                return False
-            ref = obs_info.ref_particle is not None
-            return (obs_info.particle == particle and obs_info.psq == psq and
-                    obs_info.energy_type == energy_type and ref == reference)
-
-        filtered = self._all_samplings.find(predicate)
-        # Return first match (should be only one)
-        for sampling in filtered:
-            return sampling
-        return None
-
-
-    def to_dataframe(
-        self,
-        reference: bool = None,
-        format: str = "long",
-        include_metadata: bool = True,
-    ) -> "pd.DataFrame":
-        """
-        Export spectra to pandas DataFrame.
-
-        Args:
-            reference: None=both, True=ref only, False=non-ref only
-            format: 'long' (one row per level) or 'summary' (one row per spectrum)
-            include_metadata: Include ensemble and sampling information
-
-        Returns:
-            pandas DataFrame
-
-        Raises:
-            ImportError: If pandas is not available
-        """
-        if not PANDAS_AVAILABLE:
-            raise ImportError(
-                "pandas is required for DataFrame export. Install with: pip install pandas"
-            )
-
-        if format == "long":
-            return self._create_long_dataframe(reference, include_metadata)
-        elif format == "summary":
-            return self._create_summary_dataframe(reference, include_metadata)
-        else:
-            raise ValueError(f"Invalid format '{format}'. Must be 'long' or 'summary'")
-
-    def _create_long_dataframe(
-        self, reference: bool, include_metadata: bool
-    ) -> "pd.DataFrame":
-        """Create long format DataFrame (one row per energy level)."""
-        rows = []
-
-        for sampling in self._all_samplings:
-            obs = sampling.observable_info
-            # Apply reference filter
-            ref = obs.ref_particle is not None
-            if reference is not None and ref != reference:
-                continue
-
-            row = {
-                "psq": obs.psq,
-                "energy_type": obs.energy_type,
-                "reference": ref,
-                "value": sampling.full_sample_value,
-                "mean": sampling.mean,
-                "error": sampling.error,
-                "observable_name": obs.name,
-                "observable_index": obs.index,
-            }
-
-            # Add irrep for interacting (non-single-hadron)
-            if isinstance(obs, EnergyObsInfo) and not isinstance(obs, SHEnergyObsInfo):
-                row["irrep"] = obs.irrep
-                row["hadron_type"] = "multi"
-                row["particle"] = None
-            else:
-                row["irrep"] = None
-
-            # Add particle info for single hadrons
-            if isinstance(obs, SHEnergyObsInfo):
-                row["particle"] = obs.particle
-                row["hadron_type"] = "single"
-
-            # Add particles list for multi-hadron
-            if hasattr(obs, "particles") and obs.particles:
-                row["particles"] = obs.particles
-            else:
-                row["particles"] = []
-
-            # Add level index if available
-            if hasattr(obs, "level_index") and obs.level_index is not None:
-                row["level_index"] = obs.level_index
-            else:
-                row["level_index"] = None
-
-            # Add reference particle info
-            if hasattr(obs, "ref_particle"):
-                row["ref_particle"] = obs.ref_particle
-            else:
-                row["ref_particle"] = None
-
-            # Add metadata if requested
-            if include_metadata:
-                row["ensemble"] = sampling.ensemble_info.ensemble_name
-                row["sampling_method"] = sampling.sampling_info.method
-                row["num_resamplings"] = sampling.sampling_info.num_resamplings
-
-            rows.append(row)
-
-        return pd.DataFrame(rows)
-
-    def _create_summary_dataframe(
-        self, reference: bool, include_metadata: bool
-    ) -> "pd.DataFrame":
-        """Create summary format DataFrame (one row per spectrum)."""
-        from collections import defaultdict
-
-        # Group interacting levels by spectrum key
-        spectra = defaultdict(list)
-
-        for sampling in self._all_samplings:
-            obs = sampling.observable_info
-            # Only group interacting (non-single-hadron) levels
-            if not isinstance(obs, EnergyObsInfo) or isinstance(obs, SHEnergyObsInfo):
-                continue
-
-            ref = obs.ref_particle is not None
-
-            # Apply reference filter
-            if reference is not None and ref != reference:
-                continue
-
-            spectrum_key = (obs.irrep, obs.psq, obs.energy_type, ref)
-            spectra[spectrum_key].append(sampling)
-
-        rows = []
-        for spectrum_key, levels in spectra.items():
-            irrep, psq, energy_type, ref = spectrum_key
-
-            if not levels:
-                continue
-
-            # Collect particles in this spectrum
-            particles = set()
-            hadron_types = set()
-            for sampling in levels:
-                obs = sampling.observable_info
-                if isinstance(obs, SHEnergyObsInfo) and obs.particle:
-                    particles.add(obs.particle)
-                    hadron_types.add("single")
-                else:
-                    hadron_types.add("multi")
-
-            row = {
-                "irrep": irrep,
-                "psq": psq,
-                "energy_type": energy_type,
-                "reference": ref,
-                "num_levels": len(levels),
-                "particles": sorted(list(particles)),
-                "hadron_types": sorted(list(hadron_types)),
-                "energy_min": min(s.full_sample_value for s in levels),
-                "energy_max": max(s.full_sample_value for s in levels),
-            }
-
-            # Add metadata if requested
-            if include_metadata and levels:
-                first_sampling = levels[0]
-                row["ensemble"] = first_sampling.ensemble_info.ensemble_name
-                row["sampling_method"] = first_sampling.sampling_info.method
-
-            rows.append(row)
-
-        return pd.DataFrame(rows)
 
     def __repr__(self):
         if not self._organized:

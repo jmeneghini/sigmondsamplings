@@ -300,6 +300,11 @@ class EnergyObsInfo(ObservableInfo):
             latex_str=obs_info.latex_str,
             **energy_kwargs,
         )
+        
+    @property
+    def is_ref(self) -> bool:
+        """Check if this energy level is in reference mode."""
+        return self.ref_particle is not None
 
     def update_latex_str(
         self,
