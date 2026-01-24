@@ -45,23 +45,23 @@ def detect_output_format(output_file: str) -> str:
 def convert_to_smp(input_file: str, output_file: str, hdf5_path: Optional[str] = None):
     """Convert HDF5 file to .smp format using sigmond_query."""
 
-    # Handle HDF5 input files that require path specification
+    # Build input filename with path for sigmond_query
+    # Note: sigmond_query still uses the old filename[path] syntax
     input_filename = input_file
-    if hdf5_path:
-        input_filename = f"{input_file}[{hdf5_path}]"
-    elif input_file.lower().endswith(".hdf5"):
-        # Check if HDF5 file needs path specification
-        loader = SigmondLoader(enable_caching=False)
+    path_to_use = hdf5_path
+
+    if input_file.lower().endswith(".hdf5") and not hdf5_path:
+        # Auto-detect path for HDF5 files
+        loader = SigmondLoader()
         is_valid, file_type, available_paths = loader.check_file_validity(input_file)
-        if (
-            is_valid
-            and file_type == "hdf5"
-            and available_paths
-            and "[" not in input_file
-        ):
+        if is_valid and file_type == "hdf5" and available_paths:
             # Use the first available path
-            input_filename = f"{input_file}[{available_paths[0]}]"
-            print(f"Using HDF5 path: {available_paths[0]}")
+            path_to_use = available_paths[0]
+            print(f"Using HDF5 path: {path_to_use}")
+
+    # Construct filename[path] format for sigmond_query command
+    if path_to_use:
+        input_filename = f"{input_file}[{path_to_use}]"
 
     print(f"Converting {input_filename} to .smp format...")
 
@@ -100,31 +100,23 @@ def convert_to_hdf5(
     # Initialize writer
     writer = SigmondWriter()
 
-    # Handle HDF5 input files that require path specification
-    input_filename = input_file
-    if hdf5_path:
-        input_filename = f"{input_file}[{hdf5_path}]"
-    elif input_file.lower().endswith(".hdf5"):
-        # Check if HDF5 file needs path specification
-        loader = SigmondLoader(enable_caching=False)
+    # For HDF5 inputs with multiple paths, require explicit path specification
+    if input_file.lower().endswith(".hdf5") and not hdf5_path:
+        loader = SigmondLoader()
         is_valid, file_type, available_paths = loader.check_file_validity(input_file)
-        if (
-            is_valid
-            and file_type == "hdf5"
-            and available_paths
-            and "[" not in input_file
-        ):
+        if is_valid and file_type == "hdf5" and available_paths and len(available_paths) > 1:
             paths_str = "\n".join(available_paths)
             raise ValueError(
-                f"HDF5 input file requires path specification. Available paths:\n{paths_str}"
+                f"HDF5 input file has multiple paths. Please specify one with --hdf5-path. "
+                f"Available paths:\n{paths_str}"
             )
 
-    print(f"Converting {input_filename} to HDF5 format...")
+    print(f"Converting {input_file} to HDF5 format...")
 
     try:
         # Use SigmondWriter's convert_format method
         output_path = writer.convert_format(
-            input_filename=input_filename,
+            input_filename=input_file,
             output_filename=output_file,
             output_format="hdf5",
             hdf5_root_path=hdf5_root_path,

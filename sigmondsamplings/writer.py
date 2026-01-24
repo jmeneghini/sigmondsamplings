@@ -38,7 +38,7 @@ class SigmondWriter:
         """
         self.create_backups = create_backups
 
-    def _create_numbered_backup(self, filename: str) -> Optional[str]:
+    def _create_numbered_backup(self, filename: str) -> Optional[Path]:
         """
         Create a numbered backup of the file before modification.
 
@@ -48,26 +48,26 @@ class SigmondWriter:
         Returns:
             Path to the backup file, or None if backups are disabled or file doesn't exist
         """
-        if not self.create_backups or not Path(filename).exists():
+        filepath = Path(filename)
+
+        if not self.create_backups or not filepath.exists():
             return None
 
         counter = 1
-        while Path(f"{filename}.backup_{counter:03d}").exists():
+        while (backup_path := filepath.with_suffix(f"{filepath.suffix}.backup_{counter:03d}")).exists():
             counter += 1
 
-        backup_path = f"{filename}.backup_{counter:03d}"
-
         try:
-            shutil.copy2(filename, backup_path)
+            shutil.copy2(filepath, backup_path)
             logger.info(f"Created backup: {backup_path}")
             return backup_path
         except Exception as e:
-            logger.warning(f"Failed to create backup of {filename}: {e}")
+            logger.warning(f"Failed to create backup of {filepath}: {e}")
             return None
 
     def _ensure_hdf5_format(
         self, filename: str, hdf5_root_path: Optional[str] = None
-    ) -> Tuple[str, str]:
+    ) -> Tuple[Path, str]:
         """
         Ensure the input file is in HDF5 format, converting if necessary.
 
@@ -78,43 +78,36 @@ class SigmondWriter:
         Returns:
             Tuple of (hdf5_filename, root_path) ready for operations
         """
-        from .loader import SigmondLoader
+        filepath = Path(filename)
+        loader = SigmondLoader()
 
         # Check if already HDF5
-        if filename.lower().endswith(".hdf5"):
-            loader = SigmondLoader(enable_caching=False)
-            is_valid, file_type, hdf5_paths = loader.check_file_validity(filename)
+        if filepath.suffix.lower() == ".hdf5":
+            is_valid, file_type, hdf5_paths = loader.check_file_validity(str(filepath))
             if is_valid and file_type == "hdf5" and hdf5_paths:
                 root_path = hdf5_root_path or hdf5_paths[0]
-                return filename, root_path
+                return filepath, root_path
 
         # Convert fstream to HDF5
-        if filename.lower().endswith(".smp") or not filename.lower().endswith(".hdf5"):
-            logger.info(f"Converting {filename} to HDF5 format for reliable processing...")
+        logger.info(f"Converting {filepath} to HDF5 format for reliable processing...")
 
-            # Create HDF5 filename
-            if filename.lower().endswith(".smp"):
-                hdf5_filename = filename.replace(".smp", "_working.hdf5")
-            else:
-                hdf5_filename = filename + "_working.hdf5"
+        # Create HDF5 filename
+        hdf5_filename = filepath.with_stem(f"{filepath.stem}_working").with_suffix(".hdf5")
 
-            # Determine root path
-            root_path = hdf5_root_path or "/data/"
+        # Determine root path
+        root_path = hdf5_root_path or "samplings"
 
-            # Load original data using the loader
-            loader = SigmondLoader(enable_caching=False)
-            loader.load_file(filename)
-            samplings = loader.get_observables()
+        # Load and convert
+        loader.load_file(str(filepath), hdf5_path=root_path)
+        samplings = list(loader.observables)
 
-            # Write to HDF5 format
-            self.write_hdf5(hdf5_filename, samplings, root_path, overwrite=True)
+        # Write to HDF5 format
+        self.write_hdf5(str(hdf5_filename), samplings, root_path, overwrite=True)
 
-            logger.info(f"Conversion complete. Working with: {hdf5_filename}")
-            logger.info(f"Original file {filename} preserved unchanged.")
+        logger.info(f"Conversion complete. Working with: {hdf5_filename}")
+        logger.info(f"Original file {filepath} unchanged.")
 
-            return hdf5_filename, root_path
-
-        raise ValueError(f"Unable to determine format for file: {filename}")
+        return hdf5_filename, root_path
 
     def _generate_header_xml(
         self, ensemble_info: EnsembleInfo, sampling_info: SamplingInfo
@@ -125,7 +118,7 @@ class SigmondWriter:
 
         # Add bins info first (matches real format order)
         bins_elem = ET.SubElement(root, "MCBinsInfo")
-        ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.ensemble_name
+        ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.name
         ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(
             ensemble_info.num_measurements
         )
@@ -383,8 +376,10 @@ class SigmondWriter:
         # Restore the backup
         shutil.copy2(backup_path, filename)
         logger.info(f"Restored {filename} from backup {backup_path}")
-    
-    def delete_backups(self, filename: str, backup_numbers: Optional[List[int] | int] = None) -> None:
+
+    def delete_backups(
+        self, filename: str, backup_numbers: Optional[List[int] | int] = None
+    ) -> None:
         """
         Delete all backups associated with a file.
 
@@ -486,7 +481,7 @@ class SigmondWriter:
 
         # open in write mode to append and delete existing datasets if needed
         with h5py.File(filename, "r+") as f:
-        # Add new samplings
+            # Add new samplings
             data_group = f[root_path]
             values_group = data_group["Values"]
             for sampling in new_samplings:
@@ -574,51 +569,42 @@ class SigmondWriter:
         Raises:
             ValueError: If samplings are incompatible with existing file
         """
-        logging.debug(
-            "Validating compatibility of new samplings with file %s against %s",
-            filename,
-            new_samplings,
-        )
         if not new_samplings:
             return
 
-        # Use SigmondLoader to read existing file and get reference info
+        # Load existing file - use collection's shared properties
+        loader = SigmondLoader(filename=filename)
+        existing = loader.observables
+
+        if not existing:
+            raise ValueError(f"No existing samplings found in {filename}")
+
+        # Use SingleEnsembleCollection's shared properties
+        # These are guaranteed to be consistent across all samplings
         try:
-            # Load any existing sampling to get reference ensemble and sampling info
-            loader = SigmondLoader(filename = str(filename), enable_caching=False)
-            existing_samplings = loader.get_observables()
-            if not existing_samplings:
-                raise ValueError("No existing samplings found in file")
-
-            reference_sampling = next(iter(existing_samplings.values()))
-            reference_ensemble = reference_sampling.observable_info.ensemble_info
-            reference_sampling_info = reference_sampling.sampling_info
-
+            ref_ensemble = existing.ensemble_info
+            ref_sampling_info = existing.sampling_info
         except Exception as e:
             raise ValueError(
                 f"Failed to read existing file for compatibility check: {e}"
             )
 
-        # Validate that all new samplings have compatible info
-        first_new_sampling = new_samplings[0]
-        for i, sampling in enumerate(new_samplings):
-            if sampling.sampling_info != reference_sampling_info:
-                raise ValueError(f"New sampling {i} has incompatible sampling info")
-            if sampling.observable_info.ensemble_info != reference_ensemble:
-                raise ValueError(f"New sampling {i} has incompatible ensemble info")
-
-            # Also check internal consistency among new samplings
-            if sampling.sampling_info != first_new_sampling.sampling_info:
+        # Validate new samplings - check both against file and internal consistency
+        first_new = new_samplings[0]
+        for i, samp in enumerate(new_samplings):
+            if samp.sampling_info != ref_sampling_info:
                 raise ValueError(
-                    f"New sampling {i} has incompatible sampling info with other new samplings"
+                    f"New sampling {i} has incompatible sampling info with file"
                 )
-            if (
-                sampling.observable_info.ensemble_info
-                != first_new_sampling.observable_info.ensemble_info
-            ):
+            if samp.observable_info.ensemble_info != ref_ensemble:
                 raise ValueError(
-                    f"New sampling {i} has incompatible ensemble info with other new samplings"
+                    f"New sampling {i} has incompatible ensemble info with file"
                 )
+            # Check internal consistency
+            if samp.sampling_info != first_new.sampling_info:
+                raise ValueError(f"New sampling {i} has inconsistent sampling info")
+            if samp.observable_info.ensemble_info != first_new.observable_info.ensemble_info:
+                raise ValueError(f"New sampling {i} has inconsistent ensemble info")
 
     def convert_format(
         self,
@@ -634,51 +620,26 @@ class SigmondWriter:
         Args:
             input_filename: Input file path
             output_filename: Output file path
-            output_format: Output format ('hdf5')
+            output_format: Output format ('hdf5' - only supported format)
             hdf5_root_path: Root path for HDF5 output
             overwrite: Whether to overwrite existing output file
 
         Returns:
             Path to the converted file
         """
-        from .loader import SigmondLoader
+        # Ensure HDF5 output
+        outpath = Path(output_filename).with_suffix(".hdf5")
 
-        # Only support HDF5 output format
-        if output_format.lower() != "hdf5":
-            logger.warning(
-                f"{output_format} format deprecated. Converting to HDF5 instead."
-            )
-            output_format = "hdf5"
+        # Load and convert
+        loader = SigmondLoader(filename=input_filename)
+        samplings_list = list(loader.observables)
 
-        # Ensure output filename has correct extension
-        if not output_filename.lower().endswith(".hdf5"):
-            output_filename = output_filename.rsplit(".", 1)[0] + ".hdf5"
-
-        # Load all samplings from input file
-        loader = SigmondLoader(enable_caching=False)
-
-        # Handle HDF5 input with path specification
-        if input_filename.lower().endswith(".hdf5") and "[" not in input_filename:
-            # Check available paths
-            is_valid, file_type, hdf5_paths = loader.check_file_validity(input_filename)
-            if is_valid and file_type == "hdf5" and hdf5_paths:
-                # Use first available path
-                input_filename_with_path = f"{input_filename}[{hdf5_paths[0]}]"
-                loader.load_file(input_filename_with_path)
-            else:
-                loader.load_file(input_filename)
-        else:
-            loader.load_file(input_filename)
-
-        samplings = loader.get_observables()
-
-        # Write in HDF5 format (convert dict to list)
-        samplings_list = list(samplings.values())
+        # Write to HDF5
         self.write_hdf5(
-            output_filename, samplings_list, hdf5_root_path, overwrite=overwrite
+            str(outpath), samplings_list, hdf5_root_path, overwrite=overwrite
         )
 
-        return output_filename
+        return str(outpath)
 
     def modify_observable(
         self,
@@ -712,33 +673,38 @@ class SigmondWriter:
         hdf5_filename, root_path = self._ensure_hdf5_format(filename, hdf5_root_path)
 
         # Create backup before modification
-        self._create_numbered_backup(hdf5_filename)
+        self._create_numbered_backup(str(hdf5_filename))
 
         # Load samplings from HDF5 file
-        loader = SigmondLoader(enable_caching=False)
-        full_hdf5_path = f"{hdf5_filename}[{root_path}]"
-        loader.load_file(full_hdf5_path)
-        samplings = loader.get_observables()
+        loader = SigmondLoader()
+        loader.load_file(str(hdf5_filename), hdf5_path=root_path)
+        samplings = loader.observables
 
-        # Find and modify the target observable
-        target_key = f"{observable_name} {observable_index}"
-        if target_key not in samplings:
+        # Find the target observable
+        original_sampling = samplings.find(name=observable_name, index=observable_index)
+        if original_sampling is None:
+            # Get first few observables for error message
+            available = [f"{s.name} {s.index}" for s in list(samplings)[:5]]
             raise ValueError(
-                f"Observable {target_key} not found in file. Available observables: {list(samplings.keys())[:5]}..."
+                f"Observable {observable_name} {observable_index} not found in file. "
+                f"Available observables: {available}..."
             )
 
-        # Update the data
-        original_sampling = samplings[target_key]
+        # Create modified sampling
         modified_sampling = SigmondSampling(
             new_data,
             original_sampling.observable_info,
             original_sampling.sampling_info,
             original_sampling.is_complex,
         )
-        samplings[target_key] = modified_sampling
 
-        # Write back to HDF5 file (convert dict to list)
-        samplings_list = list(samplings.values())
-        self.write_hdf5(hdf5_filename, samplings_list, root_path, overwrite=True)
+        # Build new list with modification
+        samplings_list = [
+            modified_sampling if s is original_sampling else s
+            for s in samplings
+        ]
 
-        return hdf5_filename
+        # Write back to HDF5 file
+        self.write_hdf5(str(hdf5_filename), samplings_list, root_path, overwrite=True)
+
+        return str(hdf5_filename)

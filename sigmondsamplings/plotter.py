@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import copy
-from typing import Union, List, Dict, Optional, Tuple, Callable, Any, TYPE_CHECKING
+from typing import Union, List, Dict, Optional, Tuple, Callable, Any, TYPE_CHECKING, Iterable
 from .sampling import SigmondSampling
 from .stats import SamplingStats
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from . import chi2_color_functions
 
 
-class SigmondPlotter:
+class SamplingPlotter:
     """
     A comprehensive plotting class for SigmondSampling and SamplingStats objects.
 
@@ -27,7 +27,7 @@ class SigmondPlotter:
 
     def __init__(
         self,
-        stats: Optional[SamplingStats] = None,
+        stats: Optional[Iterable[SigmondSampling]] = None,
         default_figsize: Tuple[float, float] = (10, 6),
         default_style: Dict[str, Any] = None,
     ):
@@ -39,7 +39,10 @@ class SigmondPlotter:
             default_figsize: Default figure size for plots
             default_style: Default styling parameters
         """
-        self.stats = stats
+        if stats is not None and not isinstance(stats, SamplingStats):
+            self.stats = SamplingStats(stats)
+        else:
+            self.stats = stats
         self.default_figsize = default_figsize
         self.default_style = default_style or {}
 
@@ -73,13 +76,13 @@ class SigmondPlotter:
                 raise ValueError(
                     "Must provide sampling or initialize with SamplingStats"
                 )
-            sampling = self.stats.samplings[0]
+            sampling = self.stats[0]
         elif isinstance(sampling, int):
             if self.stats is None:
                 raise ValueError(
                     "Must provide sampling or initialize with SamplingStats"
                 )
-            sampling = self.stats.samplings[sampling]
+            sampling = self.stats[sampling]
 
         if ax is None:
             figsize = figsize or self.default_figsize
@@ -138,8 +141,8 @@ class SigmondPlotter:
 
         # Add bias information for bootstrap
         if sampling.sampling_info.method == "bootstrap" and show_bias:
-            bias = sampling.bootstrap_bias()
-            bias_corrected = sampling.bias_corrected_mean()
+            bias = sampling.bootstrap_bias
+            bias_corrected = sampling.bias_corrected_mean
             if abs(bias) > 1e-10:  # Only show if bias is significant
                 ax.axvline(
                     bias_corrected,
@@ -154,7 +157,7 @@ class SigmondPlotter:
         ax.set_xlabel("Value")
         ax.set_ylabel("Density")
         ax.set_title(
-            f"{str(sampling.observable_info)} = {sampling.estimate_str()}\n"
+            f"${sampling.latex_str}$\n"
             f"({sampling.sampling_info.method.title()}, "
             f"N={sampling.sampling_info.num_resamplings})"
         )
@@ -192,7 +195,7 @@ class SigmondPlotter:
                 raise ValueError(
                     "Must provide samplings or initialize with SamplingStats"
                 )
-            samplings = self.stats.samplings
+            samplings = self.stats
 
         if ax is None:
             figsize = figsize or self.default_figsize
@@ -212,7 +215,7 @@ class SigmondPlotter:
 
         # Set default labels - use str() method which handles latex_str automatically
         if labels is None:
-            labels = [str(s.observable_info) for s in samplings]
+            labels = ["$" + latex_str + "$" for latex_str in samplings.obs.latex_str]
         elif len(labels) != n_samplings:
             raise ValueError("Length of labels must match number of samplings")
 
@@ -228,7 +231,7 @@ class SigmondPlotter:
 
         # Labels and formatting
         ax.set_xlabel(
-            "Observable Index"
+            "Observable"
             if np.array_equal(x_values, np.arange(n_samplings))
             else "X Value"
         )
@@ -236,11 +239,11 @@ class SigmondPlotter:
 
         if n_samplings == 1:
             ax.set_title(
-                f"{samplings[0].observable_info.name} "
+                f"${samplings[0].observable_info.latex_str}$ "
                 f"({samplings[0].sampling_info.method.title()})"
             )
         else:
-            ensemble_names = list(set(s.ensemble_info.ensemble_name for s in samplings))
+            ensemble_names = list(set(s.ensemble_info.name for s in samplings))
             title = f"Multiple Observables"
             if len(ensemble_names) == 1:
                 title += f" ({ensemble_names[0]})"
@@ -257,7 +260,6 @@ class SigmondPlotter:
 
     def plot_corner(
         self,
-        observables: Optional[List[int]] = None,
         labels: Optional[List[str]] = None,
         **kwargs,
     ) -> Any:
@@ -265,7 +267,6 @@ class SigmondPlotter:
         Create corner plot for multi-observable correlation visualization using corner package.
 
         Args:
-            observables: Indices of observables to include (uses all if None)
             labels: Labels for each observable (uses observable names if None)
             **kwargs: Additional arguments passed to corner.corner()
 
@@ -283,21 +284,10 @@ class SigmondPlotter:
                 "Install with: pip install corner"
             )
 
-        # Select observables to plot
-        if observables is None:
-            selected_samplings = self.stats.samplings
-        else:
-            if max(observables) >= len(self.stats.samplings):
-                raise IndexError("Observable index out of range")
-            selected_samplings = [self.stats.samplings[i] for i in observables]
-
-        # Create data matrix (samples x observables)
-        data_matrix = np.column_stack([s.resampled_values for s in selected_samplings])
-
         # Set default labels - use str() method which handles latex_str automatically
         if labels is None:
-            labels = [str(s.observable_info) for s in selected_samplings]
-        elif len(labels) != len(selected_samplings):
+            labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
+        elif len(labels) != len(self.stats):
             raise ValueError(
                 "Length of labels must match number of selected observables"
             )
@@ -305,37 +295,37 @@ class SigmondPlotter:
         # Default corner plot settings
         corner_kwargs = {
             "labels": labels,
-            "show_titles": True,
-            "title_kwargs": {"fontsize": 12},
-            "label_kwargs": {"fontsize": 18},
+            "show_titles": False,
+            "title_kwargs": {"fontsize": 10},
+            "label_kwargs": {"fontsize": 14},
             # add tick number size
             "tick_kwargs": {"fontsize": 10},
             "hist_kwargs": {"density": True, "alpha": 0.7},
             "scatter_kwargs": {"alpha": 0.6, "s": 1},
             "contour_kwargs": {"colors": "blue"},
             "bins": 30,
-            "truths": [s.full_sample_value for s in selected_samplings],
+            "truths": self.stats.val.full_sample_value,
         }
         corner_kwargs.update(kwargs)
 
         # Create corner plot
-        fig = corner.corner(data_matrix, **corner_kwargs)
+        fig = corner.corner(self.stats.array.T, **corner_kwargs)
 
         # Add ensemble info to the figure title
         ensemble_names = list(
-            set(s.ensemble_info.ensemble_name for s in selected_samplings)
+            set(s.ensemble_info.name for s in self.stats)
         )
         if len(ensemble_names) == 1:
             fig.suptitle(
                 f"Ensemble: {ensemble_names[0]} "
-                f"({selected_samplings[0].sampling_info.method.title()})",
+                f"({self.stats[0].sampling_info.method.title()})",
                 y=0.98,
                 fontsize=16,
             )
         else:
             fig.suptitle(
                 f"Multiple Ensembles "
-                f"({selected_samplings[0].sampling_info.method.title()})",
+                f"({self.stats[0].sampling_info.method.title()})",
                 y=0.98,
                 fontsize=16,
             )
@@ -401,7 +391,7 @@ class SigmondPlotter:
             _, ax = plt.subplots(figsize=figsize)
 
         # Use SigmondSampling objects from self.stats as x-values
-        x_samplings = self.stats.samplings
+        x_samplings = self.stats
 
         y_results = []
         for i, x_sampling in enumerate(x_samplings):
@@ -462,8 +452,6 @@ class SigmondPlotter:
                 if len(x_samplings) < 10:
                     x_label_str = (
                         x_sampling.observable_info.latex_str
-                        if x_sampling.observable_info.latex_str
-                        else f"{i}"
                     )
                     ax.scatter(x_samples, y_samples, label=x_label_str, **cloud_kwargs)
                 else:
@@ -580,7 +568,7 @@ class SigmondPlotter:
             figsize = figsize or self.default_figsize
             _, ax = plt.subplots(figsize=figsize)
 
-        corr_matrix = self.stats.correlation_matrix()
+        corr_matrix = self.stats.corr_matrix
 
         # Plot heatmap
         im = ax.imshow(corr_matrix, cmap="RdBu", vmin=-1, vmax=1, **kwargs)
@@ -589,7 +577,7 @@ class SigmondPlotter:
         plt.colorbar(im, ax=ax, label="Correlation")
 
         # Labels - use str() method which handles latex_str automatically
-        labels = [str(s.observable_info) for s in self.stats.samplings]
+        labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
 
         ax.set_xticks(range(len(labels)))
         ax.set_yticks(range(len(labels)))
@@ -629,8 +617,8 @@ class SigmondPlotter:
         self.plot_sampling_histogram(ax=axes[1, 0])
 
         # Effective sample sizes
-        eff_sizes = self.stats.effective_sample_size()
-        obs_names = [str(s.observable_info) for s in self.stats.samplings]
+        eff_sizes = self.stats.effective_sample_size
+        obs_names = ["$" + s + "$" for s in self.stats.obs.latex_str]
 
         axes[1, 1].bar(range(len(eff_sizes)), eff_sizes)
         axes[1, 1].set_xlabel("Observable Index")
@@ -673,7 +661,7 @@ class SigmondPlotter:
                 raise ValueError(
                     "Must provide samplings or initialize with SamplingStats"
                 )
-            samplings = self.stats.samplings
+            samplings = self.stats
 
         if ax is None:
             figsize = figsize or self.default_figsize
@@ -853,7 +841,7 @@ class SigmondPlotter:
 
             # Calculate chi-squared
             chi2 = self.stats.chi_squared(
-                theory_values, use_correlation=use_correlation, resamp_idx=resamp_idx
+                theory_values, use_corr=use_correlation, resamp_idx=resamp_idx
             )
             chi2_values.append(chi2)
 
@@ -1001,7 +989,7 @@ class SigmondPlotter:
                 # Calculate chi-squared
                 chi2 = self.stats.chi_squared(
                     theory_values,
-                    use_correlation=use_correlation,
+                    use_corr=use_correlation,
                     resamp_idx=resamp_idx,
                 )
                 chi2_grid[i, j] = chi2

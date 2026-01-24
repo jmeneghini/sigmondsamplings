@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 from typing import Callable, List, Optional, Union
 from .sampling import SigmondSampling, ObservableInfo, SamplingInfo, DEFAULT_ENSEMBLE
-from .stats import SamplingStats
+from .obervable_collection import ObservableCollection
 import inspect
 
 
@@ -18,6 +18,12 @@ class SigmondModelFunc:
     This class takes a regular model function f(x, param1, param2, ...) and
     manages the statistical sampling of parameters internally, providing
     automatic error propagation.
+
+    The parameters are stored in an ObservableCollection, providing fast
+    filtering and querying capabilities. Access parameters via:
+        - model.params.val.mean  # Parameter means
+        - model.params.val.error  # Parameter errors
+        - model.params.to_dict()  # Dict mapping ObsInfo -> SigmondSampling
     """
 
     def __init__(
@@ -39,7 +45,7 @@ class SigmondModelFunc:
             independent_var_latex: Optional LaTeX string for independent variable (e.g., r"t" for time)
         """
         self.func = func
-        self.parameter_infos = parameter_infos
+        self._initial_parameter_infos = parameter_infos
         self.sampling_info = sampling_info
         self.latex_str = latex_str
         self.independent_var_latex = independent_var_latex
@@ -52,51 +58,70 @@ class SigmondModelFunc:
                 f"Function expects {n_params} parameters but got {len(parameter_infos)} parameter infos"
             )
 
+    @property
+    def parameter_infos(self) -> List[ObservableInfo]:
+        """Get parameter ObservableInfo objects."""
+        if hasattr(self, "params"):
+            return [s.observable_info for s in self.params]
+        return self._initial_parameter_infos
+
     @classmethod
-    def from_sampling_stats(
+    def from_observable_collection(
         cls,
         func: Callable,
-        parameter_stats: SamplingStats,
+        parameter_collection: ObservableCollection,
         latex_str: Optional[str] = None,
         independent_var_latex: Optional[str] = None,
     ) -> "SigmondModelFunc":
         """
-        Alternative constructor using a SamplingStats object for parameters.
+        Alternative constructor using an ObservableCollection for parameters.
 
         Args:
             func: Model function f(x, param1, param2, ...)
-            parameter_stats: SamplingStats object containing the parameter data
+            parameter_collection: ObservableCollection containing the parameter data
             latex_str: Optional LaTeX string for the function
             independent_var_latex: Optional LaTeX string for independent variable
 
         Returns:
             SigmondModelFunc instance with parameters already set
         """
-        # Extract parameter infos and sampling info from the stats object
-        parameter_infos = parameter_stats.observable_infos
-        sampling_info = parameter_stats.sampling_info
+        # Extract sampling info from the collection
+        sampling_info = parameter_collection.shared_attr("sampling_info", strict=True)
+        parameter_infos = [s.observable_info for s in parameter_collection]
 
         # Create the model instance
         model = cls(
             func, parameter_infos, sampling_info, latex_str, independent_var_latex
         )
 
-        # Set the parameters directly using the stats object
-        model.params = parameter_stats
-        model.sampling_info = sampling_info
-        model.observable_infos = parameter_stats.observable_infos
+        # Set the parameters directly using the collection
+        model.params = parameter_collection
 
         return model
 
     def set_parameters(
-        self, param_data: Union[List[np.ndarray], List[SigmondSampling]]
+        self, param_data: Union[List[np.ndarray], List[SigmondSampling], ObservableCollection]
     ):
         """
         Set the model parameters from fitted data.
 
         Args:
-            param_data: Either list of parameter arrays or list of SigmondSampling objects
+            param_data: Either list of parameter arrays, list of SigmondSampling objects,
+                       or an ObservableCollection
         """
+        # Handle ObservableCollection input
+        if isinstance(param_data, ObservableCollection):
+            self.params = param_data
+            sampling_info = param_data.shared_attr("sampling_info", strict=True)
+            if self.sampling_info != sampling_info:
+                warnings.warn(
+                    "Parameter sampling_info updated to match provided parameter data: "
+                    f"{self.sampling_info} -> {sampling_info}"
+                )
+                self.sampling_info = sampling_info
+            return
+
+        # Handle list input
         if len(param_data) != len(self.parameter_infos):
             raise ValueError(
                 "Number of parameter data entries must match number of parameter infos"
@@ -112,18 +137,18 @@ class SigmondModelFunc:
         else:
             raise ValueError("Invalid parameter data format")
 
-        # now we form a stats object and update the initial info if different
-        self.params = SamplingStats(samplings)
-        if self.sampling_info != self.params.samplings[0].sampling_info:
-            # now warn the user
+        # Create ObservableCollection and update the initial info if different
+        self.params = ObservableCollection(samplings)
+        first_sampling = next(iter(self.params), None)
+        if (
+            first_sampling is not None
+            and self.sampling_info != first_sampling.sampling_info
+        ):
             warnings.warn(
                 "Parameter sampling_info updated to match provided parameter data: "
-                f"{self.sampling_info} -> {self.params.samplings[0].sampling_info}"
+                f"{self.sampling_info} -> {first_sampling.sampling_info}"
             )
-            self.sampling_info = self.params.samplings[0].sampling_info
-
-        # now update observable infos
-        self.observable_infos = self.params.observable_infos
+            self.sampling_info = first_sampling.sampling_info
 
     def get_latex_str_with_var(
         self, var_latex: Optional[str] = None, index: Optional[int] = None
@@ -156,33 +181,6 @@ class SigmondModelFunc:
             # If no placeholder, return as-is (assumes it's already complete)
             return self.latex_str
 
-    @property
-    def parameters(self) -> List[SigmondSampling]:
-        """Get the parameter SigmondSampling objects."""
-        if not hasattr(self, "params"):
-            raise ValueError("Parameters not set. Call set_parameters() first.")
-        return self.params.samplings
-
-    def get_parameter_dict(self) -> dict:
-        """
-        Export parameters as dictionary for compatibility with existing infrastructure.
-
-        Returns:
-            Dictionary mapping parameter names to SigmondSampling objects
-        """
-        return {
-            info.name: param
-            for info, param in zip(self.parameter_infos, self.parameters)
-        }
-
-    def get_parameter_means(self) -> np.ndarray:
-        """Get mean values of all parameters."""
-        return self.params.means()
-
-    def get_parameter_errors(self) -> np.ndarray:
-        """Get error estimates of all parameters."""
-        return self.params.errors()
-
     def __call__(
         self,
         x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling],
@@ -206,9 +204,11 @@ class SigmondModelFunc:
             raise ValueError("Parameters not set. Call set_parameters() first.")
 
         # Handle different input types for x_values
+        params = list(self.params)
+
         if isinstance(x_values, SigmondSampling):
             # Single x with uncertainty - use ufunc operations directly
-            result = self.func(x_values, *self.params.samplings)
+            result = self.func(x_values, *params)
 
             # Update observable info if provided
             if output_info is not None:
@@ -233,7 +233,7 @@ class SigmondModelFunc:
             # Multiple x values with uncertainties
             results = []
             for i, x_val in enumerate(x_values):
-                result = self.func(x_val, *self.params.samplings)
+                result = self.func(x_val, *params)
 
                 # Update observable info - use x_val's observable info when appropriate
                 if output_info is not None:
@@ -256,7 +256,6 @@ class SigmondModelFunc:
                         x_info.ensemble_info,
                         latex_str=self.get_latex_str_with_var(x_info.latex_str),
                     )
-                    print(x_info.latex_str)
                 result.observable_info = info
                 results.append(result)
 
@@ -274,7 +273,7 @@ class SigmondModelFunc:
             results = []
             for i, x_val in enumerate(x_values):
                 # Evaluate at fixed x value using parameter uncertainties
-                result = self.func(x_val, *self.params.samplings)
+                result = self.func(x_val, *params)
 
                 # Update observable info
                 if output_info is not None:
@@ -292,7 +291,7 @@ class SigmondModelFunc:
                         i,
                         "n",
                         "re",
-                        self.parameter_infos[0].ensemble_info,
+                        next(iter(self.params)).observable_info.ensemble_info,
                         latex_str=self.get_latex_str_with_var(index=i),
                     )
                 result.observable_info = info
@@ -348,36 +347,24 @@ class SigmondModelFunc:
 
     def evaluate_full_sample(
         self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]
-    ) -> np.ndarray:
+    ) -> Union[float, np.ndarray]:
         """
-        Evaluate model at full sample points.
+        Evaluate model using full sample values.
 
         Args:
-            x_values: Input values where to evaluate the model (can have uncertainties)
+            x_values: Input values where to evaluate the model
 
         Returns:
-            Array of shape (n_samples, len(x_values)) containing all evaluations
+            Full sample value(s) - single float or array of floats
         """
-        # Get all evaluations using the main __call__ method
-        if isinstance(x_values, SigmondSampling):
-            x_fulls = x_values.full_sample_value
-        elif isinstance(x_values, list):
-            if all(isinstance(x, SigmondSampling) for x in x_values):
-                x_fulls = np.array([x.full_sample_value for x in x_values])
-            elif all(isinstance(x, float) for x in x_values):
-                x_fulls = np.array(x_values)
-        elif isinstance(x_values, np.ndarray):
-            x_fulls = x_values
-        else:
-            raise ValueError("Invalid x_values type")
+        results = self(x_values)
 
-        y_res = self(x_fulls)
-        if isinstance(y_res, SigmondSampling):
-            return y_res.full_sample_value
-        elif isinstance(y_res, list):
-            return np.array([r.full_sample_value for r in y_res])
+        # Handle single result vs list of results
+        if isinstance(results, SigmondSampling):
+            return results.full_sample_value
         else:
-            raise ValueError("Invalid y_res type")
+            # Multiple x values - return array of full sample values
+            return np.array([r.full_sample_value for r in results])
 
     def evaluate_samples(
         self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]
@@ -405,13 +392,17 @@ class SigmondModelFunc:
             )  # Shape: (n_samples, len(x_values))
 
     def __repr__(self):
-        param_names = [info.name for info in self.parameter_infos]
-        return f"SigmondModelFunc({self.func.__name__}, parameters={param_names})"
+        if hasattr(self, "params"):
+            param_names = list(self.params.obs.name)
+            return f"SigmondModelFunc({self.func.__name__}, parameters={param_names})"
+        return f"SigmondModelFunc({self.func.__name__}, parameters not set)"
 
     def __str__(self):
-        param_labels = [str(info) for info in self.parameter_infos]
-        param_str = ", ".join(param_labels)
-        return f"{self.func.__name__}(x; {param_str})"
+        if hasattr(self, "params"):
+            param_labels = [str(info) for info in self.params.obs]
+            param_str = ", ".join(param_labels)
+            return f"{self.func.__name__}(x; {param_str})"
+        return f"{self.func.__name__}(x; parameters not set)"
 
 
 # Convenience functions for common models

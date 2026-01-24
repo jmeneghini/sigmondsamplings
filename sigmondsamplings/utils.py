@@ -17,7 +17,7 @@ def create_gaussian_sampling(
     mean: float,
     std: float,
     sampling_info: SamplingInfo,
-    observable_info: ObservableInfo,
+    observable_info: ObservableInfo
 ) -> SigmondSampling:
     """
     Create a SigmondSampling object with Gaussian-distributed data.
@@ -27,7 +27,6 @@ def create_gaussian_sampling(
         std: Standard deviation for the distribution
         sampling_info: SamplingInfo object
         observable_name: Name for the observable
-        ensemble_info: EnsembleInfo object (uses DEFAULT_ENSEMBLE if None)
 
     Returns:
         SigmondSampling object with synthetic data
@@ -277,7 +276,9 @@ def split_complex_sampling(
     return real_sampling, imag_sampling
 
 
-def compute_autocorrelation(data: np.ndarray, max_lag: Optional[int] = None) -> np.ndarray:
+def compute_autocorrelation(
+    data: np.ndarray, max_lag: Optional[int] = None
+) -> np.ndarray:
     """
     Compute normalized autocorrelation function of time-series data.
 
@@ -427,29 +428,8 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
         raise ValueError(f"rebin_size {rebin_size} too large for {n_bins} bins")
 
     # Truncate to multiple of rebin_size and reshape
-    truncated = bins[:n_rebinned * rebin_size]
+    truncated = bins[: n_rebinned * rebin_size]
     reshaped = truncated.reshape(n_rebinned, rebin_size)
 
     # Average over the rebin_size axis
     return np.mean(reshaped, axis=1)
-
-
-def get_psq_from_string(name: str) -> Optional[int]:
-    """
-    Get the psq value from name.
-    Args:
-        name: Name of the observable
-
-    Returns:
-        psq: psq value if valid, None otherwise
-    """
-    # in name, we either have PSQ=int or P=(int,int,int)
-    if "PSQ=" in name:
-        return int(name.split("PSQ=")[1][0])
-    elif "P=" in name:
-        P_str = name.split("P=")[1].split(")")[0].split("(")[1]
-        P_tuple = tuple(int(x) for x in P_str.split(","))
-        psq = sum([P**2 for P in P_tuple])
-        return psq
-    else:
-        return None

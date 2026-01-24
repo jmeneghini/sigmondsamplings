@@ -3,9 +3,9 @@ Core sampling classes for handling Sigmond samplings data.
 """
 
 import numpy as np
-import xml.etree.ElementTree as ET
-from typing import Union, Optional, Dict, Any, List
-import re
+from typing import Union, List, Any
+
+from .info import EnsembleInfo, SamplingInfo, ObservableInfo, DEFAULT_ENSEMBLE
 
 try:
     from uncertainties import ufloat
@@ -13,238 +13,6 @@ try:
     UNCERTAINTIES_AVAILABLE = True
 except ImportError:
     UNCERTAINTIES_AVAILABLE = False
-
-
-# Default ensemble for general use - accessible to users
-
-
-class EnsembleInfo:
-    """Information about the Monte Carlo ensemble."""
-
-    def __init__(
-        self,
-        ensemble_name: str,
-        num_measurements: int,
-        num_bins: Optional[int] = None,
-        rebin_size: Optional[int] = None,
-        tweak_info: Optional[Dict[str, Any]] = None,
-    ):
-        """
-        Initialize EnsembleInfo.
-
-        Args:
-            ensemble_name: Name of the ensemble
-            num_measurements: Total number of measurements
-            num_bins: Target number of bins after rebinning (optional).
-                     If provided, rebin_size will be calculated automatically.
-            rebin_size: Rebinning factor (optional). Alternative to num_bins.
-            tweak_info: Additional tweak information
-
-        Note:
-            - If both num_bins and rebin_size are None: no rebinning
-            - If num_bins is provided: rebin_size will be calculated
-            - If rebin_size is provided via tweak_info['rebin']: use that
-            - Cannot specify both num_bins and rebin_size explicitly
-        """
-        if num_bins is not None and rebin_size is not None:
-            # verify consistency
-            if num_measurements // rebin_size != num_bins:
-                raise ValueError(
-                    "Inconsistent num_bins and rebin_size provided."
-                )
-
-        self.ensemble_name = ensemble_name
-        self.num_measurements = num_measurements
-        self.tweak_info = tweak_info or {}
-
-        # Calculate num_bins and rebin_size based on what's provided
-        if rebin_size is not None:
-            # Given rebin_size, calculate num_bins
-            self.tweak_info["rebin"] = rebin_size
-            self.num_bins = num_measurements // rebin_size
-        elif num_bins is not None:
-            # Given num_bins, calculate rebin_size
-            self.num_bins = num_bins
-            self.tweak_info["rebin"] = num_measurements // num_bins
-        elif "rebin" in self.tweak_info:
-            # rebin_size in tweak_info, calculate num_bins
-            self.num_bins = num_measurements // self.tweak_info["rebin"]
-        else:
-            # No rebinning
-            self.num_bins = num_measurements
-            self.tweak_info["rebin"] = 1
-            
-    @property
-    def slug(self) -> str:
-        """
-        Returns a file-safe version of the ensemble name.
-        Replaces non-alphanumeric characters with underscores.
-        Example: 'Ensemble A/1' -> 'Ensemble_A_1'
-        """
-        # Keep letters, numbers, hyphens; replace everything else with '_'
-        # Also strip leading/trailing underscores for cleanliness
-        safe_name = re.sub(r'[^a-zA-Z0-9\-]', '_', self.ensemble_name)
-        return safe_name.strip('_')
-
-    def __eq__(self, other):
-        if not isinstance(other, EnsembleInfo):
-            return False
-        return (
-            self.ensemble_name == other.ensemble_name
-            and self.num_measurements == other.num_measurements
-            and self.num_bins == other.num_bins
-            and self.tweak_info == other.tweak_info
-        )
-
-    def __hash__(self):
-        """Make EnsembleInfo hashable for use as dictionary keys."""
-        # Convert tweak_info dict to frozenset of items for hashing
-        # Only hash hashable values; skip unhashable ones
-        hashable_tweaks = []
-        for k, v in self.tweak_info.items():
-            try:
-                hash(v)  # Check if value is hashable
-                hashable_tweaks.append((k, v))
-            except TypeError:
-                # Skip unhashable values (e.g., lists, dicts)
-                pass
-
-        return hash((
-            self.ensemble_name,
-            self.num_measurements,
-            self.num_bins,
-            frozenset(hashable_tweaks),
-        ))
-
-    def __repr__(self):
-        return f"EnsembleInfo('{self.ensemble_name}', {self.num_measurements}, {self.num_bins})"
-
-
-DEFAULT_ENSEMBLE = EnsembleInfo("indep", 1, 1)
-
-
-class SamplingInfo:
-    """Information about the sampling method (Bootstrap/Jackknife)."""
-
-    def __init__(
-        self,
-        method: str,
-        num_resamplings: int,
-        seed: int = 0,
-        boot_skip: int = 0,
-        **kwargs,
-    ):
-        self.method = method.lower()
-        self.num_resamplings = num_resamplings
-        self.seed = seed
-        self.boot_skip = boot_skip
-        self.extra_params = kwargs
-        
-    @property
-    def slug(self):
-        """Fixed-width identifier for filenames."""
-        return f"{self.method[:4]}_n{self.num_resamplings:04d}_s{self.seed:03d}"
-
-    def __eq__(self, other):
-        if not isinstance(other, SamplingInfo):
-            return False
-        return (
-            self.method == other.method
-            and self.num_resamplings == other.num_resamplings
-            and self.seed == other.seed
-            and self.boot_skip == other.boot_skip
-            and self.extra_params == other.extra_params
-        )
-
-    def __hash__(self):
-        """Make SamplingInfo hashable."""
-        # Convert extra_params dict to tuple of items for hashing
-        extra_items = tuple(sorted(self.extra_params.items())) if self.extra_params else ()
-        return hash((
-            self.method,
-            self.num_resamplings,
-            self.seed,
-            self.boot_skip,
-            extra_items
-        ))
-
-    def __repr__(self):
-        return f"SamplingInfo('{self.method}', n={self.num_resamplings}, seed={self.seed}, boot_skip={self.boot_skip})"
-
-
-class ObservableInfo:
-    """Information about a specific observable."""
-
-    def __init__(
-        self,
-        name: str,
-        index: int = 0,
-        op_type: str = "n",
-        re_im: str = "re",
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
-        latex_str: str = None,
-    ):
-        self.name = name
-        self.index = index
-        self.op_type = op_type
-        self.re_im = re_im
-        self.ensemble_info = ensemble_info
-        self.latex_str = latex_str  # used for plotting
-
-    @classmethod
-    def from_string(
-        cls, obs_string: str, ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE
-    ) -> "ObservableInfo":
-        """
-        Parse observable info from string format.
-
-        Expected format: "name index op_type re_im"
-        """
-        parts = obs_string.strip().split()
-        if len(parts) != 4:
-            raise ValueError(f"Invalid observable string format: {obs_string}")
-
-        name, index_str, op_type, re_im = parts
-        try:
-            index = int(index_str)
-        except ValueError:
-            raise ValueError(f"Invalid index in observable string: {index_str}")
-
-        return cls(name, index, op_type, re_im, ensemble_info)
-
-    def __eq__(self, other):
-        if not isinstance(other, ObservableInfo):
-            return False
-        return (
-            self.name == other.name
-            and self.index == other.index
-            and self.op_type == other.op_type
-            and self.re_im == other.re_im
-            and self.ensemble_info == other.ensemble_info
-        )
-
-    def __hash__(self):
-        """Make ObservableInfo hashable for use as dictionary keys."""
-        return hash((
-            self.name,
-            self.index,
-            self.op_type,
-            self.re_im,
-            self.ensemble_info.ensemble_name if self.ensemble_info else None
-        ))
-
-    def _repr_latex__(self):
-        """LaTeX representation for Jupyter notebooks."""
-        if self.latex_str:
-            return f"${self.latex_str}$"
-        else:
-            return self.__str__()
-
-    def __repr__(self):
-        return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info.ensemble_name}')"
-
-    def __str__(self):
-        return f"{self.name} {self.index}"  # Simple MCObs string format
 
 
 class SigmondSampling:
@@ -280,205 +48,27 @@ class SigmondSampling:
         self.is_complex = is_complex
 
     @classmethod
-    def from_bins(
+    def from_single_value(
         cls,
-        bins_data: Union[np.ndarray, list],
-        observable_info: Union[ObservableInfo, List[ObservableInfo]],
+        value: Union[float, complex],
+        observable_info: ObservableInfo,
         sampling_info: SamplingInfo,
-        statistic: Union[str, List[str]] = "mean",
-        is_complex: bool = False,
-    ) -> Union["SigmondSampling", List["SigmondSampling"]]:
+    ) -> "SigmondSampling":
         """
-        Create a SigmondSampling from raw time-series bins data using Block Bootstrap.
-
-        This method performs "Stitch" Block Bootstrapping to preserve autocorrelation:
-        1. Determines block_size from ensemble_info.
-        2. Chops data into blocks (truncating the remainder).
-        3. Resamples entire blocks with replacement.
-        4. Stitches blocks back together to form synthetic time-series.
-        5. Computes the requested statistic(s) on the stitched series.
-
-        Block sizing logic:
-        - If ensemble_info.tweak_info['rebin'] is set: block_size = rebin
-        - If ensemble_info.num_bins is set: block_size = len(data) // num_bins
-        - Otherwise: block_size = 1 (Standard IID Bootstrap)
+        Create a SigmondSampling from a single value (no resampling).
 
         Args:
-            bins_data: Raw time-series bins (1D array or list)
-            observable_info: Observable info containing blocking/ensemble parameters.
-            sampling_info: Sampling method (bootstrap/jackknife) and parameters.
-            statistic: Statistic(s) to compute ("mean", "variance", etc.).
-            is_complex: Whether the bins data is complex-valued.
+            value: The full sample value
+            observable_info: ObservableInfo for the sampling
+            sampling_info: SamplingInfo for the sampling
+            is_complex: Whether the data is complex
 
         Returns:
-            SigmondSampling object(s) containing the statistic and its error distribution.
+            SigmondSampling instance with single value ('fixed' sampling)
         """
-        # Normalize statistic input
-        if isinstance(statistic, str):
-            statistics = [statistic]
-            return_single = True
-        else:
-            statistics = statistic
-            return_single = False
-
-        # Normalize observable_info input
-        if isinstance(observable_info, list):
-            observable_infos = observable_info
-            if len(observable_infos) != len(statistics):
-                raise ValueError(
-                    f"Number of observable_info objects ({len(observable_infos)}) "
-                    f"must match number of statistics ({len(statistics)})"
-                )
-            auto_generate_names = False
-        else:
-            observable_infos = [observable_info]
-            auto_generate_names = len(statistics) > 1
-
-        # Convert to numpy array
-        if not isinstance(bins_data, np.ndarray):
-            bins_data = np.array(bins_data)
-
-        if bins_data.ndim != 1:
-            raise ValueError("bins_data must be 1-dimensional")
-
-        # --- BLOCKING LOGIC ---
-        ensemble_info = observable_infos[0].ensemble_info
-        N_total = len(bins_data)
-
-        # Determine Block Size
-        if "rebin" in ensemble_info.tweak_info:
-            block_size = int(ensemble_info.tweak_info["rebin"])
-            n_blocks = N_total // block_size
-        elif ensemble_info.num_bins:
-            n_blocks = int(ensemble_info.num_bins)
-            block_size = N_total // n_blocks
-        else:
-            # Default to size 1 (Standard IID Bootstrap)
-            block_size = 1
-            n_blocks = N_total
-
-        if block_size < 1: 
-            block_size = 1
-            n_blocks = N_total
-
-        # Truncate data to fit perfectly into blocks
-        n_keep = n_blocks * block_size
-        data_truncated = bins_data[:n_keep]
-
-        # Reshape into (n_blocks, block_size) for easy block manipulation
-        # We do NOT average (squish) here; we keep the raw structure for the stitch
-        blocks_view = data_truncated.reshape(n_blocks, block_size)
-
-        # Define statistic functions
-        # Note: We ensure they can handle axis=1 for vectorized resampling
-        stat_funcs = {
-            "mean": np.mean,
-            "variance": lambda x, **kwargs: np.var(x, ddof=1, **kwargs),
-            "std": lambda x, **kwargs: np.std(x, ddof=1, **kwargs),
-            "median": np.median,
-            "min": np.min,
-            "max": np.max,
-        }
-
-        def get_stat_func(stat_name: str):
-            if stat_name not in stat_funcs and "raw_moment" not in stat_name:
-                raise ValueError(
-                    f"Unknown statistic '{stat_name}'. Options: {list(stat_funcs.keys())}"
-                )
-            if "moment" in stat_name:
-                power = int(stat_name.split("_")[2])
-                return lambda x, **kwargs: np.mean(x**power, **kwargs)
-            else:
-                return stat_funcs[stat_name]
-
-        # Validate statistics
-        for stat_name in statistics:
-            get_stat_func(stat_name)
-
-        # --- RESAMPLING LOGIC ---
-        method = sampling_info.method.lower()
-        
-        if method == "bootstrap":
-            n_resamples = sampling_info.num_resamplings
-            rng = np.random.RandomState(sampling_info.seed)
-
-            # 1. Resample INDICES of BLOCKS (not individual points)
-            # Shape: (n_resamples, n_blocks)
-            block_indices = rng.randint(0, n_blocks, size=(n_resamples, n_blocks))
-
-            # 2. Construct Resampled Blocks (The Stitch)
-            # Advanced Indexing: result is (n_resamples, n_blocks, block_size)
-            resampled_blocks = blocks_view[block_indices]
-
-            # 3. Flatten back to time-series
-            # Shape: (n_resamples, n_keep)
-            resampled_traces = resampled_blocks.reshape(n_resamples, n_keep)
-
-        elif method == "jackknife":
-            # Block Jackknife: Leave one BLOCK out, not one point
-            # Number of samples = number of blocks
-            n_resamples = n_blocks 
-            
-            # Since Jackknife is deterministic and n_blocks is usually small (<1000),
-            # we can pre-generate the mask or handle it in the loop.
-            # We won't pre-generate a massive array for Jackknife to save RAM,
-            # we will handle it in the loop below.
-            resampled_traces = None
-        else:
-            raise ValueError(f"Unknown sampling method '{method}'")
-
-        # --- COMPUTE STATISTICS ---
-        results = []
-        for idx, stat_name in enumerate(statistics):
-            stat_func = get_stat_func(stat_name)
-
-            # 1. Full sample statistic (calculated on the truncated data used for blocks)
-            full_sample_value = stat_func(data_truncated)
-
-            # 2. Resampled statistics
-            if method == "bootstrap":
-                # Vectorized computation on the stitched traces
-                # axis=1 computes the statistic across the time-series for each resample
-                resampled_values = stat_func(resampled_traces, axis=1)
-
-            elif method == "jackknife":
-                # Block Jackknife Loop
-                resampled_values = np.empty(n_blocks, dtype=bins_data.dtype)
-                
-                # Create a mask of all true
-                all_indices = np.arange(n_blocks)
-                
-                for i in range(n_blocks):
-                    # Keep all blocks EXCEPT i
-                    # We pick indices where index != i
-                    keep_indices = np.delete(all_indices, i)
-                    
-                    # Stitch the remaining blocks
-                    jk_blocks = blocks_view[keep_indices]
-                    jk_trace = jk_blocks.flatten() # Shape: ((n_blocks-1)*block_size, )
-                    
-                    resampled_values[i] = stat_func(jk_trace)
-
-            # Construct the data array [Val, Resample_1, Resample_2, ...]
-            data = np.concatenate([[full_sample_value], resampled_values])
-
-            # Name generation
-            if auto_generate_names:
-                base_obs_info = observable_infos[0]
-                obs_info = ObservableInfo(
-                    name=f"{base_obs_info.name}_{stat_name}",
-                    index=base_obs_info.index,
-                    op_type=base_obs_info.op_type,
-                    re_im=base_obs_info.re_im,
-                    ensemble_info=base_obs_info.ensemble_info,
-                    latex_str=base_obs_info.latex_str,
-                )
-            else:
-                obs_info = observable_infos[idx]
-
-            results.append(cls(data, obs_info, sampling_info, is_complex=is_complex))
-
-        return results[0] if return_single else results
+        data = np.array([value] * (sampling_info.num_resamplings + 1))
+        is_complex = np.iscomplexobj(value)
+        return cls(data, observable_info, sampling_info, is_complex=is_complex)
 
     @property
     def ensemble_info(self) -> EnsembleInfo:
@@ -493,7 +83,7 @@ class SigmondSampling:
     @property
     def full_sample_value(self):
         """The full sample value (mean of all measurements)."""
-        return self.data[0]
+        return self.data[0].item()
 
     @property
     def resampled_values(self):
@@ -503,24 +93,62 @@ class SigmondSampling:
     @property
     def mean(self):
         """Mean of the resampled values (excluding full sample)."""
-        return np.mean(self.resampled_values)
-
+        return np.mean(self.resampled_values).item()
+    
     @property
     def _std(self):
-        """Standard deviation of the resampled values."""
+        """Standard deviation of the resampled values (excluding full sample)."""
         return np.std(self.resampled_values, ddof=1)
 
     @property
     def error(self):
         """Statistical error estimate."""
         if self.sampling_info.method == "bootstrap":
-            return self._std
+            res = self._std
         elif self.sampling_info.method == "jackknife":
             # Jackknife error correction
             n = len(self.resampled_values)
-            return self._std * np.sqrt(n - 1)
+            res = self._std * np.sqrt(n - 1)
         else:
-            return self._std
+            res = self._std
+        return res.item()
+    
+    @property
+    def bootstrap_bias(self) -> float:
+        """
+        Calculate bootstrap bias estimate.
+
+        Returns:
+            Bootstrap bias (mean of resamples - full sample value)
+
+        Raises:
+            ValueError: If sampling method is not bootstrap
+        """
+        if self.sampling_info.method != "bootstrap":
+            raise ValueError(
+                "Bootstrap bias is only available for bootstrap resampling"
+            )
+
+        return self.mean - self.full_sample_value
+
+    @property
+    def bias_corrected_mean(self) -> float:
+        """
+        Calculate bias-corrected mean estimate.
+
+        Returns:
+            Bias-corrected mean (full sample - bootstrap bias)
+
+        Raises:
+            ValueError: If sampling method is not bootstrap
+        """
+        if self.sampling_info.method != "bootstrap":
+            raise ValueError(
+                "Bias correction is only available for bootstrap resampling"
+            )
+
+        bias = self.bootstrap_bias
+        return self.full_sample_value - bias
 
     def to_ufloat(self):
         """
@@ -590,45 +218,9 @@ class SigmondSampling:
         upper_percentile = 100 * (1 - alpha / 2)
 
         # Calculate bounds from resampled values
-        lower_bound = np.percentile(self.resampled_values, lower_percentile)
-        upper_bound = np.percentile(self.resampled_values, upper_percentile)
-        print(f"Confidence interval: ({lower_bound}, {upper_bound})")
+        lower_bound = np.percentile(self.resampled_values, lower_percentile).item()
+        upper_bound = np.percentile(self.resampled_values, upper_percentile).item()
         return (lower_bound, upper_bound)
-
-    def bootstrap_bias(self) -> float:
-        """
-        Calculate bootstrap bias estimate.
-
-        Returns:
-            Bootstrap bias (mean of resamples - full sample value)
-
-        Raises:
-            ValueError: If sampling method is not bootstrap
-        """
-        if self.sampling_info.method != "bootstrap":
-            raise ValueError(
-                "Bootstrap bias is only available for bootstrap resampling"
-            )
-
-        return self.mean - self.full_sample_value
-
-    def bias_corrected_mean(self) -> float:
-        """
-        Calculate bias-corrected mean estimate.
-
-        Returns:
-            Bias-corrected mean (full sample - bootstrap bias)
-
-        Raises:
-            ValueError: If sampling method is not bootstrap
-        """
-        if self.sampling_info.method != "bootstrap":
-            raise ValueError(
-                "Bias correction is only available for bootstrap resampling"
-            )
-
-        bias = self.bootstrap_bias()
-        return self.full_sample_value - bias
 
     def bounded(self, lower: float, upper: float) -> "SigmondSampling":
         """
@@ -691,6 +283,36 @@ class SigmondSampling:
             complex_data, self.observable_info, self.sampling_info, is_complex=True
         )
 
+    def as_energy_level(self, force_type: str = "auto", **manual_overrides):
+        """
+        Convert this sampling to an energy level with enhanced ObservableInfo.
+
+        Args:
+            force_type: Force specific type ('single_hadron', 'multi_hadron', 'auto')
+            **manual_overrides: Manual attribute overrides
+
+        Returns:
+            SigmondSampling with energy level ObservableInfo
+        """
+        # Import here to avoid circular imports
+        from .energy_levels import create_energy_obs_info
+
+        try:
+            new_obs_info = create_energy_obs_info(
+                self.observable_info, force_type, **manual_overrides
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Error converting to energy level: {e}. "
+                f"ObservableInfo: {self.observable_info}, "
+                f"force_type: {force_type}, overrides: {manual_overrides}"
+            ) from e
+
+        # Return new sampling with energy level observable info
+        return SigmondSampling(
+            self.data, new_obs_info, self.sampling_info, self.is_complex
+        )
+
     def _check_compatible(self, others: set["SigmondSampling"]):
         """
         Check if a set of samplings are compatible with self for arithmetic operations.
@@ -729,6 +351,73 @@ class SigmondSampling:
             )
 
         return True
+
+    def unwrap(self, discont=np.pi, axis=-1):
+        """
+        Unwrap phase angles by changing jumps greater than discont to their 2*pi complement.
+
+        Args:
+            discont: Maximum discontinuity between values (default: pi)
+            axis: Axis along which unwrap will operate (default: -1)
+
+        Returns:
+            SigmondSampling with unwrapped phase data
+        """
+        unwrapped_data = np.unwrap(self.data, discont=discont, axis=axis)
+        return SigmondSampling(
+            unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
+        )
+
+    @property
+    def latex_str(self):
+        return f"{self.observable_info.latex_str} = {self.pdg_format()}"
+
+    def __lt__(self, other):
+        return self.full_sample_value < (
+            other.full_sample_value if isinstance(other, SigmondSampling) else other
+        )
+
+    def __le__(self, other):
+        return self.full_sample_value <= (
+            other.full_sample_value if isinstance(other, SigmondSampling) else other
+        )
+
+    def __gt__(self, other):
+        return self.full_sample_value > (
+            other.full_sample_value if isinstance(other, SigmondSampling) else other
+        )
+
+    def __ge__(self, other):
+        return self.full_sample_value >= (
+            other.full_sample_value if isinstance(other, SigmondSampling) else other
+        )
+
+    def __eq__(self, other):
+        """Check equality based on observable_info, sampling_info, and is_complex."""
+        if not isinstance(other, SigmondSampling):
+            return False
+        return (
+            self.observable_info == other.observable_info
+            and self.sampling_info == other.sampling_info
+            and self.is_complex == other.is_complex
+        )
+
+    def __hash__(self):
+        """Make SigmondSampling hashable for use as dictionary keys."""
+        return hash(
+            (
+                self.observable_info,
+                self.sampling_info.method,
+                self.sampling_info.num_resamplings,
+                self.is_complex,
+            )
+        )
+
+    def __repr__(self):
+        return f"SigmondSampling(name='{str(self.observable_info)}', full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
+
+    def __str__(self):
+        return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
 
     def __array_ufunc__(
         self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any
@@ -794,31 +483,6 @@ class SigmondSampling:
     def __radd__(self, other):
         return np.add(other, self)
 
-    def __neg__(self):
-        return np.negative(self)
-
-    def __pos__(self):
-        return np.positive(self)
-
-    def __abs__(self):
-        return np.absolute(self)
-
-    def unwrap(self, discont=np.pi, axis=-1):
-        """
-        Unwrap phase angles by changing jumps greater than discont to their 2*pi complement.
-
-        Args:
-            discont: Maximum discontinuity between values (default: pi)
-            axis: Axis along which unwrap will operate (default: -1)
-
-        Returns:
-            SigmondSampling with unwrapped phase data
-        """
-        unwrapped_data = np.unwrap(self.data, discont=discont, axis=axis)
-        return SigmondSampling(
-            unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
-        )
-
     def __sub__(self, other):
         return np.subtract(self, other)
 
@@ -843,70 +507,11 @@ class SigmondSampling:
     def __rpow__(self, other):
         return np.power(other, self)
 
-    def __lt__(self, other):
-        return self.full_sample_value < (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
+    def __neg__(self):
+        return np.negative(self)
 
-    def __le__(self, other):
-        return self.full_sample_value <= (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
+    def __pos__(self):
+        return np.positive(self)
 
-    def __gt__(self, other):
-        return self.full_sample_value > (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __ge__(self, other):
-        return self.full_sample_value >= (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __eq__(self, other):
-        """Check equality based on observable_info, sampling_info, and is_complex."""
-        if not isinstance(other, SigmondSampling):
-            return False
-        return (
-            self.observable_info == other.observable_info
-            and self.sampling_info == other.sampling_info
-            and self.is_complex == other.is_complex
-        )
-
-    def __hash__(self):
-        """Make SigmondSampling hashable for use as dictionary keys."""
-        return hash((
-            self.observable_info,
-            self.sampling_info.method,
-            self.sampling_info.num_resamplings,
-            self.is_complex
-        ))
-
-    def __repr__(self):
-        return f"SigmondSampling(full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
-
-    def __str__(self):
-        return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
-
-    def as_energy_level(self, force_type: str = "auto", **manual_overrides):
-        """
-        Convert this sampling to an energy level with enhanced ObservableInfo.
-
-        Args:
-            force_type: Force specific type ('single_hadron', 'multi_hadron', 'auto')
-            **manual_overrides: Manual attribute overrides
-
-        Returns:
-            SigmondSampling with energy level ObservableInfo
-        """
-        # Import here to avoid circular imports
-        from .energy_levels import create_energy_obs_info
-
-        new_obs_info = create_energy_obs_info(
-            self.observable_info, force_type, **manual_overrides
-        )
-
-        # Return new sampling with energy level observable info
-        return SigmondSampling(
-            self.data, new_obs_info, self.sampling_info, self.is_complex
-        )
+    def __abs__(self):
+        return np.absolute(self)

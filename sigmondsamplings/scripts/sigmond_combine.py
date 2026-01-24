@@ -69,7 +69,7 @@ def load_all_samplings(
     Returns:
         Dictionary mapping observable keys to SigmondSampling objects
     """
-    loader = SigmondLoader(enable_caching=False)
+    loader = SigmondLoader()
     all_samplings = {}
 
     for i, input_file in enumerate(input_files, 1):
@@ -77,27 +77,16 @@ def load_all_samplings(
             print(f"Loading file {i}/{len(input_files)}: {Path(input_file).name}")
 
         try:
-            # Handle HDF5 files that might need path specification
-            if input_file.lower().endswith(".hdf5") and "[" not in input_file:
-                is_valid, file_type, hdf5_paths = loader.check_file_validity(input_file)
-                if is_valid and file_type == "hdf5" and hdf5_paths:
-                    if len(hdf5_paths) > 1:
-                        print(
-                            f"Warning: HDF5 file {input_file} has multiple paths. Using: {hdf5_paths[0]}"
-                        )
-                        if verbose:
-                            print(f"Available paths: {', '.join(hdf5_paths)}")
-                    input_file_with_path = f"{input_file}[{hdf5_paths[0]}]"
-                    loader.load_file(input_file_with_path)
-                else:
-                    loader.load_file(input_file)
-            else:
-                loader.load_file(input_file)
+            # Load file (loader auto-detects format and path)
+            loader.load_file(input_file)
 
-            samplings = loader.get_observables()
+            samplings_collection = loader.observables
 
             if verbose:
-                print(f"  Loaded {len(samplings)} observables")
+                print(f"  Loaded {len(samplings_collection)} observables")
+
+            # Convert collection to dict with string keys "name index"
+            samplings = {f"{s.name} {s.index}": s for s in samplings_collection}
 
             # Check for conflicts with existing observables
             conflicts = set(all_samplings.keys()) & set(samplings.keys())
@@ -144,7 +133,7 @@ def validate_compatibility(
         print(
             f"Reference sampling info: {ref_sampling_info.method}, {ref_sampling_info.num_resamplings} resamplings"
         )
-        print(f"Reference ensemble: {ref_ensemble_info.ensemble_name}")
+        print(f"Reference ensemble: {ref_ensemble_info.name}")
 
     incompatible_samplings = []
     incompatible_ensembles = []
@@ -156,7 +145,7 @@ def validate_compatibility(
 
         # Check ensemble compatibility (different ensembles are allowed)
         if sampling.observable_info.ensemble_info != ref_ensemble_info:
-            ensemble_name = sampling.observable_info.ensemble_info.ensemble_name
+            ensemble_name = sampling.observable_info.ensemble_info.name
             if ensemble_name not in incompatible_ensembles:
                 incompatible_ensembles.append(ensemble_name)
 
@@ -172,7 +161,7 @@ def validate_compatibility(
 
     if verbose and incompatible_ensembles:
         print(f"Note: Found multiple ensembles (this is allowed):")
-        print(f"  - {ref_ensemble_info.ensemble_name} (reference)")
+        print(f"  - {ref_ensemble_info.name} (reference)")
         for ensemble in incompatible_ensembles:
             print(f"  - {ensemble}")
 

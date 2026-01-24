@@ -3,218 +3,125 @@ Statistical analysis tools for Sigmond samplings.
 """
 
 import numpy as np
-from typing import List, Dict, Tuple, Optional, Union, Callable
+from typing import List, Dict, Tuple, Optional, Union, Callable, Type, TypeVar, Iterable
 from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo, SamplingInfo
+from .obervable_collection import ObservableCollection
+from .ensemble_collection import MultiEnsembleCollection
+from functools import cached_property
+
+T = TypeVar("T", bound="SamplingStats")
 
 
-class SamplingStats:
-    """Statistical analysis tools for multiple SigmondSampling objects."""
+class SamplingStats(MultiEnsembleCollection):
+    """
+    Statistical analysis tools for energy-level samplings from multiple ensembles.
 
-    def __init__(self, samplings: List[SigmondSampling] = None):
+    Extends MultiEnsembleEnergyCollection to provide statistical operations like
+    covariance matrices, chi-squared calculations, and fitting.
+
+    Inherits from MultiEnsembleCollection with return_type fixed to "numpy".
+
+    Note: This class is IMMUTABLE - filtering/sorting operations return new instances.
+    The underlying data is stored as a tuple to prevent modification.
+    """
+
+    def __init__(
+        self,
+        data: Optional[Iterable[SigmondSampling]] = None,
+    ):
         """
-        Initialize with a list of SigmondSampling objects.
+        Initialize SamplingStats with sampling_info and energy-level validation.
 
         Args:
-            samplings: List of SigmondSampling objects to analyze
+            data: Input data - can be:
+                - List of SigmondSampling objects with energy-level observables
+                - ObservableCollection / MultiEnsembleCollection
+                - None for empty collection
+
+        Raises:
+            ValueError: If samplings have inconsistent sampling_info or non-energy observables
         """
-        self.samplings = samplings
-        self._check_consistency()
+        super().__init__(data, "numpy")
+        # Convert to tuple for immutability
+        self._sampling_info = self.sampling_info
+        self._data = tuple(self._data)
+        self._numpy_data = self.to_numpy()  # Each sampling is column vector
 
-    def _check_consistency(self):
-        """Check that all samplings have consistent sampling info."""
-        if not self.samplings:
-            return
-        reference = self.samplings[0]
-        for i, sampling in enumerate(self.samplings[1:], 1):
-            if sampling.sampling_info != reference.sampling_info:
-                raise ValueError(
-                    f"Sampling {i} has different sampling info than sampling 0"
-                )
-
-            if len(sampling.data) != len(reference.data):
-                raise ValueError(
-                    f"Sampling {i} has different data length than sampling 0"
-                )
-
-    def __len__(self) -> int:
-        """Return the number of observables."""
-        return len(self.samplings) if self.samplings else 0
-
-    def __getitem__(
-        self, key: Union[int, slice, List[int], np.ndarray]
-    ) -> "SamplingStats":
+    @classmethod
+    def _fast_load(
+        cls: Type[T],
+        data: List[SigmondSampling],
+        return_type: str,
+    ) -> T:
         """
-        Create a new SamplingStats object by indexing the current object.
+        Internal constructor for efficient creation from trusted data.
 
-        Args:
-            key: Index specification - can be:
-                - int: Single observable index
-                - slice: Range of observables
-                - List[int] or np.ndarray: Specific observable indices
-
-        Returns:
-            New SamplingStats object containing the selected observables
+        Used by filter/sort methods. Preserves SamplingStats type and recaches numpy data.
         """
-        if not self.samplings:
-            raise IndexError("Cannot index empty SamplingStats")
-
-        if isinstance(key, int):
-            # Single index - convert to list for consistent handling
-            if key < 0:
-                key = len(self.samplings) + key
-            if key < 0 or key >= len(self.samplings):
-                raise IndexError(
-                    f"Index {key} out of range for {len(self.samplings)} observables"
-                )
-            selected_samplings = [self.samplings[key]]
-
-        elif isinstance(key, slice):
-            # Slice indexing
-            selected_samplings = self.samplings[key]
-
-        elif isinstance(key, (list, np.ndarray)):
-            # List or array of indices
-            key = np.array(key)
-            if key.dtype != int:
-                raise TypeError("Index array must contain integers")
-
-            # Handle negative indices
-            key = np.where(key < 0, len(self.samplings) + key, key)
-
-            # Check bounds
-            if np.any(key < 0) or np.any(key >= len(self.samplings)):
-                raise IndexError(
-                    f"Index out of range for {len(self.samplings)} observables"
-                )
-
-            selected_samplings = [self.samplings[i] for i in key]
-
-        else:
-            raise TypeError(
-                f"Invalid index type: {type(key)}. Must be int, slice, list, or numpy array"
-            )
-
-        # Create new SamplingStats object with selected samplings
-        return SamplingStats(selected_samplings)
-
-    @property
-    def observable_infos(self) -> List[ObservableInfo]:
-        """Get the observable info from all samplings."""
-        return [s.observable_info for s in self.samplings]
-
-    @property
-    def sampling_info(self) -> SamplingInfo:
-        """Get the sampling info from all samplings."""
-        return self.samplings[0].sampling_info
-
-    @property
-    def unique_ensembles(self) -> List[EnsembleInfo]:
-        """Get list of unique ensemble infos from all observables."""
-        unique = []
-        for sampling in self.samplings:
-            ensemble_info = sampling.observable_info.ensemble_info
-            if ensemble_info not in unique:
-                unique.append(ensemble_info)
-        return unique
+        instance = cls.__new__(cls)
+        instance._data = tuple(data)  # Immutable tuple
+        instance._return_type = "numpy"  # Always numpy for SamplingStats
+        instance._shared_attr_cache = {}
+        instance._numpy_data = instance.to_numpy()
+        return instance
 
     @property
     def num_observables(self) -> int:
-        """Number of observables."""
-        return len(self.samplings)
+        """Number of observables in the collection."""
+        return len(self._data)
 
     @property
     def num_samples(self) -> int:
-        """Number of samples (excluding full sample value)."""
-        return len(self.samplings[0].resampled_values)
+        """Number of resampling iterations (including full sample at index 0)."""
+        return self._numpy_data.shape[1]
 
-    def print_observables(self):
-        """Print a summary of all observables."""
-        for i, s in enumerate(self.samplings):
-            print(f"Observable {i}: {s.observable_info.name} = {s.pdg_format()}")
+    @property
+    def array(self) -> np.ndarray:
+        """Get data as a 2D numpy array (num_observables x num_samples)."""
+        return self._numpy_data
 
-    def max_value(self) -> SigmondSampling:
-        """Get the observable with the maximum mean value."""
-        max_idx = np.argmax(self.full_samples())
-        return self.samplings[max_idx]
+    def __setitem__(self, key, value):
+        """Block item assignment to maintain immutability."""
+        raise TypeError(
+            "SamplingStats is immutable. Use filter() or other methods to create new instances."
+        )
 
-    def min_value(self) -> SigmondSampling:
-        """Get the observable with the minimum mean value."""
-        min_idx = np.argmin(self.full_samples())
-        return self.samplings[min_idx]
+    def __repr__(self) -> str:
+        """String representation."""
+        if not self._data:
+            return "SamplingStats(empty)"
+        return (
+            f"SamplingStats(n_obs={len(self)}, "
+            f"n_ensembles={len(self.ensembles)}, "
+            f"sampling='{self._sampling_info}')"
+        )
 
-    def full_samples(self) -> np.ndarray:
-        """Get the full sample values of all observables."""
-        return np.array([s.full_sample_value for s in self.samplings])
-
-    def means(self) -> np.ndarray:
-        """Get the means of all observables."""
-        return np.array([s.mean for s in self.samplings])
-
-    def values_at_index(self, sample_idx: int) -> np.ndarray:
+    def values_at_index(self, index: int) -> np.ndarray:
         """
-        Get the values of all observables for a specific resampling index.
+        Get values of all observables at a specific resampling index.
 
         Args:
-            sample_idx: Resampling index (0 for full sample, 1..N for resamplings)
+            index: Resampling index (0 for full sample)
+
         Returns:
-            Array of observable values for the specified sample index
+            Array of shape (num_observables,) with values at the specified index
         """
-        if sample_idx < 0 or sample_idx > self.num_samples:
-            raise IndexError("Resampling index out of range")
-        return np.array([s.data[sample_idx] for s in self.samplings])
+        return self._numpy_data[:, index]
 
-    def sample_means(self) -> np.ndarray:
-        """Get the means of all observables (alias for means)."""
-        return self.means()
+    # -------------------------------------------------------------------------
+    # Covariance and Correlation Methods
+    # -------------------------------------------------------------------------
 
-    def errors(self) -> np.ndarray:
-        """Get the errors of all observables."""
-        return np.array([s.error for s in self.samplings])
-
-    def sample_errors(self) -> np.ndarray:
-        """Get the errors of all observables (alias for errors)."""
-        return self.errors()
-
-    def add_samplings(self, new_samplings: List[SigmondSampling] | SigmondSampling):
-        """
-        Add new SigmondSampling objects to the analysis.
-
-        Args:
-            new_samplings: List of SigmondSampling objects to add
-        """
-        if isinstance(new_samplings, SigmondSampling):
-            new_samplings = [new_samplings]
-        self.samplings.extend(new_samplings)
-        self._check_consistency()
-
-    def update_sampling_index(self, index: int, new_data: np.ndarray):
-        """
-        Update the data for a specific sampling index. The size of the
-        new data array must match the number of SigmondSampling objects
-        present. Indexing starts at 0 with the full sample.
-
-        Args:
-            index: Resampling index to update
-            new_data: New data for the resampling
-        """
-        if index < 0 or index > self.num_samples:
-            raise IndexError("Resampling index out of range")
-        if len(new_data) != self.num_observables:
-            raise ValueError("New data length must match number of observables")
-
-        for i, sampling in enumerate(self.samplings):
-            sampling.resampled_values[index] = new_data[i]
-
-    def inv_cholesky_covariance_matrix(self) -> np.ndarray:
+    @cached_property
+    def inv_cholesky_cov_matrix(self) -> np.ndarray:
         """
         Calculate the inverse Cholesky decomposition of the covariance matrix.
 
         Returns:
             Inverse Cholesky factor of the covariance matrix
         """
-        cov_matrix = self.covariance_matrix()
         try:
-            L = np.linalg.cholesky(cov_matrix)
+            L = np.linalg.cholesky(self.cov_matrix)
             inv_L = np.linalg.inv(L)
             return inv_L
         except np.linalg.LinAlgError:
@@ -222,7 +129,8 @@ class SamplingStats:
                 "Covariance matrix is not positive definite for Cholesky decomposition"
             )
 
-    def covariance_matrix(self) -> np.ndarray:
+    @cached_property
+    def cov_matrix(self) -> np.ndarray:
         """
         Calculate the covariance matrix between all observables.
 
@@ -231,57 +139,40 @@ class SamplingStats:
         Returns:
             Covariance matrix (num_observables x num_observables)
         """
-        n_obs = self.num_observables
-        cov_matrix = np.zeros((n_obs, n_obs))
+        cov_arr = np.zeros((self.num_observables, self.num_observables))
+        for i in range(self.num_observables):
+            for j in range(i, self.num_observables):
+                cov_ij = self.cov(i, j)
+                cov_arr[i, j] = cov_ij
+                cov_arr[j, i] = cov_ij
 
-        # Fill diagonal and off-diagonal elements
-        for i in range(n_obs):
-            for j in range(i, n_obs):
-                cov_val = self.covariance(i, j)
-                cov_matrix[i, j] = cov_val
-                if i != j:
-                    cov_matrix[j, i] = cov_val
-
-        return cov_matrix
-
-    def covariance_matrix_cond_num(self) -> float:
-        """
-        Calculate the condition number of the covariance matrix.
-
-        Returns:
-            Condition number of the covariance matrix
-        """
-        cov_matrix = self.covariance_matrix()
+        return cov_arr
+    
+    @cached_property
+    def cov_matrix_cond_num(self) -> float:
+        """Calculate the condition number of the covariance matrix."""
+        cov_matrix = self.cov_matrix
         return np.linalg.cond(cov_matrix)
 
-    def correlation_matrix(self) -> np.ndarray:
+    @cached_property
+    def corr_matrix(self) -> np.ndarray:
         """
         Calculate the correlation matrix between all observables.
 
         Returns:
             Correlation matrix (num_observables x num_observables)
         """
-        cov_matrix = self.covariance_matrix()
-
-        # Extract standard deviations
+        cov_matrix = self.cov_matrix
         stds = np.sqrt(np.diag(cov_matrix))
-
-        # Calculate correlation matrix
         corr_matrix = cov_matrix / np.outer(stds, stds)
-
         return corr_matrix
 
-    def correlation_matrix_cond_num(self) -> float:
-        """
-        Calculate the condition number of the correlation matrix.
+    @cached_property
+    def corr_matrix_cond_num(self) -> float:
+        """Calculate the condition number of the correlation matrix."""
+        return np.linalg.cond(self.corr_matrix)
 
-        Returns:
-            Condition number of the correlation matrix
-        """
-        corr_matrix = self.correlation_matrix()
-        return np.linalg.cond(corr_matrix)
-
-    def covariance(self, obs1_idx: int, obs2_idx: int) -> float:
+    def cov(self, obs1_idx: int, obs2_idx: int) -> float:
         """
         Calculate covariance between two specific observables.
 
@@ -294,11 +185,13 @@ class SamplingStats:
         Returns:
             Covariance value
         """
-        if obs1_idx >= len(self.samplings) or obs2_idx >= len(self.samplings):
+
+        n = len(self._data)
+        if obs1_idx >= n or obs2_idx >= n:
             raise IndexError("Observable index out of range")
 
-        sampling1 = self.samplings[obs1_idx]
-        sampling2 = self.samplings[obs2_idx]
+        sampling1 = self._data[obs1_idx]
+        sampling2 = self._data[obs2_idx]
 
         # Return zero covariance for different ensembles
         if (
@@ -317,34 +210,13 @@ class SamplingStats:
         cov = np.cov(data1, data2, ddof=1)[0, 1]
 
         # Apply jackknife correction if needed
-        if sampling1.sampling_info.method == "jackknife":
-            n = len(data1)
-            cov *= n - 1
+        if self._sampling_info and self._sampling_info.method == "jackknife":
+            n_samples = len(data1)
+            cov *= n_samples - 1
 
         return cov
-
-    def min_and_max_val_with_buffer(
-        self, buffer: float = 0.3
-    ) -> Tuple[SigmondSampling, SigmondSampling]:
-        """
-        Get min and max values for plotting, with buffer.
-        delta = max - min
-        min_buff = min - buffer * delta
-        max_buff = max + buffer * delta
-
-        Args:
-            buffer: Fractional buffer to add to min/max range
-        Returns:
-            Tuple of (min_values, max_values) with buffer applied
-        """
-
-        delta = self.max_value() - self.min_value()
-        min_buff = self.min_value() - buffer * delta
-        max_buff = self.max_value() + buffer * delta
-
-        return min_buff, max_buff
-
-    def correlation(self, obs1_idx: int, obs2_idx: int) -> float:
+    
+    def corr(self, obs1_idx: int, obs2_idx: int) -> float:
         """
         Calculate correlation between two specific observables.
 
@@ -355,71 +227,84 @@ class SamplingStats:
         Returns:
             Correlation coefficient
         """
-        cov = self.covariance(obs1_idx, obs2_idx)
-        err1 = self.samplings[obs1_idx].error
-        err2 = self.samplings[obs2_idx].error
-
+        cov = self.cov(obs1_idx, obs2_idx)
+        err1 = self._data[obs1_idx].error
+        err2 = self._data[obs2_idx].error
         return cov / (err1 * err2)
+
+    def min_and_max_val_with_buffer(
+        self, buffer: float = 0.3
+    ) -> Tuple[SigmondSampling, SigmondSampling]:
+        """
+        Get min and max values for plotting, with buffer.
+
+        Args:
+            buffer: Fractional buffer to add to min/max range
+        Returns:
+            Tuple of (min_values, max_values) with buffer applied
+        """
+        min_val = self.find_data(mode="min")
+        max_val = self.find_data(mode="max")
+        delta = max_val - min_val
+        diff = delta * buffer
+        min_buff = min_val - diff
+        max_buff = max_val + diff
+        return min_buff, max_buff
+
+    # -------------------------------------------------------------------------
+    # Chi-Squared and Residual Methods
+    # -------------------------------------------------------------------------
 
     def whitened_residuals(
         self,
         theory_values: np.ndarray,
-        use_correlation: bool = True,
+        use_corr: bool = True,
         resamp_idx: int = 0,
     ) -> np.ndarray:
         """
         Calculate whitened residuals with respect to theory values.
 
-        Whitened residuals are the residuals normalized by the covariance matrix,
-        such that their covariance matrix becomes the identity matrix.
-
         Args:
             theory_values: Array of theoretical values to compare against
-            use_correlation: Whether to use full covariance matrix (True) or
-                           just diagonal errors (False)
-            resamp_idx: Resampling index to use (0 for full sample, 1..N for resamplings)
+            use_corr: Whether to use full covariance matrix
+            resamp_idx: Resampling index to use (0 for full sample)
 
         Returns:
             Array of whitened residuals
         """
         if len(theory_values) != self.num_observables:
             raise ValueError("Theory values length must match number of observables")
+        if resamp_idx < 0 or resamp_idx > self.num_samples:
+            raise IndexError("Resampling index out of range")
 
-        obs = self.values_at_index(resamp_idx)
+        obs = self._numpy_data[:, resamp_idx]
         diff = obs - theory_values
 
-        if use_correlation:
-            cov_matrix = self.covariance_matrix()
+        if use_corr:
+            cov_matrix = self.cov_matrix
             try:
-                # Use Cholesky decomposition for numerical stability
-                # C = L @ L.T, so L^-1 @ diff gives whitened residuals
                 L = np.linalg.cholesky(cov_matrix)
                 whitened = np.linalg.solve(L, diff)
             except np.linalg.LinAlgError:
-                # Fall back to eigenvalue decomposition if Cholesky fails
                 try:
                     eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
-                    # Filter out very small eigenvalues for numerical stability
                     valid_mask = eigenvals > 1e-12 * np.max(eigenvals)
                     if np.sum(valid_mask) == 0:
                         raise np.linalg.LinAlgError("All eigenvalues too small")
 
-                    # Construct pseudo-inverse using valid eigenvalues
                     sqrt_inv_eigenvals = np.zeros_like(eigenvals)
                     sqrt_inv_eigenvals[valid_mask] = 1.0 / np.sqrt(
                         eigenvals[valid_mask]
                     )
 
-                    # Whitening transformation: V @ diag(1/sqrt(λ)) @ V.T @ diff
                     whitened = eigenvecs @ (
                         sqrt_inv_eigenvals[:, np.newaxis] * (eigenvecs.T @ diff)
                     )
                 except np.linalg.LinAlgError:
-                    # Final fallback to diagonal errors
-                    errors = self.errors()
+                    errors = self.val.error
                     whitened = diff / errors
         else:
-            errors = self.errors()
+            errors = self.val.error
             whitened = diff / errors
 
         return whitened
@@ -427,27 +312,24 @@ class SamplingStats:
     def chi_squared(
         self,
         theory_values: np.ndarray,
-        use_correlation: bool = True,
+        use_corr: bool = True,
         resamp_idx: int = 0,
     ) -> float:
         """
         Calculate chi-squared with respect to theory values.
 
-        Chi-squared is computed as the sum of squares of whitened residuals:
-        χ² = r^T @ r, where r are the whitened residuals.
-
         Args:
             theory_values: Array of theoretical values to compare against
-            use_correlation: Whether to use full covariance matrix (True) or
-                           just diagonal errors (False)
-            resamp_idx: Resampling index to use (0 for full sample, 1..N for resamplings)
+            use_corr: Whether to use full covariance matrix
+            resamp_idx: Resampling index to use (0 for full sample)
 
         Returns:
             Chi-squared value
         """
-        whitened = self.whitened_residuals(theory_values, use_correlation, resamp_idx)
+        whitened = self.whitened_residuals(theory_values, use_corr, resamp_idx)
         return np.sum(whitened**2)
 
+    @cached_property
     def effective_sample_size(self) -> np.ndarray:
         """
         Estimate effective sample size for each observable using autocorrelation.
@@ -457,17 +339,14 @@ class SamplingStats:
         """
         eff_sizes = []
 
-        for sampling in self.samplings:
+        for sampling in self._data:
             data = sampling.resampled_values
-
-            # Simple autocorrelation estimate
             n = len(data)
             autocorr = np.correlate(
                 data - np.mean(data), data - np.mean(data), mode="full"
             )
             autocorr = autocorr[n - 1 :] / autocorr[n - 1]
 
-            # Find integrated autocorrelation time
             tau_int = 0.5
             for i in range(1, min(n // 4, len(autocorr))):
                 tau_int += autocorr[i]
@@ -479,185 +358,239 @@ class SamplingStats:
 
         return np.array(eff_sizes)
 
-    def chi_squared_by_samplings(
-        self,
-        theory_values: Union[np.ndarray, List[SigmondSampling]],
-        use_correlation: bool = True,
-    ) -> SigmondSampling:
+    @staticmethod
+    def confidence_ellipse_params(
+        x_sampling: SigmondSampling,
+        y_sampling: SigmondSampling,
+        confidence_level: float = 0.68,
+    ) -> Tuple[float, float, float, float, float]:
         """
-        Calculate chi-squared for each resampling, treating theory values as samples.
+        Calculate parameters for a confidence ellipse of correlated 2D data.
 
         Args:
-            theory_values: Either array of theoretical values (same for all resamplings)
-                         or list of SigmondSampling objects for varying theory values
-            use_correlation: Whether to use full covariance matrix (True) or
-                           just diagonal errors (False)
+            x_sampling: SigmondSampling for x-coordinate
+            y_sampling: SigmondSampling for y-coordinate
+            confidence_level: Confidence level for the ellipse (default: 0.68 = 1σ)
+
+        Returns:
+            Tuple of (center_x, center_y, width, height, angle_degrees)
+            - center_x, center_y: Center of ellipse (means)
+            - width, height: Ellipse dimensions (scaled by chi-squared value)
+            - angle_degrees: Rotation angle in degrees
+        """
+        # Extract resampled values
+        x_data = x_sampling.resampled_values
+        y_data = y_sampling.resampled_values
+
+        if len(x_data) != len(y_data):
+            raise ValueError("x and y samplings must have same number of resamples")
+
+        # Calculate centers (means)
+        center_x = x_sampling.mean
+        center_y = y_sampling.mean
+
+        # Calculate covariance matrix
+        cov_matrix = np.cov(x_data, y_data)
+
+        # Get eigenvalues and eigenvectors
+        eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
+
+        # Sort by eigenvalue (largest first)
+        order = eigenvals.argsort()[::-1]
+        eigenvals = eigenvals[order]
+        eigenvecs = eigenvecs[:, order]
+
+        # Calculate angle (in degrees)
+        angle_rad = np.arctan2(eigenvecs[1, 0], eigenvecs[0, 0])
+        angle_degrees = np.degrees(angle_rad)
+
+        # Scale ellipse by chi-squared value for confidence level
+        # For 2D data, chi-squared distribution with 2 DOF
+        from scipy.stats import chi2
+
+        chi2_val = chi2.ppf(confidence_level, df=2)
+
+        # Width and height are 2 * sqrt(eigenvalue * chi2_val)
+        width = 2 * np.sqrt(eigenvals[0] * chi2_val)
+        height = 2 * np.sqrt(eigenvals[1] * chi2_val)
+
+        return center_x, center_y, width, height, angle_degrees
+
+    def chi_squared_by_samplings(
+        self,
+        theory_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
+        use_corr: bool = True,
+    ) -> SigmondSampling:
+        """
+        Calculate chi-squared for each resampling.
+
+        Args:
+            theory_values: Theory values - array, list of SigmondSampling, or collection
+            use_corr: Whether to use full covariance matrix
 
         Returns:
             SigmondSampling object containing chi-squared values for each resampling
         """
-        # Validate theory values input
+        if not self._data:
+            raise ValueError("Cannot compute chi-squared on empty SamplingStats")
+
+        data_matrix = self._numpy_data
+        n_samples = data_matrix.shape[1]
+
+        # Prepare theory values
         if isinstance(theory_values, np.ndarray):
             if len(theory_values) != self.num_observables:
                 raise ValueError(
                     "Theory values length must match number of observables"
                 )
-            # Convert to constant theory for all resamplings
-            theory_data = np.tile(theory_values, (self.num_samples + 1, 1)).T
+            theory_data = np.tile(theory_values, (n_samples, 1)).T
+        elif isinstance(theory_values, ObservableCollection):
+            theory_data = theory_values.to_numpy()
+            if theory_data.shape[0] != self.num_observables:
+                raise ValueError(
+                    "Number of theory samplings must match number of observables"
+                )
+            if theory_data.shape[1] != n_samples:
+                raise ValueError("Theory samplings must have same length as data")
         elif isinstance(theory_values, list):
             if len(theory_values) != self.num_observables:
                 raise ValueError(
                     "Number of theory samplings must match number of observables"
                 )
-            # Check that all theory samplings are compatible
             if not all(isinstance(t, SigmondSampling) for t in theory_values):
                 raise ValueError("All theory values must be SigmondSampling objects")
-            if not all(
-                len(t.data) == len(self.samplings[0].data) for t in theory_values
-            ):
-                raise ValueError(
-                    "All theory samplings must have same length as data samplings"
-                )
+            if not all(len(t.data) == n_samples for t in theory_values):
+                raise ValueError("Theory samplings must have same length as data")
             theory_data = np.array([t.data for t in theory_values])
         else:
             raise ValueError(
-                "Theory values must be numpy array or list of SigmondSampling objects"
+                "Theory values must be array, list, or ObservableCollection"
             )
 
-        # Get the covariance matrix once (uses existing calculation with proper corrections)
-        if use_correlation:
+        # Compute covariance
+        if use_corr:
             try:
-                cov_matrix = self.covariance_matrix()
+                cov_matrix = self.cov_matrix
                 inv_cov = np.linalg.inv(cov_matrix)
                 use_covariance = True
             except np.linalg.LinAlgError:
-                # Fall back to diagonal if matrix is singular
                 use_covariance = False
         else:
             use_covariance = False
 
-        # Use the existing error calculation from SigmondSampling objects
-        errors = self.errors()
+        errors = np.array(self.val.error)
+        diff_matrix = data_matrix - theory_data
 
-        chi_squared_values = []
-
-        # Calculate chi-squared for full sample (index 0) and each resampling
-        for sample_idx in range(self.num_samples + 1):
-            # Get data values for this sample
-            data_values = np.array([s.data[sample_idx] for s in self.samplings])
-            theory_vals = theory_data[:, sample_idx]
-
-            diff = data_values - theory_vals
-
-            if use_covariance:
-                chi_sq = diff @ inv_cov @ diff
-            else:
-                # Use diagonal errors (already properly calculated by SigmondSampling.error)
-                chi_sq = np.sum((diff / errors) ** 2)
-
-            chi_squared_values.append(chi_sq)
-
-        # Create chi-squared sampling object
-        chi_sq_data = np.array(chi_squared_values)
-
+        if use_covariance:
+            chi_squared_values = np.einsum(
+                "ij,ji->i", diff_matrix.T, inv_cov @ diff_matrix
+            )
+        else:
+            chi_squared_values = np.sum(
+                (diff_matrix / errors[:, np.newaxis]) ** 2, axis=0
+            )
+    
+        # Use independent ensemble
         observable_info = ObservableInfo(
             name="chi_squared",
             index=0,
             op_type="n",
             re_im="re",
-            ensemble_info=self.ensemble_info,
         )
 
-        # Use the same ensemble and sampling info as the input data
-        chi_sq_sampling = SigmondSampling(
-            data=chi_sq_data,
+        return SigmondSampling(
+            data=chi_squared_values,
             observable_info=observable_info,
-            sampling_info=self.samplings[0].sampling_info,
+            sampling_info=self._sampling_info,
             is_complex=False,
         )
 
-        return chi_sq_sampling
+    # -------------------------------------------------------------------------
+    # Fitting Methods
+    # -------------------------------------------------------------------------
 
     def fit_function(
         self,
-        x_values: Union[np.ndarray, List[SigmondSampling]],
+        x_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
         model_func: Callable,
         initial_params: np.ndarray,
         param_bounds: Optional[List[Tuple[float, float]]] = None,
-        use_correlation: bool = True,
+        use_corr: bool = True,
         method: str = "minimize",
     ) -> Dict[str, SigmondSampling]:
         """
         Fit a function to the observables with proper error propagation.
 
         Args:
-            x_values: Either array of fixed x values or list of SigmondSampling objects
-                     for x values with uncertainties
-            model_func: Function f(x, params) that takes x values and parameter array
+            x_values: X values - array, list of SigmondSampling, or collection
+            model_func: Function f(x, params)
             initial_params: Initial guess for parameters
-            param_bounds: Optional bounds for parameters [(min, max), ...]
-            use_correlation: Whether to use correlation matrix in fitting
-            method: Optimization method ('minimize' or 'curve_fit')
+            param_bounds: Optional bounds for parameters
+            use_corr: Whether to use correlation matrix
+            method: 'minimize' or 'curve_fit'
 
         Returns:
             Dictionary with fitted parameters as SigmondSampling objects
         """
-        # Handle both fixed x-values and x-values with uncertainties
-        if isinstance(x_values, list) and all(
+        if not self._data:
+            raise ValueError("Cannot fit on empty SamplingStats")
+
+        data_matrix = self._numpy_data
+        n_samples = data_matrix.shape[1]
+
+        # Handle x-values
+        if isinstance(x_values, ObservableCollection):
+            x_matrix = x_values.to_numpy()
+            if x_matrix.shape[0] != self.num_observables:
+                raise ValueError("Number of x samplings must match observables")
+            x_has_uncertainty = True
+            x_array = np.array(x_values.val.mean)
+        elif isinstance(x_values, list) and all(
             isinstance(x, SigmondSampling) for x in x_values
         ):
             if len(x_values) != self.num_observables:
-                raise ValueError(
-                    "Number of x samplings must match number of observables"
-                )
-            # Check compatibility with y-data samplings
-            for x_samp in x_values:
-                if x_samp.sampling_info != self.samplings[0].sampling_info or len(
-                    x_samp.data
-                ) != len(self.samplings[0].data):
-                    raise ValueError("X samplings must be compatible with Y samplings")
+                raise ValueError("Number of x samplings must match observables")
             x_has_uncertainty = True
-            x_samplings = x_values
-            # Use mean x values for initial fit
+            x_matrix = np.array([x.data for x in x_values])
             x_array = np.array([x.mean for x in x_values])
         else:
             x_array = np.array(x_values)
             if len(x_array) != self.num_observables:
-                raise ValueError("Number of x values must match number of observables")
+                raise ValueError("Number of x values must match observables")
             x_has_uncertainty = False
-            x_samplings = None
+            x_matrix = None
 
         try:
             from scipy.optimize import minimize, curve_fit
         except ImportError:
-            raise ImportError(
-                "scipy is required for fitting. Install with: pip install scipy"
-            )
+            raise ImportError("scipy is required for fitting")
 
-        # Define chi-squared function using existing infrastructure
+        # Precompute covariance
+        if use_corr:
+            try:
+                cov_matrix = self.cov_matrix
+                inv_cov = np.linalg.inv(cov_matrix)
+                use_covariance = True
+            except np.linalg.LinAlgError:
+                use_covariance = False
+        else:
+            use_covariance = False
+
+        errors = np.array(self.val.error)
+
         def chi_squared(params):
             theory_vals = model_func(x_array, params)
-            chi_sq, _ = self.chi_squared(theory_vals, use_correlation)
-            return chi_sq
+            return self.chi_squared(theory_vals, use_corr)
 
-        # Fit using full sample (mean values)
+        # Fit full sample
         if method == "minimize":
             result = minimize(chi_squared, initial_params, bounds=param_bounds)
-            print(initial_params, param_bounds)
             if not result.success:
                 raise RuntimeError(f"Fitting failed: {result.message}")
             best_params = result.x
         elif method == "curve_fit":
-            y_data = self.means()
-            y_errors = self.errors()
-            if use_correlation:
-                try:
-                    cov_matrix = self.covariance_matrix()
-                    sigma = np.sqrt(np.diag(cov_matrix))
-                except np.linalg.LinAlgError:
-                    sigma = y_errors
-            else:
-                sigma = y_errors
+            y_data = np.array(self.val.mean)
+            sigma = np.sqrt(np.diag(cov_matrix)) if use_covariance else errors
 
             best_params, _ = curve_fit(
                 lambda x, *p: model_func(x, np.array(p)),
@@ -671,47 +604,22 @@ class SamplingStats:
         else:
             raise ValueError("Method must be 'minimize' or 'curve_fit'")
 
-        # Now fit each resampling to get parameter distributions
-        num_params = len(best_params)
-        param_samples = []
-
-        # Initialize parameter arrays with full sample values
-        for p_idx in range(num_params):
-            param_samples.append([best_params[p_idx]])
-
         # Fit each resampling
-        for sample_idx in range(self.num_samples):
-            # Get x values for this sample
-            if x_has_uncertainty:
-                x_sample = np.array(
-                    [x.resampled_values[sample_idx] for x in x_samplings]
-                )
-            else:
-                x_sample = x_array
+        num_params = len(best_params)
+        param_samples = [[best_params[p_idx]] for p_idx in range(num_params)]
 
-            # Get resampled data for this sample
-            y_sample = np.array(
-                [s.resampled_values[sample_idx] for s in self.samplings]
-            )
+        for sample_idx in range(1, n_samples):
+            x_sample = x_matrix[:, sample_idx] if x_has_uncertainty else x_array
+            y_sample = data_matrix[:, sample_idx]
 
-            # Define chi-squared for this sample using the existing infrastructure approach
-            def chi_squared_sample(params):
-                theory_vals = model_func(x_sample, params)
-                diff = y_sample - theory_vals
-
-                if use_correlation:
-                    try:
-                        cov_matrix = self.covariance_matrix()
-                        inv_cov = np.linalg.inv(cov_matrix)
-                        return diff @ inv_cov @ diff
-                    except np.linalg.LinAlgError:
-                        errors = self.errors()
-                        return np.sum((diff / errors) ** 2)
+            def chi_squared_sample(params, x=x_sample, y=y_sample):
+                theory_vals = model_func(x, params)
+                diff = y - theory_vals
+                if use_covariance:
+                    return diff @ inv_cov @ diff
                 else:
-                    errors = self.errors()
                     return np.sum((diff / errors) ** 2)
 
-            # Fit this sample
             try:
                 if method == "minimize":
                     result_sample = minimize(
@@ -721,42 +629,38 @@ class SamplingStats:
                         result_sample.x if result_sample.success else best_params
                     )
                 elif method == "curve_fit":
-                    y_errors = self.errors()
                     sample_params, _ = curve_fit(
                         lambda x, *p: model_func(x, np.array(p)),
                         x_sample,
                         y_sample,
                         p0=best_params,
-                        sigma=y_errors,
+                        sigma=errors,
                         absolute_sigma=True,
                         bounds=param_bounds if param_bounds else (-np.inf, np.inf),
                     )
 
-                # Store parameter values for this sample
                 for p_idx, param_val in enumerate(sample_params):
                     param_samples[p_idx].append(param_val)
-
             except Exception:
-                # If any fit fails, use the best fit parameters
                 for p_idx in range(num_params):
                     param_samples[p_idx].append(best_params[p_idx])
 
-        # Create SigmondSampling objects for each parameter
+        # Create output
+        ens_info = self.ensemble_info or self._data[0].observable_info.ensemble_info
         fitted_params = {}
         for p_idx in range(num_params):
             param_data = np.array(param_samples[p_idx])
-            name = f"param_{p_idx}"
             observable_info = ObservableInfo(
-                name=name,
+                name=f"param_{p_idx}",
                 index=0,
                 op_type="n",
                 re_im="re",
-                ensemble_info=self.ensemble_info,
+                ensemble_info=ens_info,
             )
             fitted_params[f"param_{p_idx}"] = SigmondSampling(
                 data=param_data,
                 observable_info=observable_info,
-                sampling_info=self.samplings[0].sampling_info,
+                sampling_info=self._sampling_info,
                 is_complex=False,
             )
 
@@ -764,139 +668,113 @@ class SamplingStats:
 
     def goodness_of_fit(
         self,
-        x_values: Union[np.ndarray, List[SigmondSampling]],
+        x_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
         model_func: Callable,
         fitted_params: Dict[str, SigmondSampling],
-        use_correlation: bool = True,
+        use_corr: bool = True,
     ) -> SigmondSampling:
         """
-        Calculate goodness of fit using fitted parameters and existing chi_squared_by_samplings.
+        Calculate goodness of fit using fitted parameters.
 
         Args:
-            x_values: Either array of fixed x values or list of SigmondSampling objects
-                     for x values with uncertainties
-            model_func: The model function used in fitting
-            fitted_params: Dictionary of fitted parameters from fit_function
-            use_correlation: Whether to use correlation matrix
+            x_values: X values
+            model_func: Model function
+            fitted_params: Fitted parameters from fit_function
+            use_corr: Whether to use correlation matrix
 
         Returns:
-            SigmondSampling object containing chi-squared values
+            SigmondSampling with chi-squared values
         """
-        # Handle both fixed x-values and x-values with uncertainties
-        if isinstance(x_values, list) and all(
+        if not self._data:
+            raise ValueError("Cannot compute goodness of fit on empty SamplingStats")
+
+        n_samples = self._numpy_data.shape[1]
+
+        # Handle x-values
+        if isinstance(x_values, ObservableCollection):
+            x_matrix = x_values.to_numpy()
+            x_has_uncertainty = True
+        elif isinstance(x_values, list) and all(
             isinstance(x, SigmondSampling) for x in x_values
         ):
-            if len(x_values) != self.num_observables:
-                raise ValueError(
-                    "Number of x samplings must match number of observables"
-                )
             x_has_uncertainty = True
-            x_samplings = x_values
+            x_matrix = np.array([x.data for x in x_values])
         else:
             x_array = np.array(x_values)
-            if len(x_array) != self.num_observables:
-                raise ValueError("Number of x values must match number of observables")
             x_has_uncertainty = False
+            x_matrix = None
 
-        # Extract parameter arrays in order
         param_names = sorted(fitted_params.keys())
-        param_samplings = [fitted_params[name] for name in param_names]
+        param_data = np.array([fitted_params[name].data for name in param_names])
 
-        # Calculate theory values for all observables and all samples
+        theory_data = np.zeros((self.num_observables, n_samples))
+
+        for sample_idx in range(n_samples):
+            params = param_data[:, sample_idx]
+            x_vals = x_matrix[:, sample_idx] if x_has_uncertainty else x_array
+            theory_data[:, sample_idx] = model_func(x_vals, params)
+
         theory_samplings = []
-
         for obs_idx in range(self.num_observables):
-            theory_values = []
-
-            # Calculate theory values for this observable across all samples
-            for sample_idx in range(self.num_samples + 1):
-                params = np.array([ps.data[sample_idx] for ps in param_samplings])
-
-                if x_has_uncertainty:
-                    x_val = x_samplings[obs_idx].data[sample_idx]
-                else:
-                    x_val = x_array[obs_idx]
-
-                theory_val = model_func(np.array([x_val]), params)[0]
-                theory_values.append(theory_val)
-
-            # Create SigmondSampling for this observable's theory values
-            theory_sampling = SigmondSampling(
-                data=np.array(theory_values),
-                ensemble_info=self.ensemble_info,
-                sampling_info=self.samplings[0].sampling_info,
-                is_complex=False,
+            observable_info = ObservableInfo(
+                name=f"theory_{obs_idx}",
+                index=0,
+                op_type="n",
+                re_im="re",
             )
-            theory_samplings.append(theory_sampling)
+            theory_samplings.append(
+                SigmondSampling(
+                    data=theory_data[obs_idx],
+                    observable_info=observable_info,
+                    sampling_info=self._sampling_info,
+                    is_complex=False,
+                )
+            )
 
-        # Use the existing chi_squared_by_samplings method - it handles everything!
-        return self.chi_squared_by_samplings(theory_samplings, use_correlation)
+        return self.chi_squared_by_samplings(theory_samplings, use_corr)
 
     def fit_polynomial(
-        self, x_values: np.ndarray, degree: int, use_correlation: bool = True
+        self, x_values: np.ndarray, degree: int, use_corr: bool = True
     ) -> Dict[str, SigmondSampling]:
-        """
-        Convenience method for polynomial fitting.
-
-        Args:
-            x_values: Array of x values corresponding to each observable
-            degree: Degree of polynomial
-            use_correlation: Whether to use correlation matrix
-
-        Returns:
-            Dictionary with fitted coefficients as SigmondSampling objects
-        """
+        """Convenience method for polynomial fitting."""
 
         def poly_func(x, params):
             return np.polyval(params, x)
 
         initial_params = np.ones(degree + 1)
         return self.fit_function(
-            x_values, poly_func, initial_params, use_correlation=use_correlation
+            x_values, poly_func, initial_params, use_corr=use_corr
         )
 
     def fit_exponential(
-        self, x_values: np.ndarray, use_correlation: bool = True
+        self, x_values: np.ndarray, use_corr: bool = True
     ) -> Dict[str, SigmondSampling]:
-        """
-        Convenience method for exponential fitting: A * exp(-m * x).
-
-        Args:
-            x_values: Array of x values corresponding to each observable
-            use_correlation: Whether to use correlation matrix
-
-        Returns:
-            Dictionary with 'param_0' (A) and 'param_1' (m) as SigmondSampling objects
-        """
+        """Convenience method for exponential fitting: A * exp(-m * x)."""
 
         def exp_func(x, params):
             A, m = params
             return A * np.exp(-m * x)
 
-        # Initial guess based on data
-        y_data = self.means()
+        y_data = np.array(self.val.mean)
         A_guess = y_data[0] if len(y_data) > 0 else 1.0
         m_guess = 0.1
 
         initial_params = np.array([A_guess, m_guess])
         return self.fit_function(
-            x_values, exp_func, initial_params, use_correlation=use_correlation
+            x_values, exp_func, initial_params, use_corr=use_corr
         )
 
     def summary(self) -> Dict:
-        """
-        Generate a summary of statistical information.
-
-        Returns:
-            Dictionary containing summary statistics
-        """
+        """Generate a summary of statistical information."""
         return {
             "num_observables": self.num_observables,
             "num_samples": self.num_samples,
-            "ensemble": self.ensemble_info.ensemble_name,
-            "sampling_method": self.samplings[0].sampling_info.method,
-            "means": self.means(),
-            "errors": self.errors(),
-            "effective_sample_sizes": self.effective_sample_size(),
-            "correlation_matrix": self.correlation_matrix(),
+            "ensembles": [e.name for e in self.ensembles],
+            "sampling_method": (
+                self._sampling_info.method if self._sampling_info else None
+            ),
+            "means": np.array(self.val.mean),
+            "errors": np.array(self.val.error),
+            "effective_sample_sizes": self.effective_sample_size,
+            "correlation_matrix": self.corr_matrix
         }
