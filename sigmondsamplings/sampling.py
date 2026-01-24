@@ -94,7 +94,7 @@ class SigmondSampling:
     def mean(self):
         """Mean of the resampled values (excluding full sample)."""
         return np.mean(self.resampled_values).item()
-    
+
     @property
     def _std(self):
         """Standard deviation of the resampled values (excluding full sample)."""
@@ -112,7 +112,7 @@ class SigmondSampling:
         else:
             res = self._std
         return res.item()
-    
+
     @property
     def bootstrap_bias(self) -> float:
         """

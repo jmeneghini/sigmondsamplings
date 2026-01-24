@@ -17,6 +17,8 @@ from .ensemble_collection import SingleEnsembleCollection
 
 logger = logging.getLogger(__name__)
 SIGMOND_QUERY_CMD = "sigmond_query"
+
+
 class SigmondLoader:
     """
     Loader for Sigmond samplings files.
@@ -74,12 +76,14 @@ class SigmondLoader:
     def _is_hdf5_file(self, filename: str) -> bool:
         """Check if a file is an HDF5 file."""
         try:
-            with h5py.File(filename, 'r') as f:
+            with h5py.File(filename, "r") as f:
                 return True
         except (OSError, IOError):
             return False
 
-    def _verify_hdf5_sigmond_file(self, filename: str) -> Tuple[bool, Optional[List[str]]]:
+    def _verify_hdf5_sigmond_file(
+        self, filename: str
+    ) -> Tuple[bool, Optional[List[str]]]:
         """
         Verify that an HDF5 file is a valid Sigmond samplings file.
 
@@ -89,20 +93,20 @@ class SigmondLoader:
             - available_paths: List of available data paths (e.g., ["samplings"])
         """
         try:
-            with h5py.File(filename, 'r') as f:
+            with h5py.File(filename, "r") as f:
                 # Check for Info group with FIdentifier
-                if 'Info' not in f or 'FIdentifier' not in f['Info']:
+                if "Info" not in f or "FIdentifier" not in f["Info"]:
                     return False, None
 
                 # Verify it's a Sigmond samplings file
-                fid = f['Info']['FIdentifier'][()].decode('utf-8')
-                if fid != 'Sigmond--SamplingsFile':
+                fid = f["Info"]["FIdentifier"][()].decode("utf-8")
+                if fid != "Sigmond--SamplingsFile":
                     return False, None
 
                 # Find available paths (all groups at root except Info)
                 available_paths = []
                 for key in f.keys():
-                    if key != 'Info' and isinstance(f[key], h5py.Group):
+                    if key != "Info" and isinstance(f[key], h5py.Group):
                         available_paths.append(key)
 
                 return True, available_paths
@@ -110,7 +114,9 @@ class SigmondLoader:
             logger.debug(f"HDF5 verification failed: {e}")
             return False, None
 
-    def _load_from_hdf5(self, filename: str, path: str = "samplings") -> SingleEnsembleCollection:
+    def _load_from_hdf5(
+        self, filename: str, path: str = "samplings"
+    ) -> SingleEnsembleCollection:
         """
         Load samplings directly from HDF5 file using h5py.
 
@@ -121,10 +127,10 @@ class SigmondLoader:
         Returns:
             SingleEnsembleCollection of loaded samplings
         """
-        with h5py.File(filename, 'r') as f:
+        with h5py.File(filename, "r") as f:
             # Verify the path exists
             if path not in f:
-                available_paths = [k for k in f.keys() if k != 'Info']
+                available_paths = [k for k in f.keys() if k != "Info"]
                 raise ValueError(
                     f"Path '{path}' not found in HDF5 file. Available paths: {available_paths}"
                 )
@@ -132,17 +138,17 @@ class SigmondLoader:
             group = f[path]
 
             # Extract header XML
-            if 'Header' not in group:
+            if "Header" not in group:
                 raise ValueError(f"No Header dataset found in {path}")
 
-            header_xml = group['Header'][()].decode('utf-8')
+            header_xml = group["Header"][()].decode("utf-8")
             ensemble_info, sampling_info = self._parse_header_xml(header_xml)
 
             # Load all observable data from Values group
-            if 'Values' not in group:
+            if "Values" not in group:
                 raise ValueError(f"No Values group found in {path}")
 
-            values_group = group['Values']
+            values_group = group["Values"]
 
             # Parse all datasets in Values group
             observable_infos = []
@@ -264,7 +270,9 @@ class SigmondLoader:
 
         self._filename = filename
 
-    def _load_samplings_impl(self, filename: str, hdf5_path: str = None) -> SingleEnsembleCollection:
+    def _load_samplings_impl(
+        self, filename: str, hdf5_path: str = None
+    ) -> SingleEnsembleCollection:
         """
         Load all samplings from a file.
 
@@ -362,13 +370,13 @@ class SigmondLoader:
         if tweak_element is not None:
             for child in tweak_element:
                 tweak_info[child.tag] = child.text
-                
+
         # Check for ensemble name in config's ensembles XML file
         known_ensembles = KnownEnsembles()
         try:
-            ensemble_info = known_ensembles.get(name=ensemble_name, 
-                                                    num_bins=num_bins,
-                                                    tweak_info=tweak_info)
+            ensemble_info = known_ensembles.get(
+                name=ensemble_name, num_bins=num_bins, tweak_info=tweak_info
+            )
         except (ValueError, KeyError) as e:
             # Fallback to basic ensemble info
             ensemble_info = EnsembleInfo(
@@ -378,8 +386,9 @@ class SigmondLoader:
                 tweak_info=tweak_info,
             )
             if e is ValueError:
-                logger.info(f"KnownEnsembles not configured: {e}. Using basic ensemble info.")
-            
+                logger.info(
+                    f"KnownEnsembles not configured: {e}. Using basic ensemble info."
+                )
 
         # Extract sampling info
         sampling_element = root.find(".//MCSamplingInfo")

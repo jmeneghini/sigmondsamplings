@@ -172,7 +172,7 @@ class AttributeAccessor:
                     data=sampling.data,  # Share array (immutable usage)
                     observable_info=new_obs_info,
                     sampling_info=sampling.sampling_info,  # Share
-                    is_complex=sampling.is_complex
+                    is_complex=sampling.is_complex,
                 )
             else:
                 # For other targets, deep copy the entire sampling
@@ -195,10 +195,7 @@ class AttributeAccessor:
             new_samplings.append(new_sampling)
 
         # Return new collection using fast path
-        return self._collection._fast_load(
-            new_samplings,
-            self._collection._return_type
-        )
+        return self._collection._fast_load(new_samplings, self._collection._return_type)
 
     def __getattr__(self, name):
         # 1. Safety check on empty collection
@@ -632,7 +629,9 @@ class ObservableCollection(PandasExportMixin):
         # Sort with None-safe key (None values sort first)
         try:
             if self._return_type == "numpy":
-                if unique_values and AttributeAccessor._is_numeric_value(unique_values[0]):
+                if unique_values and AttributeAccessor._is_numeric_value(
+                    unique_values[0]
+                ):
                     # For numpy with numeric values, use np.sort (handles None as NaN)
                     arr = np.array(unique_values)
                     return np.sort(arr)

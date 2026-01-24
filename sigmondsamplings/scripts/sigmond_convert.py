@@ -104,7 +104,12 @@ def convert_to_hdf5(
     if input_file.lower().endswith(".hdf5") and not hdf5_path:
         loader = SigmondLoader()
         is_valid, file_type, available_paths = loader.check_file_validity(input_file)
-        if is_valid and file_type == "hdf5" and available_paths and len(available_paths) > 1:
+        if (
+            is_valid
+            and file_type == "hdf5"
+            and available_paths
+            and len(available_paths) > 1
+        ):
             paths_str = "\n".join(available_paths)
             raise ValueError(
                 f"HDF5 input file has multiple paths. Please specify one with --hdf5-path. "

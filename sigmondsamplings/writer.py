@@ -54,7 +54,11 @@ class SigmondWriter:
             return None
 
         counter = 1
-        while (backup_path := filepath.with_suffix(f"{filepath.suffix}.backup_{counter:03d}")).exists():
+        while (
+            backup_path := filepath.with_suffix(
+                f"{filepath.suffix}.backup_{counter:03d}"
+            )
+        ).exists():
             counter += 1
 
         try:
@@ -92,7 +96,9 @@ class SigmondWriter:
         logger.info(f"Converting {filepath} to HDF5 format for reliable processing...")
 
         # Create HDF5 filename
-        hdf5_filename = filepath.with_stem(f"{filepath.stem}_working").with_suffix(".hdf5")
+        hdf5_filename = filepath.with_stem(f"{filepath.stem}_working").with_suffix(
+            ".hdf5"
+        )
 
         # Determine root path
         root_path = hdf5_root_path or "samplings"
@@ -603,7 +609,10 @@ class SigmondWriter:
             # Check internal consistency
             if samp.sampling_info != first_new.sampling_info:
                 raise ValueError(f"New sampling {i} has inconsistent sampling info")
-            if samp.observable_info.ensemble_info != first_new.observable_info.ensemble_info:
+            if (
+                samp.observable_info.ensemble_info
+                != first_new.observable_info.ensemble_info
+            ):
                 raise ValueError(f"New sampling {i} has inconsistent ensemble info")
 
     def convert_format(
@@ -700,8 +709,7 @@ class SigmondWriter:
 
         # Build new list with modification
         samplings_list = [
-            modified_sampling if s is original_sampling else s
-            for s in samplings
+            modified_sampling if s is original_sampling else s for s in samplings
         ]
 
         # Write back to HDF5 file

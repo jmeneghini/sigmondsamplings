@@ -17,7 +17,7 @@ def create_gaussian_sampling(
     mean: float,
     std: float,
     sampling_info: SamplingInfo,
-    observable_info: ObservableInfo
+    observable_info: ObservableInfo,
 ) -> SigmondSampling:
     """
     Create a SigmondSampling object with Gaussian-distributed data.

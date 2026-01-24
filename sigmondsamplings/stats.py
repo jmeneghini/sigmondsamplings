@@ -147,7 +147,7 @@ class SamplingStats(MultiEnsembleCollection):
                 cov_arr[j, i] = cov_ij
 
         return cov_arr
-    
+
     @cached_property
     def cov_matrix_cond_num(self) -> float:
         """Calculate the condition number of the covariance matrix."""
@@ -215,7 +215,7 @@ class SamplingStats(MultiEnsembleCollection):
             cov *= n_samples - 1
 
         return cov
-    
+
     def corr(self, obs1_idx: int, obs2_idx: int) -> float:
         """
         Calculate correlation between two specific observables.
@@ -489,7 +489,7 @@ class SamplingStats(MultiEnsembleCollection):
             chi_squared_values = np.sum(
                 (diff_matrix / errors[:, np.newaxis]) ** 2, axis=0
             )
-    
+
         # Use independent ensemble
         observable_info = ObservableInfo(
             name="chi_squared",
@@ -742,9 +742,7 @@ class SamplingStats(MultiEnsembleCollection):
             return np.polyval(params, x)
 
         initial_params = np.ones(degree + 1)
-        return self.fit_function(
-            x_values, poly_func, initial_params, use_corr=use_corr
-        )
+        return self.fit_function(x_values, poly_func, initial_params, use_corr=use_corr)
 
     def fit_exponential(
         self, x_values: np.ndarray, use_corr: bool = True
@@ -760,9 +758,7 @@ class SamplingStats(MultiEnsembleCollection):
         m_guess = 0.1
 
         initial_params = np.array([A_guess, m_guess])
-        return self.fit_function(
-            x_values, exp_func, initial_params, use_corr=use_corr
-        )
+        return self.fit_function(x_values, exp_func, initial_params, use_corr=use_corr)
 
     def summary(self) -> Dict:
         """Generate a summary of statistical information."""
@@ -776,5 +772,5 @@ class SamplingStats(MultiEnsembleCollection):
             "means": np.array(self.val.mean),
             "errors": np.array(self.val.error),
             "effective_sample_sizes": self.effective_sample_size,
-            "correlation_matrix": self.corr_matrix
+            "correlation_matrix": self.corr_matrix,
         }

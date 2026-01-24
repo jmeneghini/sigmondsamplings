@@ -100,7 +100,10 @@ class SigmondModelFunc:
         return model
 
     def set_parameters(
-        self, param_data: Union[List[np.ndarray], List[SigmondSampling], ObservableCollection]
+        self,
+        param_data: Union[
+            List[np.ndarray], List[SigmondSampling], ObservableCollection
+        ],
     ):
         """
         Set the model parameters from fitted data.

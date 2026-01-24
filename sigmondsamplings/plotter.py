@@ -6,7 +6,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import copy
-from typing import Union, List, Dict, Optional, Tuple, Callable, Any, TYPE_CHECKING, Iterable
+from typing import (
+    Union,
+    List,
+    Dict,
+    Optional,
+    Tuple,
+    Callable,
+    Any,
+    TYPE_CHECKING,
+    Iterable,
+)
 from .sampling import SigmondSampling
 from .stats import SamplingStats
 
@@ -312,9 +322,7 @@ class SamplingPlotter:
         fig = corner.corner(self.stats.array.T, **corner_kwargs)
 
         # Add ensemble info to the figure title
-        ensemble_names = list(
-            set(s.ensemble_info.name for s in self.stats)
-        )
+        ensemble_names = list(set(s.ensemble_info.name for s in self.stats))
         if len(ensemble_names) == 1:
             fig.suptitle(
                 f"Ensemble: {ensemble_names[0]} "
@@ -450,9 +458,7 @@ class SamplingPlotter:
                 # only add labels automatically if <10 observables
 
                 if len(x_samplings) < 10:
-                    x_label_str = (
-                        x_sampling.observable_info.latex_str
-                    )
+                    x_label_str = x_sampling.observable_info.latex_str
                     ax.scatter(x_samples, y_samples, label=x_label_str, **cloud_kwargs)
                 else:
                     ax.scatter(x_samples, y_samples, **cloud_kwargs)

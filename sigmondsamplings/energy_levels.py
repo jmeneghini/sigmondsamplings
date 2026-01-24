@@ -170,6 +170,7 @@ class Particle:
     def __hash__(self) -> int:
         return hash((self.name, self.psq))
 
+
 class _BoundaryPatterns:
     """Helper class for creating regex patterns with delimiter boundaries."""
 
@@ -203,7 +204,9 @@ def _parse_psq(name: str, bounds: _BoundaryPatterns) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
-def _parse_level_index(name: str, bounds: _BoundaryPatterns, psq_match_span: Optional[tuple] = None) -> Optional[int]:
+def _parse_level_index(
+    name: str, bounds: _BoundaryPatterns, psq_match_span: Optional[tuple] = None
+) -> Optional[int]:
     """Extract level index (standalone number not part of PSQ)."""
     pattern = bounds.wrap(r"(\d+)")
     for match in re.finditer(pattern, name):
@@ -241,7 +244,9 @@ def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> Optional[str]:
     return matched_irrep
 
 
-def _parse_particles(name: str, bounds: _BoundaryPatterns) -> tuple[List[str], Optional[int]]:
+def _parse_particles(
+    name: str, bounds: _BoundaryPatterns
+) -> tuple[List[str], Optional[int]]:
     """
     Extract particle names and optional PSQ from particle(psq) notation.
 
@@ -257,7 +262,9 @@ def _parse_particles(name: str, bounds: _BoundaryPatterns) -> tuple[List[str], O
     psq_from_particle = None
 
     # Match particle(psq) pattern to extract both particle and optional PSQ
-    pattern = bounds.wrap("(" + "|".join(re.escape(p) for p in particle_names) + r")(?:\((\d+)\))?")
+    pattern = bounds.wrap(
+        "(" + "|".join(re.escape(p) for p in particle_names) + r")(?:\((\d+)\))?"
+    )
 
     for match in re.finditer(pattern, name):
         particle = match.group(1)
@@ -315,15 +322,13 @@ def parse_energy_attributes(name: str, delimiters: str = r"[_\.\s/]") -> Dict[st
 
     return result
 
+
 def _is_single_hadron_mass(
     is_single_hadron: bool,
     psq: int,
 ) -> bool:
     """Check if this is the special case: single hadron PSQ=0 mass."""
-    return (
-        is_single_hadron
-        and psq == 0
-    )
+    return is_single_hadron and psq == 0
 
 
 def _generate_latex_str(
@@ -352,7 +357,9 @@ def _generate_latex_str(
     else:
         # Standard energy expression
         base_expr = (
-            get_energy_type_latex_str(energy_type, level_index if include_level_index else None)
+            get_energy_type_latex_str(
+                energy_type, level_index if include_level_index else None
+            )
             if energy_type
             else "E"
         )
@@ -480,7 +487,7 @@ class EnergyObsInfo(ObservableInfo):
     def is_shift_type(self) -> bool:
         """Check if this energy level is a shift energy type."""
         return self.energy_type in ["delab", "decm"] if self.energy_type else False
-    
+
     @property
     def canonical_name(self) -> str:
         """Generate canonical form: PSQ{psq}_{irrep}_{energy_type}_{level_idx} + _ref (if true)."""
@@ -625,6 +632,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
         if self.ref_particle:
             parts.append(f"ref_particle='{self.ref_particle}'")
         return f"SHEnergyObsInfo({', '.join(parts)})"
+
 
 def detect_energy_level_type(parsed_attributes: dict) -> str:
     """Detect energy level type from parsed attributes."""
