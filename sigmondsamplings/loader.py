@@ -56,12 +56,12 @@ class SigmondLoader:
         """
         # Single source of truth for data
         self._filename = None
-        self._hdf5_path = None
+        self._hdf5_path = hdf5_path
         self._all_samplings = SingleEnsembleCollection([])
 
         # Load file if provided
         if filename:
-            self.load_file(filename, hdf5_path)
+            self.load_file(filename, self._hdf5_path)
 
     @property
     def observables(self) -> SingleEnsembleCollection:
@@ -72,6 +72,10 @@ class SigmondLoader:
     def hdf5_path(self) -> Optional[str]:
         """Get the HDF5 path used for loading (None for fstream files)."""
         return self._hdf5_path
+
+    def _clean_hdf5_path(self, path: str) -> str:
+        """Clean HDF5 path by removing leading/trailing slashes."""
+        return path.strip("/")
 
     def _is_hdf5_file(self, filename: str) -> bool:
         """Check if a file is an HDF5 file."""
@@ -304,6 +308,7 @@ class SigmondLoader:
                 else:
                     raise ValueError(f"No data paths found in HDF5 file {filename}")
             else:
+                hdf5_path = self._clean_hdf5_path(hdf5_path)
                 # User specified a path - verify it exists
                 if hdf5_path not in available_paths:
                     raise ValueError(

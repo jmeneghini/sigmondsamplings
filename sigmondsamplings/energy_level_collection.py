@@ -89,6 +89,16 @@ class EnergyLevelMixin:
         return self.unique("energy_type")
 
     @property
+    def ref_particles(self) -> List[str]:
+        """
+        All unique reference particle names in the collection, sorted.
+
+        Returns:
+            List[str]: Sorted list of reference particle names
+        """
+        return self.unique("ref_particle")
+
+    @property
     def particles(self) -> List[str]:
         """
         All unique particle names in the single hadron collection, sorted.

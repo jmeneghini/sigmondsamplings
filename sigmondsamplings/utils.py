@@ -433,3 +433,71 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
 
     # Average over the rebin_size axis
     return np.mean(reshaped, axis=1)
+
+
+def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
+    y = np.asarray(y)
+    yerr = np.asarray(yerr)
+    if yerr.ndim == 0:
+        yerr = np.full_like(y, yerr)
+
+    # 1. Standardize x to be the centers (default to 0.0 if None)
+    if x is None:
+        x = np.zeros_like(y, dtype=float)
+    elif isinstance(x, (int, float)):
+        x = np.full_like(y, x, dtype=float)
+    else:
+        x = np.asarray(x)
+
+    xj = np.zeros_like(y, dtype=float)
+
+    # 2. Process each x-group independently
+    for group_val in np.unique(x):
+        # Indices for this group, sorted by Y
+        idx = np.where(x == group_val)[0]
+        idx = idx[np.argsort(y[idx])]
+
+        # 'columns' holds list of [ymin, ymax] intervals for each column
+        columns = []
+
+        for i in idx:
+            y_min = y[i] - yerr[i] - pad
+            y_max = y[i] + yerr[i] + pad
+
+            placed = False
+
+            # 3. Greedy placement: try existing columns
+            for col_idx, intervals in enumerate(columns):
+                # Vectorized overlap check: (StartA <= EndB) and (EndA >= StartB)
+                # We check this point against ALL intervals in this column at once
+                if intervals:
+                    int_arr = np.array(intervals)
+                    # if overlap exists with ANY interval in this column
+                    if np.any((y_min <= int_arr[:, 1]) & (y_max >= int_arr[:, 0])):
+                        continue
+
+                # No overlap found in this column; place it here
+                columns[col_idx].append((y_min, y_max))
+                # Calculate offset based on column index (0, -1, 1, -2, 2...)
+                sign = -1 if col_idx % 2 else 1
+                offset_idx = (col_idx + 1) // 2
+                xj[i] = group_val + (sign * offset_idx * width)  # Raw offset, unscaled
+                placed = True
+                break
+
+            # 4. If it didn't fit anywhere, start a new column
+            if not placed:
+                columns.append([(y_min, y_max)])
+                col_idx = len(columns) - 1
+                sign = -1 if col_idx % 2 else 1
+                offset_idx = (col_idx + 1) // 2
+                xj[i] = group_val + (sign * offset_idx * width)
+
+    # 5. Normalize width (Optional: ensures tight packing fits exactly in `width`)
+    # If you prefer exact pixel control, remove this block.
+    # This block scales the offsets so the widest point hits exactly `width/2`.
+    if np.max(np.abs(xj - x)) > 0:
+        scale = (width / 2) / np.max(np.abs(xj - x))
+        xj = x + (xj - x) * scale
+
+    return xj

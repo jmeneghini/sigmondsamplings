@@ -3,6 +3,7 @@ Statistical analysis tools for Sigmond samplings.
 """
 
 import numpy as np
+from scipy.stats import chi2
 from typing import List, Dict, Tuple, Optional, Union, Callable, Type, TypeVar, Iterable
 from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo, SamplingInfo
 from .obervable_collection import ObservableCollection
@@ -279,6 +280,7 @@ class SamplingStats(MultiEnsembleCollection):
 
         obs = self._numpy_data[:, resamp_idx]
         diff = obs - theory_values
+        print(diff)
 
         if use_corr:
             cov_matrix = self.cov_matrix
@@ -328,6 +330,29 @@ class SamplingStats(MultiEnsembleCollection):
         """
         whitened = self.whitened_residuals(theory_values, use_corr, resamp_idx)
         return np.sum(whitened**2)
+
+    def goodness_of_fit(
+        self,
+        theory_values: np.ndarray,
+        nparams: int,
+        use_corr: bool = True,
+        resamp_idx: int = 0,
+    ) -> float:
+        """
+        Calculate Q (goodness-of-fit) with respect to theory values.
+
+        Args:
+            theory_values: Array of theoretical values to compare against
+            nparams: Number of fitted parameters (for degrees of freedom)
+            use_corr: Whether to use full covariance matrix
+            resamp_idx: Resampling index to use (0 for full sample)
+
+        Returns:
+            Q value
+        """
+        chi2_val = self.chi_squared(theory_values, use_corr, resamp_idx)
+        dof = self.num_observables - nparams
+        return chi2.sf(chi2_val, dof)
 
     @cached_property
     def effective_sample_size(self) -> np.ndarray:
@@ -666,72 +691,72 @@ class SamplingStats(MultiEnsembleCollection):
 
         return fitted_params
 
-    def goodness_of_fit(
-        self,
-        x_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
-        model_func: Callable,
-        fitted_params: Dict[str, SigmondSampling],
-        use_corr: bool = True,
-    ) -> SigmondSampling:
-        """
-        Calculate goodness of fit using fitted parameters.
+    # def goodness_of_fit(
+    #     self,
+    #     x_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
+    #     model_func: Callable,
+    #     fitted_params: Dict[str, SigmondSampling],
+    #     use_corr: bool = True,
+    # ) -> SigmondSampling:
+    #     """
+    #     Calculate goodness of fit using fitted parameters.
 
-        Args:
-            x_values: X values
-            model_func: Model function
-            fitted_params: Fitted parameters from fit_function
-            use_corr: Whether to use correlation matrix
+    #     Args:
+    #         x_values: X values
+    #         model_func: Model function
+    #         fitted_params: Fitted parameters from fit_function
+    #         use_corr: Whether to use correlation matrix
 
-        Returns:
-            SigmondSampling with chi-squared values
-        """
-        if not self._data:
-            raise ValueError("Cannot compute goodness of fit on empty SamplingStats")
+    #     Returns:
+    #         SigmondSampling with chi-squared values
+    #     """
+    #     if not self._data:
+    #         raise ValueError("Cannot compute goodness of fit on empty SamplingStats")
 
-        n_samples = self._numpy_data.shape[1]
+    #     n_samples = self._numpy_data.shape[1]
 
-        # Handle x-values
-        if isinstance(x_values, ObservableCollection):
-            x_matrix = x_values.to_numpy()
-            x_has_uncertainty = True
-        elif isinstance(x_values, list) and all(
-            isinstance(x, SigmondSampling) for x in x_values
-        ):
-            x_has_uncertainty = True
-            x_matrix = np.array([x.data for x in x_values])
-        else:
-            x_array = np.array(x_values)
-            x_has_uncertainty = False
-            x_matrix = None
+    #     # Handle x-values
+    #     if isinstance(x_values, ObservableCollection):
+    #         x_matrix = x_values.to_numpy()
+    #         x_has_uncertainty = True
+    #     elif isinstance(x_values, list) and all(
+    #         isinstance(x, SigmondSampling) for x in x_values
+    #     ):
+    #         x_has_uncertainty = True
+    #         x_matrix = np.array([x.data for x in x_values])
+    #     else:
+    #         x_array = np.array(x_values)
+    #         x_has_uncertainty = False
+    #         x_matrix = None
 
-        param_names = sorted(fitted_params.keys())
-        param_data = np.array([fitted_params[name].data for name in param_names])
+    #     param_names = sorted(fitted_params.keys())
+    #     param_data = np.array([fitted_params[name].data for name in param_names])
 
-        theory_data = np.zeros((self.num_observables, n_samples))
+    #     theory_data = np.zeros((self.num_observables, n_samples))
 
-        for sample_idx in range(n_samples):
-            params = param_data[:, sample_idx]
-            x_vals = x_matrix[:, sample_idx] if x_has_uncertainty else x_array
-            theory_data[:, sample_idx] = model_func(x_vals, params)
+    #     for sample_idx in range(n_samples):
+    #         params = param_data[:, sample_idx]
+    #         x_vals = x_matrix[:, sample_idx] if x_has_uncertainty else x_array
+    #         theory_data[:, sample_idx] = model_func(x_vals, params)
 
-        theory_samplings = []
-        for obs_idx in range(self.num_observables):
-            observable_info = ObservableInfo(
-                name=f"theory_{obs_idx}",
-                index=0,
-                op_type="n",
-                re_im="re",
-            )
-            theory_samplings.append(
-                SigmondSampling(
-                    data=theory_data[obs_idx],
-                    observable_info=observable_info,
-                    sampling_info=self._sampling_info,
-                    is_complex=False,
-                )
-            )
+    #     theory_samplings = []
+    #     for obs_idx in range(self.num_observables):
+    #         observable_info = ObservableInfo(
+    #             name=f"theory_{obs_idx}",
+    #             index=0,
+    #             op_type="n",
+    #             re_im="re",
+    #         )
+    #         theory_samplings.append(
+    #             SigmondSampling(
+    #                 data=theory_data[obs_idx],
+    #                 observable_info=observable_info,
+    #                 sampling_info=self._sampling_info,
+    #                 is_complex=False,
+    #             )
+    #         )
 
-        return self.chi_squared_by_samplings(theory_samplings, use_corr)
+    #     return self.chi_squared_by_samplings(theory_samplings, use_corr)
 
     def fit_polynomial(
         self, x_values: np.ndarray, degree: int, use_corr: bool = True

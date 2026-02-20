@@ -1085,7 +1085,7 @@ class ObservableCollection(PandasExportMixin):
         return np.array([samp.data for samp in self._data])
 
     def to_hdf5(
-        self, filename: str, create_backups: bool = True, root_path: str = "/samplings"
+        self, filename: str, create_backups: bool = True, root_path: str = "samplings"
     ) -> None:
         """
         Export collection data to HDF5 file in Sigmond format.
@@ -1093,27 +1093,24 @@ class ObservableCollection(PandasExportMixin):
         Args:
             filename: Path to output HDF5 file
             create_backups: If True, create backups of existing files (default: True)
-            root_path: Root path in HDF5 file to store data (default: "/")
-                This is ONLY used if all ensemble/sampling info are the same.
-                Otherwise, data is organized by ensemble/sampling info pairs.
+            root_path: Root path in HDF5 file to store data (default: "samplings")
         """
         from .writer import SigmondWriter
 
-        writer = SigmondWriter(create_backups=create_backups)
-        # Seperate observables by ensemble and sampling info pairs
-        output_dict = {}
-        for sampling in self._data:
-            key = (sampling.observable_info.ensemble_info, sampling.sampling_info)
-            if key not in output_dict:
-                output_dict[key] = []
-            output_dict[key].append(sampling)
+        # Try converting to SingleEnsembleCollection. We require a single ensemble
+        try:
+            from .ensemble_collection import SingleEnsembleCollection
 
-        for (ensemble, sampling_info), samplings in output_dict.items():
-            if len(output_dict) > 1:
-                root_path = f"/{ensemble.slug}_{sampling_info.slug}"
-            writer.write_hdf5(filename, samplings, root_path=root_path, overwrite=True)
-            # turn off backups after first write
-            writer = SigmondWriter(create_backups=False)
+            SingleEnsembleCollection(self._data)
+        except ValueError:
+            raise ValueError(
+                "All samplings must belong to the same ensemble and have the same sampling info to export to HDF5."
+            )
+
+        writer = SigmondWriter(create_backups=create_backups)
+        writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=True)
+        # turn off backups after first write
+        writer = SigmondWriter(create_backups=False)
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""
@@ -1183,14 +1180,17 @@ class ObservableCollection(PandasExportMixin):
         return bool(self._data)
 
     def __add__(self: T, other: "ObservableCollection") -> T:
-        """
-        Add two ObservableCollection objects together, combining their data.
-        """
         if not isinstance(other, ObservableCollection):
             raise TypeError(
-                f"unsupported operand type(s) for +: 'ObservableCollection' and '{type(other).__name__}'"
+                f"unsupported operand type(s) for +: "
+                f"'{type(self).__name__}' and '{type(other).__name__}'"
             )
 
-        # Standard init used here to ensure proper deduplication logic
-        combined_data = list(self._data) + list(other._data)
-        return self.__class__(combined_data, return_type=self._return_type)
+        # "other" wins: include all of other first, then add only self items not present in other
+        other_data = other._data
+        other_keys = {s.observable_info for s in other_data}
+
+        out_data = list(other_data)  # copy; don't mutate other._data
+        out_data.extend(s for s in self._data if s.observable_info not in other_keys)
+
+        return self.__class__(out_data, return_type=self._return_type)

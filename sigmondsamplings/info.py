@@ -263,7 +263,7 @@ class EnsembleInfo:
         """
         # Keep letters, numbers, hyphens; replace everything else with '_'
         # Also strip leading/trailing underscores for cleanliness
-        safe_name = re.sub(r"[^a-zA-Z0-9\-]", "_", self)
+        safe_name = re.sub(r"[^a-zA-Z0-9\-]", "_", self.name)
         return safe_name.strip("_")
 
     def __eq__(self, other):

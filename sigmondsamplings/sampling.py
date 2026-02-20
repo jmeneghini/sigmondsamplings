@@ -150,12 +150,13 @@ class SigmondSampling:
         bias = self.bootstrap_bias
         return self.full_sample_value - bias
 
-    def to_ufloat(self):
+    def to_ufloat(self, resamp_idx: int = 0) -> "ufloat":
         """
         Convert to uncertainties.ufloat object for PDG formatting.
 
         Returns:
             uncertainties.ufloat: Object with value and uncertainty
+            resamp_idx: Index of the data to use (default 0 = full sample)
 
         Raises:
             ImportError: If uncertainties package is not available
@@ -170,9 +171,9 @@ class SigmondSampling:
                 "Complex samplings cannot be converted to ufloat. Use .to_real() first."
             )
 
-        return ufloat(self.full_sample_value, self.error)
+        return ufloat(self.data[resamp_idx], self.error)
 
-    def pdg_format(self, format_spec: str = ".2uS") -> str:
+    def pdg_format(self, format_spec: str = ".2uS", resamp_idx=0) -> str:
         """
         Format value and error using PDG conventions via uncertainties package.
 
@@ -183,6 +184,7 @@ class SigmondSampling:
                        - '.1uP': Pretty-print with ± symbol
                        - '.1uL': LaTeX notation
                        - '.1ue': Scientific notation
+            resamp_idx: Index of the data to use (default 0 = full sample)
 
         Returns:
             str: Formatted string using PDG conventions
@@ -191,7 +193,7 @@ class SigmondSampling:
             ImportError: If uncertainties package is not available
             ValueError: If sampling is complex
         """
-        ufloat_obj = self.to_ufloat()
+        ufloat_obj = self.to_ufloat(resamp_idx=resamp_idx)
         return f"{ufloat_obj:{format_spec}}"
 
     def confidence_interval(self, confidence_level: float = 0.68) -> tuple:

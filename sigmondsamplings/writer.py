@@ -354,6 +354,10 @@ class SigmondWriter:
                     real_data = sampling.data.astype(np.float64)
                     values_group.create_dataset(key_safe, data=real_data)
 
+            logger.info(
+                f"Successfully wrote {len(samplings)} samplings to {filename} at path '{root_path}'"
+            )
+
     def restore_from_backup(
         self, filename: str, backup_number: Optional[int] = None
     ) -> None:
