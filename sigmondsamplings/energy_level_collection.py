@@ -42,6 +42,8 @@ class EnergyLevelMixin:
     ObservableCollection interface (obs accessor, filter, group_by, etc.).
     """
 
+    _data: List[SigmondSampling]
+
     # -------------------------------------------------------------------------
     # Discovery Properties
     # -------------------------------------------------------------------------
@@ -260,12 +262,12 @@ class EnergyLevelMixin:
                 if isinstance(
                     sampling.observable_info, (EnergyObsInfo, SHEnergyObsInfo)
                 ):
-                    # Already an energy level, use as is
+                    # Already an energy level, use as is (with canonical name)
+                    sampling.observable_info.update_name()
                     energy_samplings.append(sampling)
                     continue
                 energy_sampling = sampling.as_energy_level()
                 obs = energy_sampling.observable_info
-
                 # Skip single hadrons missing particle name if requested
                 if skip_missing_particles:
                     if isinstance(obs, SHEnergyObsInfo) and obs.particle is None:
@@ -322,6 +324,33 @@ class EnergyLevelMixin:
             obs_info = sampling.observable_info
             if hasattr(obs_info, "is_ref") and obs_info.is_ref:
                 obs_info.ref_particle = particle_name
+                
+    def create_ref(self, particle_samp: SigmondSampling) -> None:
+        """
+        Create reference observables for all observables without is_ref = True (mutable).
+
+        This method mutates the collection in place by creating new reference observables
+        for all viable energy levels, using the provided particle observable.
+
+        Args:
+            particle_obs: SigmondSampling representing the particle to use as reference.
+            If of type SHEnergyObsInfo, its particle name will be used as the reference particle name,
+            otherwise the reference particle name will be set to 'ref'.
+        Example:
+            >>> # Create reference observables using a pion sampling
+            >>> pion_samp = SigmondSampling(..., observable_info=SHEnergyObsInfo(particle='pi', ...))
+            >>> collection.create_ref(pion_samp)
+            >>> # All ref observables now have ref_particle='pi' and new reference samplings created
+        """
+        new_obs = []
+        import copy
+        particle_samp = copy.deepcopy(particle_samp)
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if hasattr(obs_info, "is_ref") and not obs_info.is_ref:
+                new_ref = sampling.create_ref_sampling(particle_samp)
+                new_obs.append(new_ref)
+        self._data.extend(new_obs)
 
     def set_shift_particles(
         self, irrep_psq_levels_map: Dict[Tuple[str, int, int], List[Particle]]
@@ -347,19 +376,16 @@ class EnergyLevelMixin:
                 key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
                 if key in irrep_psq_levels_map:
                     obs_info.particles = irrep_psq_levels_map[key]
-
-    def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:
+                    
+    def _parse_pycalq_yml(self, yml_path: str) -> Dict[Tuple[str, int, int], List[Particle]]:
         """
-        Set non-interacting particle names from a PyCalQ YAML configuration file (mutable).
-
-        This method parses a PyCalQ YAML file and extracts shift particle assignments,
-        then applies them to the collection using set_shift_particles().
+        Parse a PyCalQ YAML file and extract shift particle assignments.
 
         Args:
             yml_path: Path to the PyCalQ YAML configuration file
 
-        Example:
-            >>> collection.set_shift_particles_from_pycalq_yml('config.yml')
+        Returns:
+            Dict mapping (irrep, psq, level_idx) to list of Particle objects
         """
         import yaml
         import re
@@ -415,8 +441,61 @@ class EnergyLevelMixin:
                     shift_particles.append(Particle.from_string(particle_str))
                 irrep_psq_levels_map[(irrep, psq, level_idx)] = shift_particles
 
-        # Apply the shift particles
-        self.set_shift_particles(irrep_psq_levels_map)
+        return irrep_psq_levels_map
+
+    def create_pycalq_yml_shift_particles(self, yml_path: str) -> None:
+        """
+        Create a PyCalQ YAML file with shift particle assignments based on the collection's
+        current shift-type observables.
+
+        Output format matches the PyCalQ non_interacting_levels YAML structure
+        expected by set_shift_particles_from_pycalq_yml / _parse_pycalq_yml.
+
+        Args:
+            yml_path: Path to write the PyCalQ YAML configuration file
+        """
+        import yaml
+
+        sectors = {}
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if type(obs_info) == EnergyObsInfo and obs_info.is_shift_type and obs_info.particles:
+                sector_key = f"{obs_info.irrep} PSQ={obs_info.psq}"
+                if sector_key not in sectors:
+                    sectors[sector_key] = {}
+                sectors[sector_key][obs_info.level_index] = [
+                    f"{p.name}({p.psq})" if p.has_momentum else p.name
+                    for p in obs_info.particles
+                ]
+
+        # Convert to sorted lists indexed by level (matching parser's enumerate expectation)
+        non_interacting_levels = {}
+        for sector_key, levels in sectors.items():
+            max_idx = max(levels.keys())
+            non_interacting_levels[sector_key] = [
+                levels.get(i, []) for i in range(max_idx + 1)
+            ]
+
+        # Nest under wrapper keys to match PyCalQ YAML structure
+        output = {"fit_spectrum": {"non_interacting_levels": non_interacting_levels}}
+
+        with open(yml_path, "w") as f:
+            yaml.dump(output, f, default_flow_style=False)
+
+    def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:
+        """
+        Set non-interacting particle names from a PyCalQ YAML configuration file (mutable).
+
+        This method parses a PyCalQ YAML file and extracts shift particle assignments,
+        then applies them to the collection using set_shift_particles().
+
+        Args:
+            yml_path: Path to the PyCalQ YAML configuration file
+
+        Example:
+            >>> collection.set_shift_particles_from_pycalq_yml('config.yml')
+        """
+        self.set_shift_particles(self._parse_pycalq_yml(yml_path))
 
 
 class SingleEnsembleEnergyCollection(SingleEnsembleCollection, EnergyLevelMixin):

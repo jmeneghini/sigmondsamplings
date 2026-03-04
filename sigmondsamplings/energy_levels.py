@@ -637,7 +637,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
 def detect_energy_level_type(parsed_attributes: dict) -> str:
     """Detect energy level type from parsed attributes."""
     # Check if it looks like an energy level
-    if not any(key in parsed_attributes for key in ["energy_type", "irrep", "psq"]):
+    if not any(key in parsed_attributes for key in ["energy_type", "irrep", "psq", "particles"]):
         return "unknown"
 
     # If level index is given, it is multi-hadron
@@ -673,7 +673,8 @@ def create_energy_obs_info(
         elif energy_type == "multi_hadron":
             return _create_multi_hadron_obs(obs_info, parsed)
         else:
-            return obs_info
+            raise ValueError(f"Unrecognized energy level type: {energy_type}")
+        # TODO: this will need updated when we need anisotropy observable
     except Exception as e:
         raise ValueError(
             f"Error creating energy observable info: {e}. "

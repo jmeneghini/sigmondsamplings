@@ -369,7 +369,31 @@ class SigmondSampling:
         return SigmondSampling(
             unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
         )
+        
+    def create_ref_sampling(self, samp: 'SigmondSampling') -> 'SigmondSampling':
+        """Create a reference sampling for the given particle."""
+        import copy
+        from .energy_levels import EnergyObsInfo, SHEnergyObsInfo
 
+        new_ref = self / samp
+        # Deep copy self.observable_info (not new_ref's) to preserve the subclass type.
+        # __array_ufunc__ replaces observable_info with a plain ObservableInfo when the
+        # two operands have different observable_infos, so new_ref.observable_info would
+        # lose EnergyObsInfo/SHEnergyObsInfo.
+        new_obs_info = copy.deepcopy(self.observable_info)
+        if isinstance(new_obs_info, EnergyObsInfo):
+            new_obs_info.ref_particle = (
+                samp.observable_info.particle or 'ref'
+                if isinstance(samp.observable_info, SHEnergyObsInfo)
+                else 'ref'
+            )
+            new_obs_info.update_name()
+        else:
+            new_obs_info.name = f"{self.observable_info.name}_ref"
+
+        new_ref.observable_info = new_obs_info
+        return new_ref
+            
     @property
     def latex_str(self):
         return f"{self.observable_info.latex_str} = {self.pdg_format()}"
@@ -420,6 +444,12 @@ class SigmondSampling:
 
     def __str__(self):
         return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
+
+    def __array__(self, dtype=None, copy=None):
+        """NumPy array protocol — enables ``np.asarray(sampling)``."""
+        if dtype is not None:
+            return self.data.astype(dtype)
+        return self.data
 
     def __array_ufunc__(
         self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any

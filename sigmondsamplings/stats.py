@@ -3,6 +3,7 @@ Statistical analysis tools for Sigmond samplings.
 """
 
 import numpy as np
+import scipy.linalg
 from scipy.stats import chi2
 from typing import List, Dict, Tuple, Optional, Union, Callable, Type, TypeVar, Iterable
 from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo, SamplingInfo
@@ -255,6 +256,30 @@ class SamplingStats(MultiEnsembleCollection):
     # -------------------------------------------------------------------------
     # Chi-Squared and Residual Methods
     # -------------------------------------------------------------------------
+    
+    def residuals(
+        self,
+        theory_values: np.ndarray,
+        resamp_idx: int = 0,
+    ) -> np.ndarray:
+        """
+        Calculate residuals with respect to theory values.
+
+        Args:
+            theory_values: Array of theoretical values to compare against
+            resamp_idx: Resampling index to use (0 for full sample)
+
+        Returns:
+            Array of residuals
+        """
+        if len(theory_values) != self.num_observables:
+            raise ValueError("Theory values length must match number of observables")
+        if resamp_idx < 0 or resamp_idx > self.num_samples:
+            raise IndexError("Resampling index out of range")
+
+        obs = self._numpy_data[:, resamp_idx]
+        diff = obs - theory_values
+        return diff
 
     def whitened_residuals(
         self,
@@ -280,29 +305,31 @@ class SamplingStats(MultiEnsembleCollection):
 
         obs = self._numpy_data[:, resamp_idx]
         diff = obs - theory_values
-        print(diff)
-
         if use_corr:
             cov_matrix = self.cov_matrix
             try:
-                L = np.linalg.cholesky(cov_matrix)
-                whitened = np.linalg.solve(L, diff)
-            except np.linalg.LinAlgError:
+                # Optimized SciPy path for Cholesky and forward substitution
+                L = scipy.linalg.cholesky(cov_matrix, lower=True)
+                whitened = scipy.linalg.solve_triangular(L, diff, lower=True)
+                
+            except scipy.linalg.LinAlgError:
+                # Fallback to eigenvalue decomposition for ill-conditioned/singular matrices
                 try:
                     eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
+                    
+                    # Cutoff for zero/negative eigenvalues caused by numerical noise
                     valid_mask = eigenvals > 1e-12 * np.max(eigenvals)
                     if np.sum(valid_mask) == 0:
                         raise np.linalg.LinAlgError("All eigenvalues too small")
 
                     sqrt_inv_eigenvals = np.zeros_like(eigenvals)
-                    sqrt_inv_eigenvals[valid_mask] = 1.0 / np.sqrt(
-                        eigenvals[valid_mask]
-                    )
+                    sqrt_inv_eigenvals[valid_mask] = 1.0 / np.sqrt(eigenvals[valid_mask])
 
-                    whitened = eigenvecs @ (
-                        sqrt_inv_eigenvals[:, np.newaxis] * (eigenvecs.T @ diff)
-                    )
+                    # Cleaned up 1D array multiplication
+                    whitened = eigenvecs @ (sqrt_inv_eigenvals * (eigenvecs.T @ diff))
+                    
                 except np.linalg.LinAlgError:
+                    # Final fallback to diagonal errors
                     errors = self.val.error
                     whitened = diff / errors
         else:
@@ -310,7 +337,7 @@ class SamplingStats(MultiEnsembleCollection):
             whitened = diff / errors
 
         return whitened
-
+    
     def chi_squared(
         self,
         theory_values: np.ndarray,
