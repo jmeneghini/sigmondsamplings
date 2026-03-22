@@ -6,17 +6,14 @@ This module provides collection classes that maintain ensemble separation:
 - MultiEnsembleCollection: Observables from multiple ensembles, stored separately
 """
 
+from collections.abc import Iterable
 from typing import (
-    Dict,
-    Iterable,
-    List,
-    Type,
     TypeVar,
     Union,
 )
 
-from .sampling import SigmondSampling, ObservableInfo, EnsembleInfo, SamplingInfo
 from .obervable_collection import ObservableCollection
+from .sampling import EnsembleInfo, SamplingInfo, SigmondSampling
 
 __all__ = [
     "SingleEnsembleCollection",
@@ -58,8 +55,8 @@ class SingleEnsembleCollection(ObservableCollection):
 
     @classmethod
     def _fast_load(
-        cls: Type[T],
-        data: List[SigmondSampling],
+        cls: type[T],
+        data: list[SigmondSampling],
         return_type: str,
     ) -> T:
         """
@@ -85,8 +82,7 @@ class SingleEnsembleCollection(ObservableCollection):
             )
         except ValueError:
             ensemble_ids = {
-                e.id if hasattr(e, "id") else str(e)
-                for e in set(self.obs.ensemble_info)
+                e.id if hasattr(e, "id") else str(e) for e in set(self.obs.ensemble_info)
             }
             raise ValueError(
                 f"All observables must have the same ensemble_info. "
@@ -132,7 +128,7 @@ class SingleEnsembleCollection(ObservableCollection):
 
 def group_by_ensemble_and_sampling(
     collection: ObservableCollection,
-) -> Dict[tuple, SingleEnsembleCollection]:
+) -> dict[tuple, SingleEnsembleCollection]:
     """
     Group an ObservableCollection into SingleEnsembleCollections by ensemble and sampling.
 
@@ -218,10 +214,7 @@ class MultiEnsembleCollection(ObservableCollection):
 
     def __init__(
         self,
-        data: Union[
-            Iterable[SigmondSampling],
-            Dict[EnsembleInfo, SingleEnsembleCollection],
-        ],
+        data: Iterable[SigmondSampling] | dict[EnsembleInfo, SingleEnsembleCollection],
         return_type: str = "numpy",
     ):
         """
@@ -251,8 +244,8 @@ class MultiEnsembleCollection(ObservableCollection):
 
     @classmethod
     def _fast_load(
-        cls: Type[M],
-        data: List[SigmondSampling],
+        cls: type[M],
+        data: list[SigmondSampling],
         return_type: str,
     ) -> M:
         """Internal constructor bypassing validation for trusted data."""
@@ -272,12 +265,12 @@ class MultiEnsembleCollection(ObservableCollection):
         return self.shared_attr(values=self.val.sampling_info, strict=True)
 
     @property
-    def ensembles(self) -> List[EnsembleInfo]:
+    def ensembles(self) -> list[EnsembleInfo]:
         """List of unique ensemble infos in the collection."""
         return list(set(self.obs.ensemble_info))
 
     @property
-    def by_ensemble(self) -> Dict[EnsembleInfo, SingleEnsembleCollection]:
+    def by_ensemble(self) -> dict[EnsembleInfo, SingleEnsembleCollection]:
         """
         Group data by ensemble, returning Dict[EnsembleInfo, SingleEnsembleCollection].
 
@@ -296,7 +289,7 @@ class MultiEnsembleCollection(ObservableCollection):
     # -------------------------------------------------------------------------
 
     def __getitem__(
-        self, key: Union[EnsembleInfo, int, slice]
+        self, key: EnsembleInfo | int | slice
     ) -> Union[SingleEnsembleCollection, "MultiEnsembleCollection", SigmondSampling]:
         """
         Access by EnsembleInfo, index, or slice.

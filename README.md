@@ -90,7 +90,7 @@ stats = SamplingStats([pion_mass, kaon_mass, mass_ratio])
 
 # Statistical analysis
 means = stats.sample_means()
-errors = stats.sample_errors() 
+errors = stats.sample_errors()
 cov_matrix = stats.covariance_matrix()
 
 # Chi-squared analysis
@@ -164,14 +164,14 @@ Generate synthetic data for testing:
 
 ```python
 from SigmondSamplings import (
-    create_gaussian_sampling, create_uniform_sampling, 
+    create_gaussian_sampling, create_uniform_sampling,
     create_complex_gaussian_sampling
 )
 
 # Create synthetic sampling
 sampling_info = SamplingInfo("bootstrap", 1000, 1234)
 synthetic = create_gaussian_sampling(
-    mean=1.0, std=0.1, 
+    mean=1.0, std=0.1,
     sampling_info=sampling_info,
     observable_name="test_observable"
 )

@@ -2,27 +2,27 @@
 Energy level specializations for ObservableInfo and SigmondSampling.
 """
 
-import re
 import logging
-from typing import Optional, List, Dict, Any, Union
-from .info import ObservableInfo, EnsembleInfo, DEFAULT_ENSEMBLE
+import re
+from typing import Any
+
+from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo
 
 # Import KBfit constants (required)
 try:
     from kbfit import (
-        PARTICLE_LATEX_MAP,
         IRREP_LATEX_MAP,
-        get_particle_latex_str,
-        get_irrep_latex_str,
+        PARTICLE_LATEX_MAP,
         get_energy_type_latex_str,
+        get_irrep_latex_str,
+        get_particle_latex_str,
     )
 except ImportError as e:
     # warning only; KBfit not strictly required for this module
     PARTICLE_LATEX_MAP = {}
     IRREP_LATEX_MAP = {}
     logging.warning(
-        f"KBfit import failed: {e}. "
-        "Particle and irrep LaTeX mappings will be unavailable."
+        f"KBfit import failed: {e}. Particle and irrep LaTeX mappings will be unavailable."
     )
 
 
@@ -50,7 +50,7 @@ class Particle:
     >>> generic_pi = Particle('pi')
     """
 
-    def __init__(self, name: str, psq: Optional[int] = None):
+    def __init__(self, name: str, psq: int | None = None):
         """Initialize particle with name and optional momentum"""
         if name not in PARTICLE_LATEX_MAP and PARTICLE_LATEX_MAP:
             raise ValueError(f"Invalid particle name: {name}")
@@ -184,14 +184,14 @@ class _BoundaryPatterns:
         return f"{self.start}{pattern}{self.end}"
 
 
-def _parse_energy_type(name: str, bounds: _BoundaryPatterns) -> Optional[str]:
+def _parse_energy_type(name: str, bounds: _BoundaryPatterns) -> str | None:
     """Extract energy type (elab, ecm, delab, decm) from name."""
     pattern = bounds.wrap("(elab|ecm|delab|decm)")
     match = re.search(pattern, name, re.IGNORECASE)
     return match.group(1).lower() if match else None
 
 
-def _parse_psq(name: str, bounds: _BoundaryPatterns) -> Optional[int]:
+def _parse_psq(name: str, bounds: _BoundaryPatterns) -> int | None:
     """Extract PSQ value from name, supporting multiple formats."""
     # Try PSQ4, psq4, P4, p4 formats
     pattern = bounds.wrap(r"(?:psq|p)(\d+)")
@@ -206,8 +206,8 @@ def _parse_psq(name: str, bounds: _BoundaryPatterns) -> Optional[int]:
 
 
 def _parse_level_index(
-    name: str, bounds: _BoundaryPatterns, psq_match_span: Optional[tuple] = None
-) -> Optional[int]:
+    name: str, bounds: _BoundaryPatterns, psq_match_span: tuple | None = None
+) -> int | None:
     """Extract level index (standalone number not part of PSQ)."""
     pattern = bounds.wrap(r"(\d+)")
     for match in re.finditer(pattern, name):
@@ -219,13 +219,13 @@ def _parse_level_index(
     return None
 
 
-def _parse_reference_mode(name: str, bounds: _BoundaryPatterns) -> Optional[str]:
+def _parse_reference_mode(name: str, bounds: _BoundaryPatterns) -> str | None:
     """Check if name indicates reference mode."""
     pattern = bounds.wrap("ref")
     return "ref" if re.search(pattern, name, re.IGNORECASE) else None
 
 
-def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> Optional[str]:
+def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> str | None:
     """Extract irrep, preserving exact case from KBfit constants."""
     if not IRREP_LATEX_MAP:
         return None
@@ -245,9 +245,7 @@ def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> Optional[str]:
     return matched_irrep
 
 
-def _parse_particles(
-    name: str, bounds: _BoundaryPatterns
-) -> tuple[List[str], Optional[int]]:
+def _parse_particles(name: str, bounds: _BoundaryPatterns) -> tuple[list[str], int | None]:
     """
     Extract particle names and optional PSQ from particle(psq) notation.
 
@@ -263,9 +261,7 @@ def _parse_particles(
     psq_from_particle = None
 
     # Match particle(psq) pattern to extract both particle and optional PSQ
-    pattern = bounds.wrap(
-        "(" + "|".join(re.escape(p) for p in particle_names) + r")(?:\((\d+)\))?"
-    )
+    pattern = bounds.wrap("(" + "|".join(re.escape(p) for p in particle_names) + r")(?:\((\d+)\))?")
 
     for match in re.finditer(pattern, name):
         particle = match.group(1)
@@ -280,7 +276,7 @@ def _parse_particles(
     return particles, psq_from_particle
 
 
-def parse_energy_attributes(name: str, delimiters: str = r"[_\.\s/]") -> Dict[str, Any]:
+def parse_energy_attributes(name: str, delimiters: str = r"[_\.\s/]") -> dict[str, Any]:
     """
     Parse energy level attributes from observable name with flexible delimiters.
 
@@ -336,7 +332,7 @@ def _generate_latex_str(
     energy_type: str = None,
     irrep: str = None,
     psq: int = None,
-    particles: Optional[List[Particle]] = None,
+    particles: list[Particle] | None = None,
     level_index: int = None,
     ref_particle: str = None,
     include_irrep: bool = True,
@@ -358,9 +354,7 @@ def _generate_latex_str(
     else:
         # Standard energy expression
         base_expr = (
-            get_energy_type_latex_str(
-                energy_type, level_index if include_level_index else None
-            )
+            get_energy_type_latex_str(energy_type, level_index if include_level_index else None)
             if energy_type
             else "E"
         )
@@ -404,7 +398,7 @@ class EnergyObsInfo(ObservableInfo):
         irrep: str = None,
         psq: int = None,
         energy_type: str = None,
-        particles: Optional[List[Particle]] = None,
+        particles: list[Particle] | None = None,
         level_index: int = None,
         ref_particle: str = None,
     ):
@@ -422,9 +416,7 @@ class EnergyObsInfo(ObservableInfo):
             if particles:
                 for i, p in enumerate(particles):
                     if not isinstance(p, Particle):
-                        raise TypeError(
-                            f"particles[{i}] must be Particle object, got {type(p)}"
-                        )
+                        raise TypeError(f"particles[{i}] must be Particle object, got {type(p)}")
 
             if (
                 ref_particle
@@ -468,9 +460,7 @@ class EnergyObsInfo(ObservableInfo):
         )
 
     @classmethod
-    def from_observable_info(
-        cls, obs_info: ObservableInfo, **energy_kwargs
-    ) -> "EnergyObsInfo":
+    def from_observable_info(cls, obs_info: ObservableInfo, **energy_kwargs) -> "EnergyObsInfo":
         """Create EnergyObsInfo from existing ObservableInfo."""
         return cls(
             name=obs_info.name,
@@ -493,9 +483,7 @@ class EnergyObsInfo(ObservableInfo):
     def canonical_name(self) -> str:
         """Generate canonical form: PSQ{psq}_{irrep}_{energy_type}_{level_idx} + _ref (if true)."""
         if not (self.irrep and self.psq is not None and self.energy_type):
-            raise ValueError(
-                "Cannot generate canonical name: missing irrep, psq, or energy_type"
-            )
+            raise ValueError("Cannot generate canonical name: missing irrep, psq, or energy_type")
 
         parts = [f"PSQ{self.psq}", self.irrep, self.energy_type]
         if self.level_index is not None:
@@ -601,7 +589,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
         )
 
     @property
-    def particle(self) -> Optional[str]:
+    def particle(self) -> str | None:
         """Get the single particle name."""
         return self.particles[0].name if self.particles else None
 
@@ -650,9 +638,7 @@ def detect_energy_level_type(parsed_attributes: dict) -> str:
     return "single_hadron" if len(particles) == 1 else "multi_hadron"
 
 
-def create_energy_obs_info(
-    obs_info: ObservableInfo, force_type: str = "auto", **manual_overrides
-):
+def create_energy_obs_info(obs_info: ObservableInfo, force_type: str = "auto", **manual_overrides):
     """Factory function to create appropriate energy level ObservableInfo."""
     # Parse once and reuse
     parsed = parse_energy_attributes(obs_info.name)
@@ -684,9 +670,7 @@ def create_energy_obs_info(
         ) from e
 
 
-def _create_single_hadron_obs(
-    obs_info: ObservableInfo, parsed: dict
-) -> SHEnergyObsInfo:
+def _create_single_hadron_obs(obs_info: ObservableInfo, parsed: dict) -> SHEnergyObsInfo:
     """Create single hadron observable from parsed attributes."""
     # Extract single particle
     particle = None
@@ -708,6 +692,4 @@ def _create_multi_hadron_obs(obs_info: ObservableInfo, parsed: dict) -> EnergyOb
     if "particles" in parsed:
         parsed = parsed.copy()
         parsed["particles"] = [Particle(p) for p in parsed["particles"]]
-    return EnergyObsInfo(
-        index=obs_info.index, ensemble_info=obs_info.ensemble_info, **parsed
-    )
+    return EnergyObsInfo(index=obs_info.index, ensemble_info=obs_info.ensemble_info, **parsed)

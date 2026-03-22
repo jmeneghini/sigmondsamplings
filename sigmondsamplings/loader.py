@@ -2,18 +2,17 @@
 Loader module for Sigmond samplings files.
 """
 
+import logging
+import re
 import subprocess
 import xml.etree.ElementTree as ET
-import numpy as np
-import re
-import h5py
-from typing import List, Optional, Tuple
-from pathlib import Path
-import logging
 
-from .info import ObservableInfo, EnsembleInfo, SamplingInfo, KnownEnsembles
-from .sampling import SigmondSampling
+import h5py
+import numpy as np
+
 from .ensemble_collection import SingleEnsembleCollection
+from .info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
+from .sampling import SigmondSampling
 
 logger = logging.getLogger(__name__)
 SIGMOND_QUERY_CMD = "sigmond_query"
@@ -39,6 +38,7 @@ class SigmondLoader:
         loader.observables.find(lambda obs: 'PSQ' in obs.name)
         loader.observables.find(lambda obs: re.search(r'PSQ.*', obs.name))
     """
+
     # TODO: some major issues with appending. Creates a 'working' file, still uses sigmond_query, and doesn't replace the original file with the working file.
     def __init__(
         self,
@@ -69,7 +69,7 @@ class SigmondLoader:
         return self._all_samplings
 
     @property
-    def hdf5_path(self) -> Optional[str]:
+    def hdf5_path(self) -> str | None:
         """Get the HDF5 path used for loading (None for fstream files)."""
         return self._hdf5_path
 
@@ -80,14 +80,12 @@ class SigmondLoader:
     def _is_hdf5_file(self, filename: str) -> bool:
         """Check if a file is an HDF5 file."""
         try:
-            with h5py.File(filename, "r") as f:
+            with h5py.File(filename, "r"):
                 return True
-        except (OSError, IOError):
+        except OSError:
             return False
 
-    def _verify_hdf5_sigmond_file(
-        self, filename: str
-    ) -> Tuple[bool, Optional[List[str]]]:
+    def _verify_hdf5_sigmond_file(self, filename: str) -> tuple[bool, list[str] | None]:
         """
         Verify that an HDF5 file is a valid Sigmond samplings file.
 
@@ -118,9 +116,7 @@ class SigmondLoader:
             logger.debug(f"HDF5 verification failed: {e}")
             return False, None
 
-    def _load_from_hdf5(
-        self, filename: str, path: str = "samplings"
-    ) -> SingleEnsembleCollection:
+    def _load_from_hdf5(self, filename: str, path: str = "samplings") -> SingleEnsembleCollection:
         """
         Load samplings directly from HDF5 file using h5py.
 
@@ -176,9 +172,7 @@ class SigmondLoader:
                 raise ValueError("No valid observable data found in file")
 
             # Build samplings collection
-            samplings_list = self._build_samplings_list(
-                observable_infos, all_data, sampling_info
-            )
+            samplings_list = self._build_samplings_list(observable_infos, all_data, sampling_info)
 
             return SingleEnsembleCollection(samplings_list)
 
@@ -214,9 +208,7 @@ class SigmondLoader:
         except Exception as e:
             raise RuntimeError(f"sigmond_query error with cmd '{' '.join(cmd)}': {e}")
 
-    def check_file_validity(
-        self, filename: str
-    ) -> Tuple[bool, Optional[str], Optional[List[str]]]:
+    def check_file_validity(self, filename: str) -> tuple[bool, str | None, list[str] | None]:
         """
         Check if a file is a valid Sigmond samplings file.
 
@@ -267,9 +259,7 @@ class SigmondLoader:
         # Load samplings
         try:
             self._all_samplings = self._load_samplings_impl(filename, hdf5_path)
-            logger.info(
-                f"Successfully loaded {len(self._all_samplings)} samplings from {filename}"
-            )
+            logger.info(f"Successfully loaded {len(self._all_samplings)} samplings from {filename}")
         except Exception as e:
             logger.error(f"Failed to load file: {e}")
             raise
@@ -343,12 +333,10 @@ class SigmondLoader:
         values_output = self._run_sigmond_query(filename, "-v")
         all_data = self._parse_all_values(values_output)
         # Build samplings collection
-        samplings_list = self._build_samplings_list(
-            observable_infos, all_data, sampling_info
-        )
+        samplings_list = self._build_samplings_list(observable_infos, all_data, sampling_info)
         return SingleEnsembleCollection(samplings_list)
 
-    def _parse_header_xml(self, xml_string: str) -> Tuple[EnsembleInfo, SamplingInfo]:
+    def _parse_header_xml(self, xml_string: str) -> tuple[EnsembleInfo, SamplingInfo]:
         """Parse the header XML to extract ensemble and sampling info."""
         try:
             root = ET.fromstring(xml_string.strip())
@@ -393,9 +381,7 @@ class SigmondLoader:
                 tweak_info=tweak_info,
             )
             if e is ValueError:
-                logger.info(
-                    f"KnownEnsembles not configured: {e}. Using basic ensemble info."
-                )
+                logger.info(f"KnownEnsembles not configured: {e}. Using basic ensemble info.")
 
         # Extract sampling info
         sampling_element = root.find(".//MCSamplingInfo")
@@ -404,12 +390,8 @@ class SigmondLoader:
 
         # Check for Bootstrap or Jackknife
         bootstrap = sampling_element.find(".//Bootstrapper")
-        jackknife = sampling_element.find(
-            ".//Jackkniffer"
-        )  # Note: might be misspelled in XML
-        jackknife_simple = sampling_element.find(
-            ".//Jackknife"
-        )  # Simple self-closing tag
+        jackknife = sampling_element.find(".//Jackkniffer")  # Note: might be misspelled in XML
+        jackknife_simple = sampling_element.find(".//Jackknife")  # Simple self-closing tag
 
         if bootstrap is not None:
             method = "bootstrap"
@@ -431,9 +413,7 @@ class SigmondLoader:
 
         return ensemble_info, sampling_info
 
-    def _parse_observable_key(
-        self, key_xml: str, ensemble_info: EnsembleInfo
-    ) -> ObservableInfo:
+    def _parse_observable_key(self, key_xml: str, ensemble_info: EnsembleInfo) -> ObservableInfo:
         """Parse an observable key from XML."""
         try:
             # Convert HDF5-safe format back to standard XML for parsing
@@ -451,7 +431,7 @@ class SigmondLoader:
 
     def _parse_keys_from_output(
         self, keys_output: str, ensemble_info: EnsembleInfo
-    ) -> List[ObservableInfo]:
+    ) -> list[ObservableInfo]:
         """Parse observable keys from sigmond_query output."""
         observable_infos = []
         lines = keys_output.split("\n")
@@ -494,7 +474,7 @@ class SigmondLoader:
 
         return observable_infos
 
-    def _parse_all_values(self, values_output: str) -> List[np.ndarray]:
+    def _parse_all_values(self, values_output: str) -> list[np.ndarray]:
         """Parse the output of 'sigmond_query -v' into a list of numpy arrays."""
         all_records_values = []
         lines = values_output.split("\n")
@@ -526,15 +506,13 @@ class SigmondLoader:
 
     def _build_samplings_list(
         self,
-        observable_infos: List[ObservableInfo],
-        all_data: List[np.ndarray],
+        observable_infos: list[ObservableInfo],
+        all_data: list[np.ndarray],
         sampling_info: SamplingInfo,
-    ) -> List[SigmondSampling]:
+    ) -> list[SigmondSampling]:
         """Build the samplings list from parsed data."""
         if len(all_data) != len(observable_infos):
-            raise ValueError(
-                "Mismatch between number of observables in header and data records."
-            )
+            raise ValueError("Mismatch between number of observables in header and data records.")
 
         # Group observables by name and index to find complex pairs
         grouped_observables = {}
@@ -552,9 +530,7 @@ class SigmondLoader:
                 re_data = all_data[re_idx]
                 im_data = all_data[im_idx]
                 complex_data = re_data + 1j * im_data
-                sampling = SigmondSampling(
-                    complex_data, re_info, sampling_info, is_complex=True
-                )
+                sampling = SigmondSampling(complex_data, re_info, sampling_info, is_complex=True)
                 result.append(sampling)
             elif "re" in parts:
                 re_info, re_idx = parts["re"]
@@ -576,19 +552,17 @@ class SigmondLoader:
     # Utility methods for backward compatibility
     def get_file_info(
         self, filename: str = None
-    ) -> Tuple[EnsembleInfo, SamplingInfo, List[ObservableInfo]]:
+    ) -> tuple[EnsembleInfo, SamplingInfo, list[ObservableInfo]]:
         """Get header info and list of observable keys from a file."""
         if filename is not None:
             self.load_file(filename)
         elif self._filename is None:
-            raise ValueError(
-                "No file loaded. Please provide a filename or call load_file() first."
-            )
+            raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
 
         return self._ensemble_info, self._sampling_info, self._observable_infos
 
     @staticmethod
-    def get_name_and_index_from_dict_key(key: str) -> Tuple[str, int]:
+    def get_name_and_index_from_dict_key(key: str) -> tuple[str, int]:
         """Extract the (name, index) pair from keys like 'observable[3]'."""
         m = re.match(r"^(.*)\[(\d+)\]$", key)
         if not m:

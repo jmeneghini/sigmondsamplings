@@ -3,13 +3,13 @@ Utility functions for SigmondSamplings package.
 """
 
 import numpy as np
-from typing import Optional, Union, Tuple, List
+
 from .sampling import (
-    SigmondSampling,
-    ObservableInfo,
-    EnsembleInfo,
-    SamplingInfo,
     DEFAULT_ENSEMBLE,
+    EnsembleInfo,
+    ObservableInfo,
+    SamplingInfo,
+    SigmondSampling,
 )
 
 
@@ -50,9 +50,9 @@ def create_uniform_sampling(
     high: float,
     num_samples: int,
     observable_name: str = "synthetic",
-    ensemble_info: Optional[EnsembleInfo] = None,
+    ensemble_info: EnsembleInfo | None = None,
     sampling_method: str = "bootstrap",
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> SigmondSampling:
     """
     Create a SigmondSampling object with uniformly-distributed data.
@@ -98,7 +98,7 @@ def create_complex_gaussian_sampling(
     std_imag: float,
     sampling_info: SamplingInfo,
     observable_name: str = "synthetic_complex",
-    ensemble_info: Optional[EnsembleInfo] = None,
+    ensemble_info: EnsembleInfo | None = None,
 ) -> SigmondSampling:
     """
     Create a SigmondSampling object with complex Gaussian-distributed data.
@@ -139,9 +139,7 @@ def create_complex_gaussian_sampling(
     return SigmondSampling(data, observable_info, sampling_info, is_complex=True)
 
 
-def bootstrap_resample(
-    data: np.ndarray, num_samples: int, seed: Optional[int] = None
-) -> np.ndarray:
+def bootstrap_resample(data: np.ndarray, num_samples: int, seed: int | None = None) -> np.ndarray:
     """
     Perform bootstrap resampling of data.
 
@@ -230,7 +228,7 @@ def combine_real_imaginary(
 
 def split_complex_sampling(
     complex_sampling: SigmondSampling,
-) -> Tuple[SigmondSampling, SigmondSampling]:
+) -> tuple[SigmondSampling, SigmondSampling]:
     """
     Split a complex sampling into real and imaginary parts.
 
@@ -276,9 +274,7 @@ def split_complex_sampling(
     return real_sampling, imag_sampling
 
 
-def compute_autocorrelation(
-    data: np.ndarray, max_lag: Optional[int] = None
-) -> np.ndarray:
+def compute_autocorrelation(data: np.ndarray, max_lag: int | None = None) -> np.ndarray:
     """
     Compute normalized autocorrelation function of time-series data.
 
@@ -324,7 +320,7 @@ def compute_autocorrelation(
 
 
 def integrated_autocorrelation_time(
-    data: np.ndarray, max_lag: Optional[int] = None, window_method: str = "auto"
+    data: np.ndarray, max_lag: int | None = None, window_method: str = "auto"
 ) -> float:
     """
     Compute integrated autocorrelation time using automatic windowing.
@@ -373,7 +369,7 @@ def integrated_autocorrelation_time(
     return max(0.5, tau_int)
 
 
-def effective_sample_size(data: np.ndarray, max_lag: Optional[int] = None) -> float:
+def effective_sample_size(data: np.ndarray, max_lag: int | None = None) -> float:
     """
     Calculate effective number of independent samples accounting for autocorrelation.
 

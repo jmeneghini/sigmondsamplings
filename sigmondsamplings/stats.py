@@ -2,14 +2,17 @@
 Statistical analysis tools for Sigmond samplings.
 """
 
+from collections.abc import Callable, Iterable
+from functools import cached_property
+from typing import TypeVar
+
 import numpy as np
 import scipy.linalg
 from scipy.stats import chi2
-from typing import List, Dict, Tuple, Optional, Union, Callable, Type, TypeVar, Iterable
-from .sampling import SigmondSampling, EnsembleInfo, ObservableInfo, SamplingInfo
-from .obervable_collection import ObservableCollection
+
 from .ensemble_collection import MultiEnsembleCollection
-from functools import cached_property
+from .obervable_collection import ObservableCollection
+from .sampling import ObservableInfo, SigmondSampling
 
 T = TypeVar("T", bound="SamplingStats")
 
@@ -29,7 +32,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     def __init__(
         self,
-        data: Optional[Iterable[SigmondSampling]] = None,
+        data: Iterable[SigmondSampling] | None = None,
     ):
         """
         Initialize SamplingStats with sampling_info and energy-level validation.
@@ -51,8 +54,8 @@ class SamplingStats(MultiEnsembleCollection):
 
     @classmethod
     def _fast_load(
-        cls: Type[T],
-        data: List[SigmondSampling],
+        cls: type[T],
+        data: list[SigmondSampling],
         return_type: str,
     ) -> T:
         """
@@ -176,7 +179,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     # should add static versions of these.
 
-    def cov(self, obs1_idx: int, obs2_idx: int, bias = False) -> float:
+    def cov(self, obs1_idx: int, obs2_idx: int, bias=False) -> float:
         """
         Calculate covariance between two specific observables.
 
@@ -200,10 +203,7 @@ class SamplingStats(MultiEnsembleCollection):
         sampling2 = self._data[obs2_idx]
 
         # Return zero covariance for different ensembles
-        if (
-            sampling1.observable_info.ensemble_info
-            != sampling2.observable_info.ensemble_info
-        ):
+        if sampling1.observable_info.ensemble_info != sampling2.observable_info.ensemble_info:
             return 0.0
 
         # Same diagonal element - return variance
@@ -240,7 +240,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     def min_and_max_val_with_buffer(
         self, buffer: float = 0.3
-    ) -> Tuple[SigmondSampling, SigmondSampling]:
+    ) -> tuple[SigmondSampling, SigmondSampling]:
         """
         Get min and max values for plotting, with buffer.
 
@@ -295,9 +295,7 @@ class SamplingStats(MultiEnsembleCollection):
             for j in range(i + 1, M):
                 src_i = {k for k in np.nonzero(A[i])[0]}
                 src_j = {k for k in np.nonzero(A[j])[0]}
-                if {ensembles[k] for k in src_i}.isdisjoint(
-                    {ensembles[k] for k in src_j}
-                ):
+                if {ensembles[k] for k in src_i}.isdisjoint({ensembles[k] for k in src_j}):
                     cov[i, j] = 0.0
                     cov[j, i] = 0.0
 
@@ -305,7 +303,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     def get_transformation_matrix(
         self,
-        linear_superposition: List[List[Tuple[int, float]]],
+        linear_superposition: list[list[tuple[int, float]]],
     ) -> np.ndarray:
         """
         Build the linear transformation matrix A for a superposition of observables.
@@ -353,7 +351,7 @@ class SamplingStats(MultiEnsembleCollection):
         self,
         theory_values: np.ndarray,
         resamp_idx: int = 0,
-        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
     ) -> np.ndarray:
         """
         Calculate residuals with respect to theory values.
@@ -386,8 +384,8 @@ class SamplingStats(MultiEnsembleCollection):
         theory_values: np.ndarray,
         use_corr: bool = True,
         resamp_idx: int = 0,
-        cov_matrix = None,
-        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
+        cov_matrix=None,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
     ) -> np.ndarray:
         """
         Calculate whitened residuals with respect to theory values.
@@ -466,8 +464,8 @@ class SamplingStats(MultiEnsembleCollection):
         theory_values: np.ndarray,
         use_corr: bool = True,
         resamp_idx: int = 0,
-        cov_matrix = None,
-        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
+        cov_matrix=None,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
     ) -> float:
         """
         Calculate chi-squared with respect to theory values.
@@ -494,7 +492,7 @@ class SamplingStats(MultiEnsembleCollection):
         nparams: int,
         use_corr: bool = True,
         resamp_idx: int = 0,
-        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
     ) -> float:
         """
         Calculate Q (goodness-of-fit) with respect to theory values.
@@ -511,9 +509,7 @@ class SamplingStats(MultiEnsembleCollection):
         Returns:
             Q value
         """
-        chi2_val = self.chi_squared(
-            theory_values, use_corr, resamp_idx, linear_superposition
-        )
+        chi2_val = self.chi_squared(theory_values, use_corr, resamp_idx, linear_superposition)
         if linear_superposition is not None:
             n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
         else:
@@ -534,9 +530,7 @@ class SamplingStats(MultiEnsembleCollection):
         for sampling in self._data:
             data = sampling.resampled_values
             n = len(data)
-            autocorr = np.correlate(
-                data - np.mean(data), data - np.mean(data), mode="full"
-            )
+            autocorr = np.correlate(data - np.mean(data), data - np.mean(data), mode="full")
             autocorr = autocorr[n - 1 :] / autocorr[n - 1]
 
             tau_int = 0.5
@@ -555,7 +549,7 @@ class SamplingStats(MultiEnsembleCollection):
         x_sampling: SigmondSampling,
         y_sampling: SigmondSampling,
         confidence_level: float = 0.68,
-    ) -> Tuple[float, float, float, float, float]:
+    ) -> tuple[float, float, float, float, float]:
         """
         Calculate parameters for a confidence ellipse of correlated 2D data.
 
@@ -610,9 +604,9 @@ class SamplingStats(MultiEnsembleCollection):
 
     def chi_squared_by_samplings(
         self,
-        theory_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
+        theory_values: np.ndarray | list[SigmondSampling] | ObservableCollection,
         use_corr: bool = True,
-        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
     ) -> SigmondSampling:
         """
         Calculate chi-squared for each resampling.
@@ -636,32 +630,24 @@ class SamplingStats(MultiEnsembleCollection):
         # Prepare theory values
         if isinstance(theory_values, np.ndarray):
             if len(theory_values) != self.num_observables:
-                raise ValueError(
-                    "Theory values length must match number of observables"
-                )
+                raise ValueError("Theory values length must match number of observables")
             theory_data = np.tile(theory_values, (n_samples, 1)).T
         elif isinstance(theory_values, ObservableCollection):
             theory_data = theory_values.to_numpy()
             if theory_data.shape[0] != self.num_observables:
-                raise ValueError(
-                    "Number of theory samplings must match number of observables"
-                )
+                raise ValueError("Number of theory samplings must match number of observables")
             if theory_data.shape[1] != n_samples:
                 raise ValueError("Theory samplings must have same length as data")
         elif isinstance(theory_values, list):
             if len(theory_values) != self.num_observables:
-                raise ValueError(
-                    "Number of theory samplings must match number of observables"
-                )
+                raise ValueError("Number of theory samplings must match number of observables")
             if not all(isinstance(t, SigmondSampling) for t in theory_values):
                 raise ValueError("All theory values must be SigmondSampling objects")
             if not all(len(t.data) == n_samples for t in theory_values):
                 raise ValueError("Theory samplings must have same length as data")
             theory_data = np.array([t.data for t in theory_values])
         else:
-            raise ValueError(
-                "Theory values must be array, list, or ObservableCollection"
-            )
+            raise ValueError("Theory values must be array, list, or ObservableCollection")
 
         diff_matrix = data_matrix - theory_data  # shape: (N, n_samples)
 
@@ -683,18 +669,14 @@ class SamplingStats(MultiEnsembleCollection):
             use_covariance = False
 
         if use_covariance:
-            chi_squared_values = np.einsum(
-                "ij,ji->i", diff_matrix.T, inv_cov @ diff_matrix
-            )
+            chi_squared_values = np.einsum("ij,ji->i", diff_matrix.T, inv_cov @ diff_matrix)
         else:
             if A is not None:
                 errors_sq = np.array([s.error for s in self._data]) ** 2
                 errors = np.sqrt(np.diag(A * errors_sq @ A.T))
             else:
                 errors = np.array(self.val.error)
-            chi_squared_values = np.sum(
-                (diff_matrix / errors[:, np.newaxis]) ** 2, axis=0
-            )
+            chi_squared_values = np.sum((diff_matrix / errors[:, np.newaxis]) ** 2, axis=0)
 
         # Use independent ensemble
         observable_info = ObservableInfo(
@@ -717,13 +699,13 @@ class SamplingStats(MultiEnsembleCollection):
 
     def fit_function(
         self,
-        x_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
+        x_values: np.ndarray | list[SigmondSampling] | ObservableCollection,
         model_func: Callable,
         initial_params: np.ndarray,
-        param_bounds: Optional[List[Tuple[float, float]]] = None,
+        param_bounds: list[tuple[float, float]] | None = None,
         use_corr: bool = True,
         method: str = "minimize",
-    ) -> Dict[str, SigmondSampling]:
+    ) -> dict[str, SigmondSampling]:
         """
         Fit a function to the observables with proper error propagation.
 
@@ -751,9 +733,7 @@ class SamplingStats(MultiEnsembleCollection):
                 raise ValueError("Number of x samplings must match observables")
             x_has_uncertainty = True
             x_array = np.array(x_values.val.mean)
-        elif isinstance(x_values, list) and all(
-            isinstance(x, SigmondSampling) for x in x_values
-        ):
+        elif isinstance(x_values, list) and all(isinstance(x, SigmondSampling) for x in x_values):
             if len(x_values) != self.num_observables:
                 raise ValueError("Number of x samplings must match observables")
             x_has_uncertainty = True
@@ -767,7 +747,7 @@ class SamplingStats(MultiEnsembleCollection):
             x_matrix = None
 
         try:
-            from scipy.optimize import minimize, curve_fit
+            from scipy.optimize import curve_fit, minimize
         except ImportError:
             raise ImportError("scipy is required for fitting")
 
@@ -828,12 +808,8 @@ class SamplingStats(MultiEnsembleCollection):
 
             try:
                 if method == "minimize":
-                    result_sample = minimize(
-                        chi_squared_sample, best_params, bounds=param_bounds
-                    )
-                    sample_params = (
-                        result_sample.x if result_sample.success else best_params
-                    )
+                    result_sample = minimize(chi_squared_sample, best_params, bounds=param_bounds)
+                    sample_params = result_sample.x if result_sample.success else best_params
                 elif method == "curve_fit":
                     sample_params, _ = curve_fit(
                         lambda x, *p: model_func(x, np.array(p)),
@@ -941,7 +917,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     def fit_polynomial(
         self, x_values: np.ndarray, degree: int, use_corr: bool = True
-    ) -> Dict[str, SigmondSampling]:
+    ) -> dict[str, SigmondSampling]:
         """Convenience method for polynomial fitting."""
 
         def poly_func(x, params):
@@ -952,7 +928,7 @@ class SamplingStats(MultiEnsembleCollection):
 
     def fit_exponential(
         self, x_values: np.ndarray, use_corr: bool = True
-    ) -> Dict[str, SigmondSampling]:
+    ) -> dict[str, SigmondSampling]:
         """Convenience method for exponential fitting: A * exp(-m * x)."""
 
         def exp_func(x, params):
@@ -966,15 +942,13 @@ class SamplingStats(MultiEnsembleCollection):
         initial_params = np.array([A_guess, m_guess])
         return self.fit_function(x_values, exp_func, initial_params, use_corr=use_corr)
 
-    def summary(self) -> Dict:
+    def summary(self) -> dict:
         """Generate a summary of statistical information."""
         return {
             "num_observables": self.num_observables,
             "num_samples": self.num_samples,
             "ensembles": [e.name for e in self.ensembles],
-            "sampling_method": (
-                self._sampling_info.method if self._sampling_info else None
-            ),
+            "sampling_method": (self._sampling_info.method if self._sampling_info else None),
             "means": np.array(self.val.mean),
             "errors": np.array(self.val.error),
             "effective_sample_sizes": self.effective_sample_size,

@@ -2,17 +2,18 @@
 Loader module for Sigmond samplings files of PyCALQ format.
 """
 
-from dataclasses import dataclass
-from glob import glob
-import pandas as pd
 import re
-from typing import List, Dict, Optional, Tuple, Any
-from pathlib import Path
+from dataclasses import dataclass
 from enum import Enum
+from glob import glob
+from pathlib import Path
+from typing import Any
 
-from .sampling import SigmondSampling
+import pandas as pd
+
 from .loader import SigmondLoader
 from .project_utils import string_of_list_to_list
+from .sampling import SigmondSampling
 
 
 class PyCALQEstimateResultType(Enum):
@@ -100,7 +101,7 @@ class PyCALQLoader(SigmondLoader):
 
     def __init__(
         self,
-        pycalq_project_base_dir: Optional[str | Path] = None,
+        pycalq_project_base_dir: str | Path | None = None,
         hdf5_path: str = "/samplings",
     ):
         """
@@ -138,7 +139,7 @@ class PyCALQLoader(SigmondLoader):
             return f"{file_path}[{self.hdf5_path}]"
         return file_path
 
-    def load_all_observables(self, filename: str) -> Dict[str, "SigmondSampling"]:
+    def load_all_observables(self, filename: str) -> dict[str, "SigmondSampling"]:
         """
         Load all observables from the file, with HDF5 path handling.
 
@@ -177,10 +178,8 @@ class PyCALQLoader(SigmondLoader):
 
     def get_estimate_files(
         self,
-        result_type: Optional[
-            PyCALQEstimateResultType | List[PyCALQEstimateResultType]
-        ] = None,
-    ) -> List[str]:
+        result_type: PyCALQEstimateResultType | list[PyCALQEstimateResultType] | None = None,
+    ) -> list[str]:
         """
         Get the list of estimate files from a PyCALQ project file.
 
@@ -213,13 +212,13 @@ class PyCALQLoader(SigmondLoader):
 
     def get_estimate_file_path(
         self,
-        result_type: PyCALQEstimateResultType | List[PyCALQEstimateResultType],
-        tag: Optional[str] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        resampling_method: Optional[str] = None,
-    ) -> str | List[str]:
+        result_type: PyCALQEstimateResultType | list[PyCALQEstimateResultType],
+        tag: str | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        resampling_method: str | None = None,
+    ) -> str | list[str]:
         """
         Get the actual file path(s) for the specified PyCALQ estimate result type(s) using glob.
 
@@ -306,10 +305,8 @@ class PyCALQLoader(SigmondLoader):
 
     def get_sampling_files(
         self,
-        result_type: Optional[
-            PyCALQSamplingResultType | List[PyCALQSamplingResultType]
-        ] = None,
-    ) -> List[str]:
+        result_type: PyCALQSamplingResultType | list[PyCALQSamplingResultType] | None = None,
+    ) -> list[str]:
         """
         Get the list of sampling files from a PyCALQ project file.
 
@@ -346,13 +343,13 @@ class PyCALQLoader(SigmondLoader):
 
     def get_sampling_file_path(
         self,
-        result_type: PyCALQSamplingResultType | List[PyCALQSamplingResultType],
-        tag: Optional[str] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        resampling_method: Optional[str] = None,
-    ) -> str | List[str]:
+        result_type: PyCALQSamplingResultType | list[PyCALQSamplingResultType],
+        tag: str | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        resampling_method: str | None = None,
+    ) -> str | list[str]:
         """
         Get the file path(s) for the specified PyCALQ sampling result type(s) by globbing for existing files.
 
@@ -414,11 +411,7 @@ class PyCALQLoader(SigmondLoader):
             filename = "".join(components) + ".hdf5"
 
             return str(
-                Path(self.pycalq_project_base_dir)
-                / "3fit_spectrum"
-                / "data"
-                / "samples"
-                / filename
+                Path(self.pycalq_project_base_dir) / "3fit_spectrum" / "data" / "samples" / filename
             )
 
         # Use glob to find actual matching files
@@ -433,7 +426,7 @@ class PyCALQLoader(SigmondLoader):
         else:
             return all_matching_files
 
-    def get_all_available_tags(self) -> List[str]:
+    def get_all_available_tags(self) -> list[str]:
         """
         Get all available tags for PyCALQ sampling results.
 
@@ -458,7 +451,7 @@ class PyCALQLoader(SigmondLoader):
 
         return sorted(tags)
 
-    def get_file_name_info(self, file_path: str) -> Dict[str, Any]:
+    def get_file_name_info(self, file_path: str) -> dict[str, Any]:
         """
         Get metadata information contained in the name of a PyCALQ sampling or estimate file.
 
@@ -517,7 +510,7 @@ class PyCALQLoader(SigmondLoader):
                 return rtype
         raise ValueError(f"Unknown PyCALQ file type in file: {file_path}")
 
-    def get_file_name_rotate_info(self, file_path: str) -> Optional[PyCALQRotateInfo]:
+    def get_file_name_rotate_info(self, file_path: str) -> PyCALQRotateInfo | None:
         """
         Get the rotation info from a PyCALQ sampling or estimate file based on its filename.
 
@@ -538,7 +531,7 @@ class PyCALQLoader(SigmondLoader):
             return PyCALQRotateInfo(tN, t0, tD)
         return None
 
-    def get_file_name_pivot_type(self, file_path: str) -> Optional[PyCALQPivotType]:
+    def get_file_name_pivot_type(self, file_path: str) -> PyCALQPivotType | None:
         """
         Get the pivot type from a PyCALQ sampling or estimate file based on its filename.
 
@@ -628,12 +621,12 @@ class PyCALQLoader(SigmondLoader):
     def load_observables_by_tag(
         self,
         tag: str,
-        result_types: Optional[List[PyCALQSamplingResultType]] = None,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> Dict[str, Dict[str, "SigmondSampling"]]:
+        result_types: list[PyCALQSamplingResultType] | None = None,
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> dict[str, dict[str, "SigmondSampling"]]:
         """
         Load observables from PyCALQ files by tag, with optional filtering.
 
@@ -687,10 +680,10 @@ class PyCALQLoader(SigmondLoader):
     def load_interacting_estimates_to_dataframe(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
     ) -> Any:
         """
         Load estimates into a DataFrame.
@@ -739,11 +732,11 @@ class PyCALQLoader(SigmondLoader):
     def load_NIs_to_dict(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> Dict[int, List[List[str]]]:
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> dict[int, list[list[str]]]:
         """
         Load NIs (non-interacting) particle pairs into a dictionary.
 
@@ -777,9 +770,7 @@ class PyCALQLoader(SigmondLoader):
         if int_estimates_df is None or int_estimates_df.empty:
             return {}
 
-        df_reduce = int_estimates_df[
-            ["momentum", "rotate level", "non-interacting level"]
-        ].copy()
+        df_reduce = int_estimates_df[["momentum", "rotate level", "non-interacting level"]].copy()
         df_reduce.rename(columns={"non-interacting level": "NI"}, inplace=True)
         # create a dictionary with momentum as key and list of NIs as value
         NI_dict = {}
@@ -794,10 +785,10 @@ class PyCALQLoader(SigmondLoader):
     def load_single_hadron_estimates_to_dataframe(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
     ) -> Any:
         """
         Load single hadron estimates into a DataFrame.
@@ -839,19 +830,17 @@ class PyCALQLoader(SigmondLoader):
         try:
             return pd.read_csv(matching_files[0])
         except Exception as e:
-            print(
-                f"Error loading single hadron estimates file {matching_files[0]}: {e}"
-            )
+            print(f"Error loading single hadron estimates file {matching_files[0]}: {e}")
             return None
 
     def load_energy_levels(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> Dict[str, "SigmondSampling"]:
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> dict[str, "SigmondSampling"]:
         """
         Load energy level observables for a specific tag.
 
@@ -887,17 +876,17 @@ class PyCALQLoader(SigmondLoader):
     def load_energy_levels_and_build_mom_dict(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-        NIs: Optional[bool] = True,
-        ref: Optional[bool] = True,
-    ) -> Dict[
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+        NIs: bool | None = True,
+        ref: bool | None = True,
+    ) -> dict[
         int,
-        Dict[
+        dict[
             int,
-            Tuple[List[str], Dict[str, SigmondSampling]] | Dict[str, SigmondSampling],
+            tuple[list[str], dict[str, SigmondSampling]] | dict[str, SigmondSampling],
         ],
     ]:
         """
@@ -967,11 +956,11 @@ class PyCALQLoader(SigmondLoader):
     def load_operator_overlaps(
         self,
         tag: str,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> Dict[str, "SigmondSampling"]:
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> dict[str, "SigmondSampling"]:
         """
         Load operator overlap observables for a specific tag.
 
@@ -1008,11 +997,11 @@ class PyCALQLoader(SigmondLoader):
         self,
         tag: str,
         parameter_type: PyCALQSamplingResultType,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> Dict[str, "SigmondSampling"]:
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> dict[str, "SigmondSampling"]:
         """
         Load fit parameter observables for a specific tag.
 
@@ -1055,9 +1044,7 @@ class PyCALQLoader(SigmondLoader):
 
         return results.get(parameter_type.value, {})
 
-    def get_available_files_info(
-        self, tag: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    def get_available_files_info(self, tag: str | None = None) -> list[dict[str, Any]]:
         """
         Get information about all available PyCALQ sampling files.
 
@@ -1101,15 +1088,13 @@ class PyCALQLoader(SigmondLoader):
 
     def find_files_by_criteria(
         self,
-        tag: Optional[str] = None,
-        result_type: Optional[
-            PyCALQSamplingResultType | PyCALQEstimateResultType
-        ] = None,
-        resampling_method: Optional[str] = None,
-        pivot_type: Optional[PyCALQPivotType] = None,
-        rotate_info: Optional[PyCALQRotateInfo] = None,
-        num_bins: Optional[int] = None,
-    ) -> List[str]:
+        tag: str | None = None,
+        result_type: PyCALQSamplingResultType | PyCALQEstimateResultType | None = None,
+        resampling_method: str | None = None,
+        pivot_type: PyCALQPivotType | None = None,
+        rotate_info: PyCALQRotateInfo | None = None,
+        num_bins: int | None = None,
+    ) -> list[str]:
         """
         Find PyCALQ files matching specific criteria.
 
@@ -1168,9 +1153,7 @@ class PyCALQLoader(SigmondLoader):
         return matching_files
 
     @staticmethod
-    def parse_observable_name(
-        obs_name: str, ref: bool = False
-    ) -> Optional[Tuple[int, str, int]]:
+    def parse_observable_name(obs_name: str, ref: bool = False) -> tuple[int, str, int] | None:
         """
         Parse a PyCALQ observable name to extract PSQ, energy type, and level index.
 

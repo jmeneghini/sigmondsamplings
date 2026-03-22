@@ -34,7 +34,7 @@ dependencies = [
 dev = [
     "pytest>=6.0",
     "black",
-    "flake8",
+    "ruff",
     "mypy",
 ]
 
@@ -50,3 +50,21 @@ sigmond-combine = "sigmondsamplings.scripts.sigmond_combine:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sigmondsamplings*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Select which rules to enforce:
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes (undefined variables, unused imports)
+    "I",  # isort (automatically sort imports)
+    "UP", # pyupgrade (upgrade syntax to modern Python)
+]
+# Ignore specific rules if needed
+ignore = ["E501"]
+
+# Allow auto-fixing for all enabled rules (when `--fix` is passed)
+fixable = ["ALL"]

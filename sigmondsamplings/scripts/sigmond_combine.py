@@ -9,23 +9,22 @@ them into a single HDF5 output file.
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional
 
 try:
-    from ..writer import SigmondWriter
     from ..loader import SigmondLoader
     from ..sampling import SigmondSampling
+    from ..writer import SigmondWriter
 except ImportError:
     # Handle direct execution
     import os
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from writer import SigmondWriter
     from loader import SigmondLoader
     from sampling import SigmondSampling
+    from writer import SigmondWriter
 
 
-def resolve_paths(input_files: List[str], base_path: Optional[str] = None) -> List[str]:
+def resolve_paths(input_files: list[str], base_path: str | None = None) -> list[str]:
     """
     Resolve input file paths, handling both relative and absolute paths.
 
@@ -56,9 +55,7 @@ def resolve_paths(input_files: List[str], base_path: Optional[str] = None) -> Li
     return resolved_paths
 
 
-def load_all_samplings(
-    input_files: List[str], verbose: bool = False
-) -> Dict[str, SigmondSampling]:
+def load_all_samplings(input_files: list[str], verbose: bool = False) -> dict[str, SigmondSampling]:
     """
     Load all samplings from multiple input files.
 
@@ -91,9 +88,7 @@ def load_all_samplings(
             # Check for conflicts with existing observables
             conflicts = set(all_samplings.keys()) & set(samplings.keys())
             if conflicts:
-                print(
-                    f"Warning: Observable conflicts detected in {Path(input_file).name}:"
-                )
+                print(f"Warning: Observable conflicts detected in {Path(input_file).name}:")
                 for conflict in sorted(conflicts):
                     print(f"  - {conflict} (overwriting previous)")
 
@@ -107,9 +102,7 @@ def load_all_samplings(
     return all_samplings
 
 
-def validate_compatibility(
-    samplings: Dict[str, SigmondSampling], verbose: bool = False
-) -> None:
+def validate_compatibility(samplings: dict[str, SigmondSampling], verbose: bool = False) -> None:
     """
     Validate that all samplings are compatible for combination.
 
@@ -160,17 +153,17 @@ def validate_compatibility(
         raise ValueError("Incompatible sampling information detected")
 
     if verbose and incompatible_ensembles:
-        print(f"Note: Found multiple ensembles (this is allowed):")
+        print("Note: Found multiple ensembles (this is allowed):")
         print(f"  - {ref_ensemble_info.name} (reference)")
         for ensemble in incompatible_ensembles:
             print(f"  - {ensemble}")
 
 
 def combine_files(
-    input_files: List[str],
+    input_files: list[str],
     output_file: str,
     hdf5_root_path: str = "/data/",
-    base_path: Optional[str] = None,
+    base_path: str | None = None,
     verbose: bool = False,
     overwrite: bool = False,
 ) -> str:

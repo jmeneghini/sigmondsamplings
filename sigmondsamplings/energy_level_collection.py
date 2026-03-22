@@ -8,20 +8,15 @@ This module provides collection classes specifically designed for energy-level d
 """
 
 import logging
+from collections.abc import Iterable
 from typing import (
-    Dict,
-    Iterable,
-    List,
-    Set,
-    Tuple,
-    Type,
     TypeVar,
     Union,
 )
 
-from .sampling import SigmondSampling, EnsembleInfo
-from .ensemble_collection import SingleEnsembleCollection, MultiEnsembleCollection
-from .energy_levels import EnergyObsInfo, SHEnergyObsInfo, Particle
+from .energy_levels import EnergyObsInfo, Particle, SHEnergyObsInfo
+from .ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
+from .sampling import EnsembleInfo, SigmondSampling
 
 __all__ = [
     "EnergyLevelMixin",
@@ -43,14 +38,14 @@ class EnergyLevelMixin:
     """
 
     # TODO: really need to consider if we want mutability here.
-    _data: List[SigmondSampling]
+    _data: list[SigmondSampling]
 
     # -------------------------------------------------------------------------
     # Discovery Properties
     # -------------------------------------------------------------------------
 
     @property
-    def irreps(self) -> List[str]:
+    def irreps(self) -> list[str]:
         """
         All unique irreps in the collection, sorted.
 
@@ -80,7 +75,7 @@ class EnergyLevelMixin:
         return self.unique("level_index")
 
     @property
-    def energy_types(self) -> List[str]:
+    def energy_types(self) -> list[str]:
         """
         All unique energy types in the collection, sorted.
 
@@ -92,7 +87,7 @@ class EnergyLevelMixin:
         return self.unique("energy_type")
 
     @property
-    def ref_particles(self) -> List[str]:
+    def ref_particles(self) -> list[str]:
         """
         All unique reference particle names in the collection, sorted.
 
@@ -102,7 +97,7 @@ class EnergyLevelMixin:
         return self.unique("ref_particle")
 
     @property
-    def particles(self) -> List[str]:
+    def particles(self) -> list[str]:
         """
         All unique particle names in the single hadron collection, sorted.
 
@@ -112,7 +107,7 @@ class EnergyLevelMixin:
         return self.single_hadron_spectra.unique("particle")
 
     @property
-    def psq_irrep_pairs(self) -> List[Tuple[int, str]]:
+    def psq_irrep_pairs(self) -> list[tuple[int, str]]:
         """
         Get all unique (PSQ, irrep) combinations in the collection.
 
@@ -121,7 +116,7 @@ class EnergyLevelMixin:
         """
         return self.unique(lambda s: (s.observable_info.psq, s.observable_info.irrep))
 
-    def group_by_energy_type(self) -> Dict[str, "EnergyLevelMixin"]:
+    def group_by_energy_type(self) -> dict[str, "EnergyLevelMixin"]:
         """
         Group collection by energy type.
 
@@ -132,7 +127,7 @@ class EnergyLevelMixin:
         """
         return self.group_by(key="energy_type")
 
-    def group_by_irrep(self) -> Dict[str, "EnergyLevelMixin"]:
+    def group_by_irrep(self) -> dict[str, "EnergyLevelMixin"]:
         """
         Group collection by irrep.
 
@@ -143,7 +138,7 @@ class EnergyLevelMixin:
         """
         return self.group_by(key="irrep")
 
-    def group_by_psq(self) -> Dict[int, "EnergyLevelMixin"]:
+    def group_by_psq(self) -> dict[int, "EnergyLevelMixin"]:
         """
         Group collection by PSQ (momentum squared).
 
@@ -154,7 +149,7 @@ class EnergyLevelMixin:
         """
         return self.group_by(key="psq")
 
-    def group_by_level_index(self) -> Dict[int, "EnergyLevelMixin"]:
+    def group_by_level_index(self) -> dict[int, "EnergyLevelMixin"]:
         """
         Group collection by energy level index.
 
@@ -165,7 +160,7 @@ class EnergyLevelMixin:
         """
         return self.group_by(key="level_index")
 
-    def group_by_sector(self) -> Dict[Tuple[int, str], "EnergyLevelMixin"]:
+    def group_by_sector(self) -> dict[tuple[int, str], "EnergyLevelMixin"]:
         """
         Group collection by (PSQ, irrep) sector.
 
@@ -174,9 +169,7 @@ class EnergyLevelMixin:
         Returns:
             Dict[Tuple[int, str], Collection]: Dictionary mapping (psq, irrep) to collection
         """
-        return self.group_by(
-            key=lambda s: (s.observable_info.psq, s.observable_info.irrep)
-        )
+        return self.group_by(key=lambda s: (s.observable_info.psq, s.observable_info.irrep))
 
     # -------------------------------------------------------------------------
     # Organize Spectra - Filtering by Type
@@ -198,8 +191,7 @@ class EnergyLevelMixin:
         """
         return self.filter(
             predicate=lambda obs_info: (
-                isinstance(obs_info, EnergyObsInfo)
-                and not isinstance(obs_info, SHEnergyObsInfo)
+                isinstance(obs_info, EnergyObsInfo) and not isinstance(obs_info, SHEnergyObsInfo)
             )
         )
 
@@ -217,9 +209,7 @@ class EnergyLevelMixin:
             >>> # Get all pion energy levels
             >>> pions = collection.single_hadron_spectra.filter(particle='pi')
         """
-        return self.filter(
-            predicate=lambda obs_info: isinstance(obs_info, SHEnergyObsInfo)
-        )
+        return self.filter(predicate=lambda obs_info: isinstance(obs_info, SHEnergyObsInfo))
 
     # -------------------------------------------------------------------------
     # Factory Method - Convert Observables to Energy Levels
@@ -260,9 +250,7 @@ class EnergyLevelMixin:
 
         for sampling in observables:
             try:
-                if isinstance(
-                    sampling.observable_info, (EnergyObsInfo, SHEnergyObsInfo)
-                ):
+                if isinstance(sampling.observable_info, (EnergyObsInfo, SHEnergyObsInfo)):
                     # Already an energy level, use as is (with canonical name)
                     sampling.observable_info.update_name()
                     energy_samplings.append(sampling)
@@ -286,9 +274,7 @@ class EnergyLevelMixin:
                 continue
 
         if not energy_samplings:
-            raise ValueError(
-                "No valid energy-level observables found after conversion."
-            )
+            raise ValueError("No valid energy-level observables found after conversion.")
 
         return cls(energy_samplings, return_type=return_type)
 
@@ -325,7 +311,7 @@ class EnergyLevelMixin:
             obs_info = sampling.observable_info
             if hasattr(obs_info, "is_ref") and obs_info.is_ref:
                 obs_info.ref_particle = particle_name
-                
+
     def create_ref(self, particle_samp: SigmondSampling) -> None:
         """
         Create reference observables for all observables without is_ref = True (mutable).
@@ -345,6 +331,7 @@ class EnergyLevelMixin:
         """
         new_obs = []
         import copy
+
         particle_samp = copy.deepcopy(particle_samp)
         for sampling in self._data:
             obs_info = sampling.observable_info
@@ -354,7 +341,7 @@ class EnergyLevelMixin:
         self._data.extend(new_obs)
 
     def set_shift_particles(
-        self, irrep_psq_levels_map: Dict[Tuple[str, int, int], List[Particle]]
+        self, irrep_psq_levels_map: dict[tuple[str, int, int], list[Particle]]
     ) -> None:
         """
         Set non-interacting particle names for shift-type observables (mutable).
@@ -373,12 +360,12 @@ class EnergyLevelMixin:
         """
         for sampling in self._data:
             obs_info = sampling.observable_info
-            if type(obs_info) == EnergyObsInfo and obs_info.is_shift_type:
+            if isinstance(obs_info, EnergyObsInfo) and obs_info.is_shift_type:
                 key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
                 if key in irrep_psq_levels_map:
                     obs_info.particles = irrep_psq_levels_map[key]
-                    
-    def _parse_pycalq_yml(self, yml_path: str) -> Dict[Tuple[str, int, int], List[Particle]]:
+
+    def _parse_pycalq_yml(self, yml_path: str) -> dict[tuple[str, int, int], list[Particle]]:
         """
         Parse a PyCalQ YAML file and extract shift particle assignments.
 
@@ -388,23 +375,20 @@ class EnergyLevelMixin:
         Returns:
             Dict mapping (irrep, psq, level_idx) to list of Particle objects
         """
-        import yaml
         import re
 
-        with open(yml_path, "r") as f:
+        import yaml
+
+        with open(yml_path) as f:
             config = yaml.safe_load(f)
 
         # Build regex patterns from collection's irreps and psq values
         irrep_pattern = (
-            "("
-            + "|".join(re.escape(irrep) for irrep in self.irreps if irrep is not None)
-            + ")"
+            "(" + "|".join(re.escape(irrep) for irrep in self.irreps if irrep is not None) + ")"
         )
 
         psq_pattern = (
-            "("
-            + "|".join(re.escape(str(psq)) for psq in self.psqs if psq is not None)
-            + ")"
+            "(" + "|".join(re.escape(str(psq)) for psq in self.psqs if psq is not None) + ")"
         )
 
         sector_pattern = rf"{irrep_pattern}\s+PSQ={psq_pattern}"
@@ -460,22 +444,23 @@ class EnergyLevelMixin:
         sectors = {}
         for sampling in self._data:
             obs_info = sampling.observable_info
-            if type(obs_info) == EnergyObsInfo and obs_info.is_shift_type and obs_info.particles:
+            if (
+                isinstance(obs_info, EnergyObsInfo)
+                and obs_info.is_shift_type
+                and obs_info.particles
+            ):
                 sector_key = f"{obs_info.irrep} PSQ={obs_info.psq}"
                 if sector_key not in sectors:
                     sectors[sector_key] = {}
                 sectors[sector_key][obs_info.level_index] = [
-                    f"{p.name}({p.psq})" if p.has_momentum else p.name
-                    for p in obs_info.particles
+                    f"{p.name}({p.psq})" if p.has_momentum else p.name for p in obs_info.particles
                 ]
 
         # Convert to sorted lists indexed by level (matching parser's enumerate expectation)
         non_interacting_levels = {}
         for sector_key, levels in sectors.items():
             max_idx = max(levels.keys())
-            non_interacting_levels[sector_key] = [
-                levels.get(i, []) for i in range(max_idx + 1)
-            ]
+            non_interacting_levels[sector_key] = [levels.get(i, []) for i in range(max_idx + 1)]
 
         # Nest under wrapper keys to match PyCalQ YAML structure
         output = {"fit_spectrum": {"non_interacting_levels": non_interacting_levels}}
@@ -489,7 +474,7 @@ class EnergyLevelMixin:
 
     def filter_by_spec(
         self,
-        spec: Iterable[Tuple],
+        spec: Iterable[tuple],
     ):
         """
         Filter collection to only include observables matching the given spec.
@@ -507,7 +492,7 @@ class EnergyLevelMixin:
         Example:
             >>> result = coll.filter_by_spec([(0, 'A1g', 0), (1, 'E', [0, 1])])
         """
-        allowed: Set[Tuple[int, str, int]] = set()
+        allowed: set[tuple[int, str, int]] = set()
         for entry in spec:
             psq, irrep, level = entry
             if isinstance(level, list):
@@ -518,15 +503,17 @@ class EnergyLevelMixin:
 
         return self.filter(
             predicate=lambda obs_info: (
-                obs_info.psq,
-                obs_info.irrep,
-                obs_info.level_index,
+                (
+                    obs_info.psq,
+                    obs_info.irrep,
+                    obs_info.level_index,
+                )
+                in allowed
             )
-            in allowed
         )
 
     @property
-    def spec(self) -> List[Tuple[int, str, int]]:
+    def spec(self) -> list[tuple[int, str, int]]:
         """
         List the (psq, irrep, level_index) spec of the current collection.
 
@@ -573,7 +560,7 @@ class EnergyLevelMixin:
         """
         import yaml
 
-        sectors: Dict[Tuple[int, str], Set[int]] = {}
+        sectors: dict[tuple[int, str], set[int]] = {}
         for sampling in self._data:
             obs_info = sampling.observable_info
             key = (obs_info.psq, obs_info.irrep)
@@ -605,13 +592,10 @@ class EnergyLevelMixin:
         """
         import yaml
 
-        with open(yml_path, "r") as f:
+        with open(yml_path) as f:
             config = yaml.safe_load(f)
 
-        spec = [
-            (entry["psq"], entry["irrep"], entry["levels"])
-            for entry in config["spec"]
-        ]
+        spec = [(entry["psq"], entry["irrep"], entry["levels"]) for entry in config["spec"]]
         return self.filter_by_spec(spec)
 
     def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:
@@ -737,10 +721,7 @@ class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
 
     def __init__(
         self,
-        data: Union[
-            Iterable[SigmondSampling],
-            Dict[EnsembleInfo, SingleEnsembleEnergyCollection],
-        ],
+        data: Iterable[SigmondSampling] | dict[EnsembleInfo, SingleEnsembleEnergyCollection],
         return_type: str = "numpy",
     ):
         """
@@ -770,7 +751,7 @@ class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
     # -------------------------------------------------------------------------
 
     @property
-    def by_ensemble(self) -> Dict[EnsembleInfo, SingleEnsembleEnergyCollection]:
+    def by_ensemble(self) -> dict[EnsembleInfo, SingleEnsembleEnergyCollection]:
         """
         Group data by ensemble, returning Dict[EnsembleInfo, SingleEnsembleEnergyCollection].
 
@@ -794,10 +775,8 @@ class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
     # -------------------------------------------------------------------------
 
     def __getitem__(
-        self, key: Union[EnsembleInfo, int, slice]
-    ) -> Union[
-        SingleEnsembleEnergyCollection, "MultiEnsembleEnergyCollection", SigmondSampling
-    ]:
+        self, key: EnsembleInfo | int | slice
+    ) -> Union[SingleEnsembleEnergyCollection, "MultiEnsembleEnergyCollection", SigmondSampling]:
         """
         Access by EnsembleInfo, index, or slice.
 
@@ -829,6 +808,4 @@ class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
     def __repr__(self):
         n_ensembles = len(self.ensembles)
         total = len(self)
-        return (
-            f"MultiEnsembleEnergyCollection(ensembles={n_ensembles}, total_obs={total})"
-        )
+        return f"MultiEnsembleEnergyCollection(ensembles={n_ensembles}, total_obs={total})"

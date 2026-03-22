@@ -2,10 +2,11 @@
 Core sampling classes for handling Sigmond samplings data.
 """
 
-import numpy as np
-from typing import Union, List, Any
+from typing import Any, Union
 
-from .info import EnsembleInfo, SamplingInfo, ObservableInfo, DEFAULT_ENSEMBLE
+import numpy as np
+
+from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 
 try:
     from uncertainties import ufloat
@@ -25,7 +26,7 @@ class SigmondSampling:
 
     def __init__(
         self,
-        data: Union[np.ndarray, list],
+        data: np.ndarray | list,
         observable_info: ObservableInfo,
         sampling_info: SamplingInfo,
         is_complex: bool = False,
@@ -38,9 +39,7 @@ class SigmondSampling:
             raise ValueError("Data must be 1-dimensional array")
 
         if len(data) < 2:
-            raise ValueError(
-                "Data must have at least 2 elements (full sample + resamples)"
-            )
+            raise ValueError("Data must have at least 2 elements (full sample + resamples)")
 
         self.data = data.astype(complex) if is_complex else data.astype(float)
         self.observable_info = observable_info
@@ -50,7 +49,7 @@ class SigmondSampling:
     @classmethod
     def from_single_value(
         cls,
-        value: Union[float, complex],
+        value: float | complex,
         observable_info: ObservableInfo,
         sampling_info: SamplingInfo,
     ) -> "SigmondSampling":
@@ -125,9 +124,7 @@ class SigmondSampling:
             ValueError: If sampling method is not bootstrap
         """
         if self.sampling_info.method != "bootstrap":
-            raise ValueError(
-                "Bootstrap bias is only available for bootstrap resampling"
-            )
+            raise ValueError("Bootstrap bias is only available for bootstrap resampling")
 
         return self.mean - self.full_sample_value
 
@@ -143,9 +140,7 @@ class SigmondSampling:
             ValueError: If sampling method is not bootstrap
         """
         if self.sampling_info.method != "bootstrap":
-            raise ValueError(
-                "Bias correction is only available for bootstrap resampling"
-            )
+            raise ValueError("Bias correction is only available for bootstrap resampling")
 
         bias = self.bootstrap_bias
         return self.full_sample_value - bias
@@ -210,9 +205,7 @@ class SigmondSampling:
             ValueError: If sampling method is not bootstrap
         """
         if self.sampling_info.method != "bootstrap":
-            raise ValueError(
-                "Confidence intervals are only supported for bootstrap resampling"
-            )
+            raise ValueError("Confidence intervals are only supported for bootstrap resampling")
 
         # Calculate percentiles for the confidence interval
         alpha = 1 - confidence_level
@@ -311,9 +304,7 @@ class SigmondSampling:
             ) from e
 
         # Return new sampling with energy level observable info
-        return SigmondSampling(
-            self.data, new_obs_info, self.sampling_info, self.is_complex
-        )
+        return SigmondSampling(self.data, new_obs_info, self.sampling_info, self.is_complex)
 
     def _check_compatible(self, others: set["SigmondSampling"]):
         """
@@ -348,9 +339,7 @@ class SigmondSampling:
             error_messages = []
             for other, reasons in incompatible.items():
                 error_messages.append(f" - {other!r}: {', '.join(reasons)}")
-            raise ValueError(
-                "Incompatible samplings found:\n" + "\n".join(error_messages)
-            )
+            raise ValueError("Incompatible samplings found:\n" + "\n".join(error_messages))
 
         return True
 
@@ -369,10 +358,11 @@ class SigmondSampling:
         return SigmondSampling(
             unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
         )
-        
-    def create_ref_sampling(self, samp: 'SigmondSampling') -> 'SigmondSampling':
+
+    def create_ref_sampling(self, samp: "SigmondSampling") -> "SigmondSampling":
         """Create a reference sampling for the given particle."""
         import copy
+
         from .energy_levels import EnergyObsInfo, SHEnergyObsInfo
 
         new_ref = self / samp
@@ -383,9 +373,9 @@ class SigmondSampling:
         new_obs_info = copy.deepcopy(self.observable_info)
         if isinstance(new_obs_info, EnergyObsInfo):
             new_obs_info.ref_particle = (
-                samp.observable_info.particle or 'ref'
+                samp.observable_info.particle or "ref"
                 if isinstance(samp.observable_info, SHEnergyObsInfo)
-                else 'ref'
+                else "ref"
             )
             new_obs_info.update_name()
         else:
@@ -393,7 +383,7 @@ class SigmondSampling:
 
         new_ref.observable_info = new_obs_info
         return new_ref
-            
+
     @property
     def latex_str(self):
         return f"{self.observable_info.latex_str} = {self.pdg_format()}"
@@ -463,9 +453,7 @@ class SigmondSampling:
 
         self._check_compatible(other_samplings)
 
-        new_inputs = [
-            arg.data if isinstance(arg, SigmondSampling) else arg for arg in inputs
-        ]
+        new_inputs = [arg.data if isinstance(arg, SigmondSampling) else arg for arg in inputs]
 
         result_data = ufunc(*new_inputs)
 
@@ -490,8 +478,7 @@ class SigmondSampling:
                 # All samplings have same observable_info
                 result_observable_info = first_info
             elif all(
-                s.observable_info.ensemble_info == first_info.ensemble_info
-                for s in samplings
+                s.observable_info.ensemble_info == first_info.ensemble_info for s in samplings
             ):
                 # Same ensemble_info - create a new observable_info with mixed name
                 result_observable_info = ObservableInfo(

@@ -11,21 +11,20 @@ format handling and conversion.
 """
 
 import argparse
-import sys
 import subprocess
+import sys
 from pathlib import Path
-from typing import Optional, Tuple
 
 try:
-    from ..writer import SigmondWriter
     from ..loader import SigmondLoader
+    from ..writer import SigmondWriter
 except ImportError:
     # Handle direct execution
     import os
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from writer import SigmondWriter
     from loader import SigmondLoader
+    from writer import SigmondWriter
 
 
 def detect_output_format(output_file: str) -> str:
@@ -42,7 +41,7 @@ def detect_output_format(output_file: str) -> str:
         return "hdf5"
 
 
-def convert_to_smp(input_file: str, output_file: str, hdf5_path: Optional[str] = None):
+def convert_to_smp(input_file: str, output_file: str, hdf5_path: str | None = None):
     """Convert HDF5 file to .smp format using sigmond_query."""
 
     # Build input filename with path for sigmond_query
@@ -92,7 +91,7 @@ def convert_to_smp(input_file: str, output_file: str, hdf5_path: Optional[str] =
 def convert_to_hdf5(
     input_file: str,
     output_file: str,
-    hdf5_path: Optional[str] = None,
+    hdf5_path: str | None = None,
     hdf5_root_path: str = "/data/",
 ):
     """Convert a Sigmond file to HDF5 format using SigmondWriter."""
@@ -104,12 +103,7 @@ def convert_to_hdf5(
     if input_file.lower().endswith(".hdf5") and not hdf5_path:
         loader = SigmondLoader()
         is_valid, file_type, available_paths = loader.check_file_validity(input_file)
-        if (
-            is_valid
-            and file_type == "hdf5"
-            and available_paths
-            and len(available_paths) > 1
-        ):
+        if is_valid and file_type == "hdf5" and available_paths and len(available_paths) > 1:
             paths_str = "\n".join(available_paths)
             raise ValueError(
                 f"HDF5 input file has multiple paths. Please specify one with --hdf5-path. "
@@ -138,8 +132,8 @@ def convert_to_hdf5(
 def convert_files(
     input_file: str,
     output_file: str,
-    output_format: Optional[str] = None,
-    hdf5_path: Optional[str] = None,
+    output_format: str | None = None,
+    hdf5_path: str | None = None,
     hdf5_root_path: str = "/data/",
 ):
     """
@@ -191,9 +185,7 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "input_file", help="Input Sigmond file (.smp, .fstream, or .hdf5)"
-    )
+    parser.add_argument("input_file", help="Input Sigmond file (.smp, .fstream, or .hdf5)")
     parser.add_argument("output_file", help="Output file")
     parser.add_argument(
         "--output-format",
@@ -221,14 +213,8 @@ Examples:
         sys.exit(1)
 
     # Check if output file exists (SigmondWriter handles this with backups for HDF5)
-    if (
-        Path(args.output_file).exists()
-        and not args.force
-        and args.output_format == "smp"
-    ):
-        print(
-            f"Error: Output file {args.output_file} already exists. Use --force to overwrite."
-        )
+    if Path(args.output_file).exists() and not args.force and args.output_format == "smp":
+        print(f"Error: Output file {args.output_file} already exists. Use --force to overwrite.")
         sys.exit(1)
 
     try:

@@ -5,9 +5,9 @@ This demonstrates how to create a project-specific data parser that uses
 the PyCALQ infrastructure for simplified data acquisition.
 """
 
-import pandas as pd
-from typing import List, Dict, Optional, Union, Tuple
 from pathlib import Path
+
+import pandas as pd
 
 import sigmondsamplings as ss
 
@@ -20,9 +20,7 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
     functionality while leveraging the PyCALQ infrastructure.
     """
 
-    def __init__(
-        self, L: Union[int, str], project_base_dir: Optional[Union[str, Path]] = None
-    ):
+    def __init__(self, L: int | str, project_base_dir: str | Path | None = None):
         """
         Initialize the phi-rho project parser.
 
@@ -39,7 +37,7 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
         super().__init__(project_base_dir)
         self.L = L
 
-    def _get_default_project_dir(self, L: Union[int, str]) -> Path:
+    def _get_default_project_dir(self, L: int | str) -> Path:
         """Get default project directory based on OS and lattice size."""
         os_info = ss.get_os_info()
 
@@ -58,7 +56,7 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
             / f"latticeQCD/spectrum_analysis/channels/phirho/levels/john_results/s{L}/3fit_spectrum"
         )
 
-    def get_available_datasets(self) -> List[str]:
+    def get_available_datasets(self) -> list[str]:
         """
         Get available tags for this lattice size.
 
@@ -74,12 +72,12 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
         self,
         dataset_id: str,
         resampling_method: str,
-        energy_types: Optional[List[str]] = None,
+        energy_types: list[str] | None = None,
         ref: bool = False,
-    ) -> Tuple[
+    ) -> tuple[
         ss.EnsembleInfo,
         ss.SamplingInfo,
-        Dict[int, Dict[int, Tuple[List, Dict[str, ss.SigmondSampling]]]],
+        dict[int, dict[int, tuple[list, dict[str, ss.SigmondSampling]]]],
     ]:
         """
         Load energy levels with non-interacting (NI) information.
@@ -151,9 +149,7 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
 
         return ensemble_info, sampling_info, out_results
 
-    def _get_NI_dict(
-        self, dataset_id: str, resampling_method: str
-    ) -> Dict[int, List[List[str]]]:
+    def _get_NI_dict(self, dataset_id: str, resampling_method: str) -> dict[int, list[list[str]]]:
         """
         Load the NI (non-interacting) dictionary from CSV file.
 
@@ -216,10 +212,10 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
 
     def filter_levels_by_criteria(
         self,
-        results: Dict[int, Dict[int, Tuple[List, Dict[str, ss.SigmondSampling]]]],
-        is_relevant_level_from_energy_and_NI: Optional[callable] = None,
-        is_relevant_psq_from_levels: Optional[callable] = None,
-    ) -> Dict[int, Dict[int, Tuple[List, Dict[str, ss.SigmondSampling]]]]:
+        results: dict[int, dict[int, tuple[list, dict[str, ss.SigmondSampling]]]],
+        is_relevant_level_from_energy_and_NI: callable | None = None,
+        is_relevant_psq_from_levels: callable | None = None,
+    ) -> dict[int, dict[int, tuple[list, dict[str, ss.SigmondSampling]]]]:
         """
         Filter results based on user-defined criteria.
 
@@ -250,9 +246,7 @@ class PhiRhoProjectDataParser(ss.PyCALQProjectDataParser):
                 for level_index in list(filtered_results[psq].keys()):
                     level_data = filtered_results[psq][level_index]
                     psq_level_index = (psq, level_index)
-                    if not is_relevant_level_from_energy_and_NI(
-                        psq_level_index, level_data
-                    ):
+                    if not is_relevant_level_from_energy_and_NI(psq_level_index, level_data):
                         del filtered_results[psq][level_index]
 
         # Apply PSQ-based filtering
@@ -293,7 +287,5 @@ if __name__ == "__main__":
         )
 
         print(f"Ensemble: {ensemble_info.name}")
-        print(
-            f"Sampling: {sampling_info.method} with {sampling_info.num_resamplings} resamplings"
-        )
+        print(f"Sampling: {sampling_info.method} with {sampling_info.num_resamplings} resamplings")
         print(f"Found data for PSQs: {list(results.keys())}")

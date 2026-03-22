@@ -7,9 +7,9 @@ sampling methods, and observables.
 
 import re
 import xml.etree.ElementTree as ET
-from pathlib import Path
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 
 class KnownEnsembles:
@@ -34,7 +34,7 @@ class KnownEnsembles:
     _config_dir = Path.home() / ".sigmondsamplings"
     _config_file = _config_dir / "config"
 
-    def __init__(self, xml_file: Optional[str] = None):
+    def __init__(self, xml_file: str | None = None):
         """
         Initialize KnownEnsembles.
 
@@ -43,7 +43,7 @@ class KnownEnsembles:
                      load from saved config. If provided, will save to config
                      for future use.
         """
-        self._ensembles: Dict[str, Dict[str, Any]] = {}
+        self._ensembles: dict[str, dict[str, Any]] = {}
 
         # Determine which file to use
         if xml_file is not None:
@@ -62,12 +62,12 @@ class KnownEnsembles:
         with open(self._config_file, "w") as f:
             f.write(str(self._xml_file.absolute()))
 
-    def _load_config(self) -> Optional[Path]:
+    def _load_config(self) -> Path | None:
         """Load the XML file path from config file."""
         if not self._config_file.exists():
             return None
 
-        with open(self._config_file, "r") as f:
+        with open(self._config_file) as f:
             path_str = f.read().strip()
 
         if not path_str:
@@ -115,9 +115,9 @@ class KnownEnsembles:
     def get(
         self,
         name: str,
-        num_bins: Optional[int] = None,
-        rebin_size: Optional[int] = None,
-        tweak_info: Optional[Dict[str, Any]] = None,
+        num_bins: int | None = None,
+        rebin_size: int | None = None,
+        tweak_info: dict[str, Any] | None = None,
     ) -> "EnsembleInfo":
         """
         Create an EnsembleInfo object for a known ensemble.
@@ -142,9 +142,7 @@ class KnownEnsembles:
                     "when initializing KnownEnsembles."
                 )
             else:
-                raise ValueError(
-                    f"Ensemble database is empty. Check XML file: {self._xml_file}"
-                )
+                raise ValueError(f"Ensemble database is empty. Check XML file: {self._xml_file}")
 
         if name not in self._ensembles:
             raise KeyError(
@@ -186,11 +184,11 @@ class EnsembleInfo:
         self,
         name: str,
         num_measurements: int,
-        spatial_extent: Optional[int] = None,
-        temporal_extent: Optional[int] = None,
-        num_bins: Optional[int] = None,
-        rebin_size: Optional[int] = None,
-        tweak_info: Optional[Dict[str, Any]] = None,
+        spatial_extent: int | None = None,
+        temporal_extent: int | None = None,
+        num_bins: int | None = None,
+        rebin_size: int | None = None,
+        tweak_info: dict[str, Any] | None = None,
     ):
         """
         Initialize EnsembleInfo.
@@ -224,8 +222,7 @@ class EnsembleInfo:
 
         # Ensure all string keys in tweak_info are lowercase
         self.tweak_info = {
-            k.lower() if isinstance(k, str) else k: v
-            for k, v in self.tweak_info.items()
+            k.lower() if isinstance(k, str) else k: v for k, v in self.tweak_info.items()
         }
         # If a value is a string key, convert to lowercase as well. Try to convert to int if possible.
         for k, v in self.tweak_info.items():
@@ -344,12 +341,8 @@ class SamplingInfo:
     def __hash__(self):
         """Make SamplingInfo hashable."""
         # Convert extra_params dict to tuple of items for hashing
-        extra_items = (
-            tuple(sorted(self.extra_params.items())) if self.extra_params else ()
-        )
-        return hash(
-            (self.method, self.num_resamplings, self.seed, self.boot_skip, extra_items)
-        )
+        extra_items = tuple(sorted(self.extra_params.items())) if self.extra_params else ()
+        return hash((self.method, self.num_resamplings, self.seed, self.boot_skip, extra_items))
 
     def __repr__(self):
         return f"SamplingInfo('{self.method}', n={self.num_resamplings}, seed={self.seed}, boot_skip={self.boot_skip})"
@@ -380,7 +373,7 @@ class ObservableInfo:
         if self._latex_str:
             return self._latex_str
         else:
-            name = str(self.name).replace('_', r'\_')
+            name = str(self.name).replace("_", r"\_")
             return rf"\text{{{name}}}"
 
     @latex_str.setter
@@ -446,7 +439,7 @@ class ObservableInfo:
         return f"{self.name} {self.index}"  # Simple MCObs string format
 
 
-def _fmt_halfint(twoX: Optional[int]) -> Optional[str]:
+def _fmt_halfint(twoX: int | None) -> str | None:
     if twoX is None:
         return None
     # exact half-integer printing
@@ -466,20 +459,20 @@ class SectorInfo:
     """
 
     # Charges
-    B: Optional[int] = None  # Baryon number
-    Q: Optional[int] = None  # Electric charge
-    S: Optional[int] = None  # Strangeness
-    C: Optional[int] = None  # Charm
+    B: int | None = None  # Baryon number
+    Q: int | None = None  # Electric charge
+    S: int | None = None  # Strangeness
+    C: int | None = None  # Charm
 
     # Flavor symmetry
-    twoI: Optional[int] = None  # 2 * isospin
-    twoI3: Optional[int] = None  # 2 * isospin third component
-    Gpar: Optional[int] = None  # G-parity (±1)
-    Cpar: Optional[int] = None  # C-parity (±1)
+    twoI: int | None = None  # 2 * isospin
+    twoI3: int | None = None  # 2 * isospin third component
+    Gpar: int | None = None  # G-parity (±1)
+    Cpar: int | None = None  # C-parity (±1)
 
     # Continuum spin/parity
-    twoJ: Optional[int] = None  # 2 * total angular momentum
-    par: Optional[int] = None  # parity (±1)
+    twoJ: int | None = None  # 2 * total angular momentum
+    par: int | None = None  # parity (±1)
 
     @classmethod
     def from_sigmond_str(cls, s: str) -> "SectorInfo":
@@ -567,10 +560,10 @@ class SectorInfo:
                 parts.append(f"{name}={val}")
 
         # Isospin
-        I = _fmt_halfint(self.twoI)
+        isospin = _fmt_halfint(self.twoI)
         I3 = _fmt_halfint(self.twoI3)
-        if I is not None:
-            parts.append(f"I={I}")
+        if isospin is not None:
+            parts.append(f"I={isospin}")
         if I3 is not None:
             parts.append(f"I3={I3}")
 
@@ -616,12 +609,12 @@ class SectorInfo:
         # Isospin
         if self.twoI is not None:
             if self.twoI % 2 == 0:
-                items.append(rf"I={self.twoI//2}")
+                items.append(rf"I={self.twoI // 2}")
             else:
                 items.append(rf"I=\frac{{{self.twoI}}}{{2}}")
         if self.twoI3 is not None:
             if self.twoI3 % 2 == 0:
-                items.append(rf"I_3={self.twoI3//2}")
+                items.append(rf"I_3={self.twoI3 // 2}")
             else:
                 items.append(rf"I_3=\frac{{{self.twoI3}}}{{2}}")
 
@@ -634,7 +627,7 @@ class SectorInfo:
         # J^P
         if self.twoJ is not None:
             if self.twoJ % 2 == 0:
-                items.append(rf"J={self.twoJ//2}")
+                items.append(rf"J={self.twoJ // 2}")
             else:
                 items.append(rf"J=\frac{{{self.twoJ}}}{{2}}")
         if self.par is not None:

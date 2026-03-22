@@ -3,10 +3,11 @@ Container class for raw sampling data (Bins), handling blocking and resampling l
 Supports Dask for out-of-core processing of large datasets.
 """
 
-import numpy as np
-from typing import Union, List, Any, Optional
+from typing import Union
 
-from .info import ObservableInfo, SamplingInfo, DEFAULT_ENSEMBLE
+import numpy as np
+
+from .info import ObservableInfo, SamplingInfo
 from .sampling import SigmondSampling
 
 try:
@@ -32,7 +33,7 @@ class SigmondBins:
         data: Union[np.ndarray, list, "da.Array"],
         observable_info: ObservableInfo,
         is_complex: bool = False,
-        use_dask: Optional[bool] = None,
+        use_dask: bool | None = None,
     ):
         """
         Initialize SigmondBins.
@@ -77,8 +78,8 @@ class SigmondBins:
         return self.observable_info.ensemble_info
 
     def resample(
-        self, sampling_info: SamplingInfo, statistic: Union[str, List[str]] = "mean"
-    ) -> Union[SigmondSampling, List[SigmondSampling]]:
+        self, sampling_info: SamplingInfo, statistic: str | list[str] = "mean"
+    ) -> SigmondSampling | list[SigmondSampling]:
         """
         Perform Block Bootstrap or Jackknife on the raw bins.
 
@@ -252,9 +253,7 @@ class SigmondBins:
             )
 
             results.append(
-                SigmondSampling(
-                    final_data, obs_info, sampling_info, is_complex=self.is_complex
-                )
+                SigmondSampling(final_data, obs_info, sampling_info, is_complex=self.is_complex)
             )
 
         return results[0] if return_single else results

@@ -4,17 +4,17 @@ Automatically converts fstream files to HDF5 format for all operations, providin
 full Sigmond format functionality while using HDF5 as the primary working format.
 """
 
-import h5py
-import numpy as np
-import xml.etree.ElementTree as ET
-import shutil
-import os
 import logging
-from typing import List, Optional, Tuple
+import os
+import shutil
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .sampling import SigmondSampling, ObservableInfo, EnsembleInfo, SamplingInfo
+import h5py
+import numpy as np
+
 from .loader import SigmondLoader
+from .sampling import EnsembleInfo, ObservableInfo, SamplingInfo, SigmondSampling
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class SigmondWriter:
         """
         self.create_backups = create_backups
 
-    def _create_numbered_backup(self, filename: str) -> Optional[Path]:
+    def _create_numbered_backup(self, filename: str) -> Path | None:
         """
         Create a numbered backup of the file before modification.
 
@@ -55,9 +55,7 @@ class SigmondWriter:
 
         counter = 1
         while (
-            backup_path := filepath.with_suffix(
-                f"{filepath.suffix}.backup_{counter:03d}"
-            )
+            backup_path := filepath.with_suffix(f"{filepath.suffix}.backup_{counter:03d}")
         ).exists():
             counter += 1
 
@@ -70,8 +68,8 @@ class SigmondWriter:
             return None
 
     def _ensure_hdf5_format(
-        self, filename: str, hdf5_root_path: Optional[str] = None
-    ) -> Tuple[Path, str]:
+        self, filename: str, hdf5_root_path: str | None = None
+    ) -> tuple[Path, str]:
         """
         Ensure the input file is in HDF5 format, converting if necessary.
 
@@ -96,9 +94,7 @@ class SigmondWriter:
         logger.info(f"Converting {filepath} to HDF5 format for reliable processing...")
 
         # Create HDF5 filename
-        hdf5_filename = filepath.with_stem(f"{filepath.stem}_working").with_suffix(
-            ".hdf5"
-        )
+        hdf5_filename = filepath.with_stem(f"{filepath.stem}_working").with_suffix(".hdf5")
 
         # Determine root path
         root_path = hdf5_root_path or "samplings"
@@ -115,9 +111,7 @@ class SigmondWriter:
 
         return hdf5_filename, root_path
 
-    def _generate_header_xml(
-        self, ensemble_info: EnsembleInfo, sampling_info: SamplingInfo
-    ) -> str:
+    def _generate_header_xml(self, ensemble_info: EnsembleInfo, sampling_info: SamplingInfo) -> str:
         """Generate the XML header for a Sigmond file in the exact format expected."""
         # Use SigmondSamplingsFile as root element to match real format
         root = ET.Element("SigmondSamplingsFile")
@@ -125,9 +119,7 @@ class SigmondWriter:
         # Add bins info first (matches real format order)
         bins_elem = ET.SubElement(root, "MCBinsInfo")
         ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.name
-        ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(
-            ensemble_info.num_measurements
-        )
+        ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(ensemble_info.num_measurements)
         ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
 
         # Add tweak info if present
@@ -145,9 +137,7 @@ class SigmondWriter:
                 sampling_info.num_resamplings
             )
             ET.SubElement(bootstrap_elem, "Seed").text = str(sampling_info.seed)
-            ET.SubElement(bootstrap_elem, "BootSkip").text = str(
-                sampling_info.boot_skip
-            )
+            ET.SubElement(bootstrap_elem, "BootSkip").text = str(sampling_info.boot_skip)
         elif sampling_info.method == "jackknife":
             if sampling_info.num_resamplings == ensemble_info.num_bins:
                 # Simple jackknife
@@ -210,7 +200,7 @@ class SigmondWriter:
     def write_file(
         self,
         filename: str,
-        samplings: List[SigmondSampling],
+        samplings: list[SigmondSampling],
         root_path: str = "/data/",
         overwrite: bool = False,
     ) -> str:
@@ -238,7 +228,7 @@ class SigmondWriter:
     def write_hdf5(
         self,
         filename: str,
-        samplings: List[SigmondSampling],
+        samplings: list[SigmondSampling],
         root_path: str = "/",
         overwrite: bool = False,
     ) -> None:
@@ -288,9 +278,7 @@ class SigmondWriter:
 
             # File identifier - match exact format of real files with fixed size
             fid_dtype = h5py.string_dtype(encoding="utf-8", length=23)
-            info_group.create_dataset(
-                "FIdentifier", data="Sigmond--SamplingsFile", dtype=fid_dtype
-            )
+            info_group.create_dataset("FIdentifier", data="Sigmond--SamplingsFile", dtype=fid_dtype)
 
             # Endianness - match exact format of real files with fixed size
             end_dtype = h5py.string_dtype(encoding="utf-8", length=2)
@@ -346,9 +334,7 @@ class SigmondWriter:
 
                 else:
                     # Write real data
-                    key_xml = self._generate_observable_key_xml(
-                        sampling.observable_info
-                    )
+                    key_xml = self._generate_observable_key_xml(sampling.observable_info)
                     key_safe = self._make_hdf5_safe_key(key_xml)
                     # Ensure data is float64 for compatibility
                     real_data = sampling.data.astype(np.float64)
@@ -358,9 +344,7 @@ class SigmondWriter:
                 f"Successfully wrote {len(samplings)} samplings to {filename} at path '{root_path}'"
             )
 
-    def restore_from_backup(
-        self, filename: str, backup_number: Optional[int] = None
-    ) -> None:
+    def restore_from_backup(self, filename: str, backup_number: int | None = None) -> None:
         """
         Restore a file from its numbered backup.
 
@@ -387,9 +371,7 @@ class SigmondWriter:
         shutil.copy2(backup_path, filename)
         logger.info(f"Restored {filename} from backup {backup_path}")
 
-    def delete_backups(
-        self, filename: str, backup_numbers: Optional[List[int] | int] = None
-    ) -> None:
+    def delete_backups(self, filename: str, backup_numbers: list[int] | int | None = None) -> None:
         """
         Delete all backups associated with a file.
 
@@ -426,9 +408,9 @@ class SigmondWriter:
     def append_to_file(
         self,
         filename: str,
-        new_samplings: List[SigmondSampling],
+        new_samplings: list[SigmondSampling],
         overwrite: bool = True,
-        hdf5_root_path: Optional[str] = None,
+        hdf5_root_path: str | None = None,
     ) -> str:
         """
         Append new samplings to an existing file.
@@ -454,18 +436,16 @@ class SigmondWriter:
         self._create_numbered_backup(hdf5_filename)
 
         # Perform append on HDF5 file
-        self._append_to_hdf5(
-            hdf5_filename, new_samplings, overwrite, root_path.strip("/")
-        )
+        self._append_to_hdf5(hdf5_filename, new_samplings, overwrite, root_path.strip("/"))
 
         return hdf5_filename
 
     def _append_to_hdf5(
         self,
         filename: str,
-        new_samplings: List[SigmondSampling],
+        new_samplings: list[SigmondSampling],
         overwrite: bool,
-        root_path: Optional[str] = None,
+        root_path: str | None = None,
     ) -> None:
         if not new_samplings:
             raise ValueError("No samplings provided")
@@ -510,7 +490,9 @@ class SigmondWriter:
                     # Handle existing dataset
                     if re_key_safe in values_group:
                         if not overwrite:
-                            obs_name = f"{sampling.observable_info.name}[{sampling.observable_info.index}]"
+                            obs_name = (
+                                f"{sampling.observable_info.name}[{sampling.observable_info.index}]"
+                            )
                             raise FileExistsError(
                                 f"Observable {obs_name} (real part) already exists. "
                                 f"Use overwrite=True to replace it."
@@ -535,7 +517,9 @@ class SigmondWriter:
                     # Handle existing dataset
                     if im_key_safe in values_group:
                         if not overwrite:
-                            obs_name = f"{sampling.observable_info.name}[{sampling.observable_info.index}]"
+                            obs_name = (
+                                f"{sampling.observable_info.name}[{sampling.observable_info.index}]"
+                            )
                             raise FileExistsError(
                                 f"Observable {obs_name} (imaginary part) already exists. "
                                 f"Use overwrite=True to replace it."
@@ -548,9 +532,7 @@ class SigmondWriter:
 
                 else:
                     # Write real data
-                    key_xml = self._generate_observable_key_xml(
-                        sampling.observable_info
-                    )
+                    key_xml = self._generate_observable_key_xml(sampling.observable_info)
                     key_safe = self._make_hdf5_safe_key(key_xml)
 
                     # Handle existing dataset
@@ -568,7 +550,7 @@ class SigmondWriter:
                     values_group.create_dataset(key_safe, data=real_data)
 
     def _validate_samplings_compatibility(
-        self, filename: str, new_samplings: List[SigmondSampling]
+        self, filename: str, new_samplings: list[SigmondSampling]
     ) -> None:
         """Validate that new samplings are compatible with existing file structure.
 
@@ -595,28 +577,19 @@ class SigmondWriter:
             ref_ensemble = existing.ensemble_info
             ref_sampling_info = existing.sampling_info
         except Exception as e:
-            raise ValueError(
-                f"Failed to read existing file for compatibility check: {e}"
-            )
+            raise ValueError(f"Failed to read existing file for compatibility check: {e}")
 
         # Validate new samplings - check both against file and internal consistency
         first_new = new_samplings[0]
         for i, samp in enumerate(new_samplings):
             if samp.sampling_info != ref_sampling_info:
-                raise ValueError(
-                    f"New sampling {i} has incompatible sampling info with file"
-                )
+                raise ValueError(f"New sampling {i} has incompatible sampling info with file")
             if samp.observable_info.ensemble_info != ref_ensemble:
-                raise ValueError(
-                    f"New sampling {i} has incompatible ensemble info with file"
-                )
+                raise ValueError(f"New sampling {i} has incompatible ensemble info with file")
             # Check internal consistency
             if samp.sampling_info != first_new.sampling_info:
                 raise ValueError(f"New sampling {i} has inconsistent sampling info")
-            if (
-                samp.observable_info.ensemble_info
-                != first_new.observable_info.ensemble_info
-            ):
+            if samp.observable_info.ensemble_info != first_new.observable_info.ensemble_info:
                 raise ValueError(f"New sampling {i} has inconsistent ensemble info")
 
     def convert_format(
@@ -648,9 +621,7 @@ class SigmondWriter:
         samplings_list = list(loader.observables)
 
         # Write to HDF5
-        self.write_hdf5(
-            str(outpath), samplings_list, hdf5_root_path, overwrite=overwrite
-        )
+        self.write_hdf5(str(outpath), samplings_list, hdf5_root_path, overwrite=overwrite)
 
         return str(outpath)
 
@@ -660,7 +631,7 @@ class SigmondWriter:
         observable_name: str,
         observable_index: int,
         new_data: np.ndarray,
-        hdf5_root_path: Optional[str] = None,
+        hdf5_root_path: str | None = None,
     ) -> str:
         """
         Modify an existing observable in a file.
@@ -712,9 +683,7 @@ class SigmondWriter:
         )
 
         # Build new list with modification
-        samplings_list = [
-            modified_sampling if s is original_sampling else s for s in samplings
-        ]
+        samplings_list = [modified_sampling if s is original_sampling else s for s in samplings]
 
         # Write back to HDF5 file
         self.write_hdf5(str(hdf5_filename), samplings_list, root_path, overwrite=True)

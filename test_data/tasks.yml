@@ -11,7 +11,7 @@ tasks:
         # rotate_by_samplings: True
 
   - fit_spectrum:
-      averaged_input_correlators_dir: 
+      averaged_input_correlators_dir:
         - /latticeQCD/raid7/phi_rho_model/colin/g1000_imp/s32_t48/phirho_s32_t48_mp0100_mr0310_lp0250_lr1000_g1000.bins
       reference_particle: Phi
       non_interacting_energy_sums: False
@@ -51,12 +51,12 @@ tasks:
         isosinglet S=0 A1_1 P=(0,1,1): [['Phi(2)'], ['Phi(0)', 'Phi(2)'], ['Rho(2)'], ['Phi(1)', 'Phi(1)'],
                                         ['Phi(1)', 'Phi(3)'], ['Phi(2)', 'Phi(2)'], ['Phi(2)', 'Phi(2)'], ['Phi(2)', 'Phi(3)']]
         isosinglet S=0 A1_1 P=(1,1,1): [['Phi(3)'], ['Phi(0)', 'Phi(3)'], ['Rho(3)'], ['Phi(1)', 'Phi(2)'], ['Phi(1)', 'Phi(2)'], ['Phi(1)', 'Phi(2)'], ['Phi(1)', 'Phi(2)']]
-      
+
 
       default_interacting_corr_fit:
         model: 1-exp
         tmin: 3
-        tmax: 14 
+        tmax: 14
         ratio: false
         tmin_plots:
         # - model: 1-exp
@@ -130,7 +130,7 @@ tasks:
           tmin: 3
           tmax: 15
           ratio: false
-        
+
         isosinglet S=0 P=(0,1,1) A1_1 ROT 0:
           model: 1-exp-sym
           tmin: 3
@@ -141,7 +141,7 @@ tasks:
           model: 1-exp-sym-const
           tmin: 3
           tmax: 15
-          ratio: false    
+          ratio: false
         # isosinglet S=0 P=(0,0,0) A1g_1 ROT 1:
         #   model: 2-exp-sym
         #   tmin: 3

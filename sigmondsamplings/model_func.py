@@ -2,12 +2,14 @@
 Model function wrapper for SigmondSamplings with automatic parameter handling.
 """
 
-import numpy as np
-import warnings
-from typing import Callable, List, Optional, Union
-from .sampling import SigmondSampling, ObservableInfo, SamplingInfo, DEFAULT_ENSEMBLE
-from .obervable_collection import ObservableCollection
 import inspect
+import warnings
+from collections.abc import Callable
+
+import numpy as np
+
+from .obervable_collection import ObservableCollection
+from .sampling import DEFAULT_ENSEMBLE, ObservableInfo, SamplingInfo, SigmondSampling
 
 
 class SigmondModelFunc:
@@ -29,10 +31,10 @@ class SigmondModelFunc:
     def __init__(
         self,
         func: Callable,
-        parameter_infos: List[ObservableInfo],
+        parameter_infos: list[ObservableInfo],
         sampling_info: SamplingInfo,
-        latex_str: Optional[str] = None,
-        independent_var_latex: Optional[str] = None,
+        latex_str: str | None = None,
+        independent_var_latex: str | None = None,
     ):
         """
         Initialize the model function wrapper.
@@ -59,7 +61,7 @@ class SigmondModelFunc:
             )
 
     @property
-    def parameter_infos(self) -> List[ObservableInfo]:
+    def parameter_infos(self) -> list[ObservableInfo]:
         """Get parameter ObservableInfo objects."""
         if hasattr(self, "params"):
             return [s.observable_info for s in self.params]
@@ -70,8 +72,8 @@ class SigmondModelFunc:
         cls,
         func: Callable,
         parameter_collection: ObservableCollection,
-        latex_str: Optional[str] = None,
-        independent_var_latex: Optional[str] = None,
+        latex_str: str | None = None,
+        independent_var_latex: str | None = None,
     ) -> "SigmondModelFunc":
         """
         Alternative constructor using an ObservableCollection for parameters.
@@ -90,9 +92,7 @@ class SigmondModelFunc:
         parameter_infos = [s.observable_info for s in parameter_collection]
 
         # Create the model instance
-        model = cls(
-            func, parameter_infos, sampling_info, latex_str, independent_var_latex
-        )
+        model = cls(func, parameter_infos, sampling_info, latex_str, independent_var_latex)
 
         # Set the parameters directly using the collection
         model.params = parameter_collection
@@ -101,9 +101,7 @@ class SigmondModelFunc:
 
     def set_parameters(
         self,
-        param_data: Union[
-            List[np.ndarray], List[SigmondSampling], ObservableCollection
-        ],
+        param_data: list[np.ndarray] | list[SigmondSampling] | ObservableCollection,
     ):
         """
         Set the model parameters from fitted data.
@@ -143,19 +141,14 @@ class SigmondModelFunc:
         # Create ObservableCollection and update the initial info if different
         self.params = ObservableCollection(samplings)
         first_sampling = next(iter(self.params), None)
-        if (
-            first_sampling is not None
-            and self.sampling_info != first_sampling.sampling_info
-        ):
+        if first_sampling is not None and self.sampling_info != first_sampling.sampling_info:
             warnings.warn(
                 "Parameter sampling_info updated to match provided parameter data: "
                 f"{self.sampling_info} -> {first_sampling.sampling_info}"
             )
             self.sampling_info = first_sampling.sampling_info
 
-    def get_latex_str_with_var(
-        self, var_latex: Optional[str] = None, index: Optional[int] = None
-    ) -> str:
+    def get_latex_str_with_var(self, var_latex: str | None = None, index: int | None = None) -> str:
         """
         Get the complete LaTeX string with independent variable substituted.
 
@@ -186,9 +179,9 @@ class SigmondModelFunc:
 
     def __call__(
         self,
-        x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling],
-        output_info: Optional[ObservableInfo] = None,
-    ) -> Union[SigmondSampling, List[SigmondSampling]]:
+        x_values: np.ndarray | list[SigmondSampling] | SigmondSampling,
+        output_info: ObservableInfo | None = None,
+    ) -> SigmondSampling | list[SigmondSampling]:
         """
         Evaluate model at x_values using internal parameters.
         Uses the ufunc nature of SigmondSampling for automatic error propagation.
@@ -230,9 +223,7 @@ class SigmondModelFunc:
 
             return result
 
-        elif isinstance(x_values, list) and all(
-            isinstance(x, SigmondSampling) for x in x_values
-        ):
+        elif isinstance(x_values, list) and all(isinstance(x, SigmondSampling) for x in x_values):
             # Multiple x values with uncertainties
             results = []
             for i, x_val in enumerate(x_values):
@@ -304,7 +295,7 @@ class SigmondModelFunc:
 
     def evaluate_with_uncertainty(
         self,
-        x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling],
+        x_values: np.ndarray | list[SigmondSampling] | SigmondSampling,
         confidence_level: float = 0.68,
     ) -> tuple:
         """
@@ -349,8 +340,8 @@ class SigmondModelFunc:
             return means, lowers, uppers
 
     def evaluate_full_sample(
-        self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]
-    ) -> Union[float, np.ndarray]:
+        self, x_values: np.ndarray | list[SigmondSampling] | SigmondSampling
+    ) -> float | np.ndarray:
         """
         Evaluate model using full sample values.
 
@@ -370,7 +361,7 @@ class SigmondModelFunc:
             return np.array([r.full_sample_value for r in results])
 
     def evaluate_samples(
-        self, x_values: Union[np.ndarray, List[SigmondSampling], SigmondSampling]
+        self, x_values: np.ndarray | list[SigmondSampling] | SigmondSampling
     ) -> np.ndarray:
         """
         Return all bootstrap/jackknife sample evaluations.
@@ -390,9 +381,7 @@ class SigmondModelFunc:
             return results.data.reshape(-1, 1)  # Shape: (n_samples, 1)
         else:
             # Multiple x values - stack the data arrays
-            return np.column_stack(
-                [r.data for r in results]
-            )  # Shape: (n_samples, len(x_values))
+            return np.column_stack([r.data for r in results])  # Shape: (n_samples, len(x_values))
 
     def __repr__(self):
         if hasattr(self, "params"):
@@ -432,7 +421,7 @@ def polynomial_model(
     degree: int,
     sampling_info: SamplingInfo,
     ensemble_info=DEFAULT_ENSEMBLE,
-    latex_str: Optional[str] = None,
+    latex_str: str | None = None,
     independent_var_latex: str = "x",
 ) -> SigmondModelFunc:
     """Create polynomial model of specified degree"""
@@ -448,9 +437,7 @@ def polynomial_model(
     if latex_str is None:
         latex_str = "P({VAR})" if degree > 1 else r"c_0 + c_1 {VAR}"
 
-    return SigmondModelFunc(
-        poly_func, param_infos, sampling_info, latex_str, independent_var_latex
-    )
+    return SigmondModelFunc(poly_func, param_infos, sampling_info, latex_str, independent_var_latex)
 
 
 def gaussian_model(

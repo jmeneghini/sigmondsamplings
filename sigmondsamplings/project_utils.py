@@ -5,14 +5,12 @@ This module contains helper functions that are useful across different
 lattice QCD analysis projects.
 """
 
-import os
 import platform
-import glob
 import re
-import numpy as np
-from typing import List, Dict, Optional, Union, Tuple, Any
 from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
 
 from .sampling import SigmondSampling
 
@@ -23,7 +21,7 @@ class OSInfo:
 
     name: str  # 'Windows', 'Darwin', 'Linux', …
     version: str  # user-friendly version string
-    distro: Optional[str] = None  # only for Linux, e.g. 'Ubuntu 24.04'
+    distro: str | None = None  # only for Linux, e.g. 'Ubuntu 24.04'
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +69,7 @@ def get_os_info() -> OSInfo:
     return OSInfo(name=system, version=platform.release())
 
 
-def string_of_list_to_list(string: str) -> List[str]:
+def string_of_list_to_list(string: str) -> list[str]:
     """
     Convert a string representation of a list to an actual list.
 
@@ -90,8 +88,8 @@ def string_of_list_to_list(string: str) -> List[str]:
 
 
 def get_gamma_from_elab_and_ecm(
-    elab: Union[float, SigmondSampling], ecm: Union[float, SigmondSampling]
-) -> Union[float, SigmondSampling]:
+    elab: float | SigmondSampling, ecm: float | SigmondSampling
+) -> float | SigmondSampling:
     """
     Calculate the gamma factor from elab and ecm energies.
 
@@ -116,9 +114,9 @@ def get_gamma_from_elab_and_ecm(
 
 
 def get_g_ref_from_Gamma_ref(
-    Gamma_ref: Union[float, SigmondSampling],
-    rho_mass_ref: Union[float, SigmondSampling],
-) -> Union[float, SigmondSampling]:
+    Gamma_ref: float | SigmondSampling,
+    rho_mass_ref: float | SigmondSampling,
+) -> float | SigmondSampling:
     """
     Calculate the g_ref from Gamma_ref and rho_mass_ref.
 
@@ -135,14 +133,12 @@ def get_g_ref_from_Gamma_ref(
         The calculated g_ref value.
     """
     mass_rho_ref_sqr = rho_mass_ref**2
-    return np.sqrt(
-        32 * np.pi * mass_rho_ref_sqr * Gamma_ref / np.sqrt(mass_rho_ref_sqr - 4.0)
-    )
+    return np.sqrt(32 * np.pi * mass_rho_ref_sqr * Gamma_ref / np.sqrt(mass_rho_ref_sqr - 4.0))
 
 
 def get_Gamma_ref_from_g_ref(
-    g_ref: Union[float, SigmondSampling], rho_mass_ref: Union[float, SigmondSampling]
-) -> Union[float, SigmondSampling]:
+    g_ref: float | SigmondSampling, rho_mass_ref: float | SigmondSampling
+) -> float | SigmondSampling:
     """
     Calculate the Gamma_ref from g_ref and rho_mass_ref.
 
@@ -163,8 +159,8 @@ def get_Gamma_ref_from_g_ref(
 
 
 def find_files_with_pattern(
-    base_dir: Union[str, Path], pattern: str, recursive: bool = True
-) -> List[str]:
+    base_dir: str | Path, pattern: str, recursive: bool = True
+) -> list[str]:
     """
     Find files matching a pattern in a directory.
 
@@ -190,8 +186,8 @@ def find_files_with_pattern(
 
 
 def extract_numeric_values_from_filename(
-    filename: str, patterns: Union[str, List[str]]
-) -> Dict[str, Union[int, float]]:
+    filename: str, patterns: str | list[str]
+) -> dict[str, int | float]:
     """
     Extract numeric values from filename using regex patterns.
 
@@ -239,7 +235,7 @@ def extract_numeric_values_from_filename(
 
 
 def get_momentum_squared_from_momentum(
-    momentum: Union[Tuple[int, int, int], List[int]],
+    momentum: tuple[int, int, int] | list[int],
 ) -> int:
     """
     Calculate momentum squared from momentum vector.
@@ -257,7 +253,7 @@ def get_momentum_squared_from_momentum(
     return sum(p**2 for p in momentum)
 
 
-def get_momentum_from_momentum_squared(psq: int) -> List[Tuple[int, int, int]]:
+def get_momentum_from_momentum_squared(psq: int) -> list[tuple[int, int, int]]:
     """
     Get all possible momentum vectors for a given momentum squared.
 
@@ -284,8 +280,8 @@ def get_momentum_from_momentum_squared(psq: int) -> List[Tuple[int, int, int]]:
 
 
 def group_observables_by_momentum(
-    observables: Dict[str, SigmondSampling], observable_parser: callable
-) -> Dict[int, Dict[str, SigmondSampling]]:
+    observables: dict[str, SigmondSampling], observable_parser: callable
+) -> dict[int, dict[str, SigmondSampling]]:
     """
     Group observables by momentum squared using a parser function.
 

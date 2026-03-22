@@ -2,21 +2,16 @@
 Plotting utilities for SigmondSamplings and SigmondStats.
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-import copy
+from collections.abc import Callable, Iterable
 from typing import (
-    Union,
-    List,
-    Dict,
-    Optional,
-    Tuple,
-    Callable,
-    Any,
     TYPE_CHECKING,
-    Iterable,
+    Any,
 )
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Ellipse
+
 from .sampling import SigmondSampling
 from .stats import SamplingStats
 
@@ -24,7 +19,6 @@ if TYPE_CHECKING:
     from .model_func import SigmondModelFunc
 
 # Import color functions for chi2 plotting
-from . import chi2_color_functions
 
 
 class SamplingPlotter:
@@ -37,9 +31,9 @@ class SamplingPlotter:
 
     def __init__(
         self,
-        stats: Optional[Iterable[SigmondSampling]] = None,
-        default_figsize: Tuple[float, float] = (10, 6),
-        default_style: Dict[str, Any] = None,
+        stats: Iterable[SigmondSampling] | None = None,
+        default_figsize: tuple[float, float] = (10, 6),
+        default_style: dict[str, Any] = None,
     ):
         """
         Initialize the plotter.
@@ -58,12 +52,12 @@ class SamplingPlotter:
 
     def plot_sampling_histogram(
         self,
-        sampling: Optional[SigmondSampling | int] = None,
-        bins: Union[int, str] = "auto",
-        ax: Optional[plt.Axes] = None,
+        sampling: SigmondSampling | int | None = None,
+        bins: int | str = "auto",
+        ax: plt.Axes | None = None,
         confidence_level: float = 0.68,
         show_bias: bool = False,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -83,15 +77,11 @@ class SamplingPlotter:
         # Use provided sampling or first from stats
         if sampling is None:
             if self.stats is None:
-                raise ValueError(
-                    "Must provide sampling or initialize with SamplingStats"
-                )
+                raise ValueError("Must provide sampling or initialize with SamplingStats")
             sampling = self.stats[0]
         elif isinstance(sampling, int):
             if self.stats is None:
-                raise ValueError(
-                    "Must provide sampling or initialize with SamplingStats"
-                )
+                raise ValueError("Must provide sampling or initialize with SamplingStats")
             sampling = self.stats[sampling]
 
         if ax is None:
@@ -115,7 +105,7 @@ class SamplingPlotter:
                 color="red",
                 linestyle="--",
                 alpha=0.7,
-                label=rf"${confidence_level*100:.1f}\%$ CI",
+                label=rf"${confidence_level * 100:.1f}\%$ CI",
             )
             ax.axvline(upper, color="red", linestyle="--", alpha=0.7)
         else:
@@ -125,7 +115,7 @@ class SamplingPlotter:
                 color="red",
                 linestyle="--",
                 alpha=0.7,
-                label=f"Mean ± Error",
+                label="Mean ± Error",
             )
             ax.axvline(mean_val + error_val, color="red", linestyle="--", alpha=0.7)
 
@@ -166,7 +156,11 @@ class SamplingPlotter:
         # Labels and formatting
         ax.set_xlabel("Value")
         ax.set_ylabel("Density")
-        title_header = f"${sampling.latex_str}$" if sampling.latex_str else sampling.observable_name.replace("_", " ")
+        title_header = (
+            f"${sampling.latex_str}$"
+            if sampling.latex_str
+            else sampling.observable_name.replace("_", " ")
+        )
         ax.set_title(
             f"{title_header}\n"
             f"({sampling.sampling_info.method.title()}, "
@@ -179,11 +173,11 @@ class SamplingPlotter:
 
     def plot_sampling_errorbar(
         self,
-        samplings: Optional[Union[SigmondSampling, List[SigmondSampling]]] = None,
-        x_values: Optional[Union[np.ndarray, List]] = None,
-        ax: Optional[plt.Axes] = None,
-        labels: Optional[List[str]] = None,
-        figsize: Optional[Tuple[float, float]] = None,
+        samplings: SigmondSampling | list[SigmondSampling] | None = None,
+        x_values: np.ndarray | list | None = None,
+        ax: plt.Axes | None = None,
+        labels: list[str] | None = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -203,9 +197,7 @@ class SamplingPlotter:
         # Use provided samplings or all from stats
         if samplings is None:
             if self.stats is None:
-                raise ValueError(
-                    "Must provide samplings or initialize with SamplingStats"
-                )
+                raise ValueError("Must provide samplings or initialize with SamplingStats")
             samplings = self.stats
 
         if ax is None:
@@ -242,9 +234,7 @@ class SamplingPlotter:
 
         # Labels and formatting
         ax.set_xlabel(
-            "Observable"
-            if np.array_equal(x_values, np.arange(n_samplings))
-            else "X Value"
+            "Observable" if np.array_equal(x_values, np.arange(n_samplings)) else "X Value"
         )
         ax.set_ylabel("Value")
 
@@ -255,7 +245,7 @@ class SamplingPlotter:
             )
         else:
             ensemble_names = list(set(s.ensemble_info.name for s in samplings))
-            title = f"Multiple Observables"
+            title = "Multiple Observables"
             if len(ensemble_names) == 1:
                 title += f" ({ensemble_names[0]})"
             ax.set_title(title)
@@ -271,7 +261,7 @@ class SamplingPlotter:
 
     def plot_corner(
         self,
-        labels: Optional[List[str]] = None,
+        labels: list[str] | None = None,
         **kwargs,
     ) -> Any:
         """
@@ -291,17 +281,14 @@ class SamplingPlotter:
             import corner
         except ImportError:
             raise ImportError(
-                "corner package is required for corner plots. "
-                "Install with: pip install corner"
+                "corner package is required for corner plots. Install with: pip install corner"
             )
 
         # Set default labels - use str() method which handles latex_str automatically
         if labels is None:
             labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
         elif len(labels) != len(self.stats):
-            raise ValueError(
-                "Length of labels must match number of selected observables"
-            )
+            raise ValueError("Length of labels must match number of selected observables")
 
         # Default corner plot settings
         corner_kwargs = {
@@ -326,15 +313,13 @@ class SamplingPlotter:
         ensemble_names = list(set(s.ensemble_info.name for s in self.stats))
         if len(ensemble_names) == 1:
             fig.suptitle(
-                f"Ensemble: {ensemble_names[0]} "
-                f"({self.stats[0].sampling_info.method.title()})",
+                f"Ensemble: {ensemble_names[0]} ({self.stats[0].sampling_info.method.title()})",
                 y=0.98,
                 fontsize=16,
             )
         else:
             fig.suptitle(
-                f"Multiple Ensembles "
-                f"({self.stats[0].sampling_info.method.title()})",
+                f"Multiple Ensembles ({self.stats[0].sampling_info.method.title()})",
                 y=0.98,
                 fontsize=16,
             )
@@ -344,15 +329,15 @@ class SamplingPlotter:
     def plot_fit_result(
         self,
         model_func: "SigmondModelFunc",
-        x_fit_values: Optional[np.ndarray] = None,
-        ax: Optional[plt.Axes] = None,
-        x_fit_range: Optional[Tuple[float, float]] = None,
+        x_fit_values: np.ndarray | None = None,
+        ax: plt.Axes | None = None,
+        x_fit_range: tuple[float, float] | None = None,
         n_fit_points: int = 100,
         confidence_level: float = 0.68,
         show_bootstrap_cloud: bool = True,
         show_fit: bool = True,
         show_uncertainty: bool = True,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -388,12 +373,8 @@ class SamplingPlotter:
 
         # Validate x_fit_values is numeric if provided
         if x_fit_values is not None:
-            if hasattr(x_fit_values, "__iter__") and any(
-                hasattr(x, "data") for x in x_fit_values
-            ):
-                raise TypeError(
-                    "x_fit_values must be numeric array, not SigmondSampling objects"
-                )
+            if hasattr(x_fit_values, "__iter__") and any(hasattr(x, "data") for x in x_fit_values):
+                raise TypeError("x_fit_values must be numeric array, not SigmondSampling objects")
 
         if ax is None:
             figsize = figsize or self.default_figsize
@@ -420,16 +401,12 @@ class SamplingPlotter:
 
         for i, (x_sampling, y_result) in enumerate(zip(x_samplings, y_results)):
             # Calculate ellipse parameters using the static method
-            center_x, center_y, width, height, angle = (
-                SamplingStats.confidence_ellipse_params(
-                    x_sampling, y_result, confidence_level
-                )
+            center_x, center_y, width, height, angle = SamplingStats.confidence_ellipse_params(
+                x_sampling, y_result, confidence_level
             )
 
             # Create ellipse patch
-            ellipse = Ellipse(
-                (center_x, center_y), width, height, angle=angle, **ellipse_kwargs
-            )
+            ellipse = Ellipse((center_x, center_y), width, height, angle=angle, **ellipse_kwargs)
             ax.add_patch(ellipse)
 
             # Also plot the center point
@@ -441,7 +418,7 @@ class SamplingPlotter:
             [],
             "o",
             color="red",
-            label=f"${confidence_level*100:.0f}\\%$ Confidence",
+            label=f"${confidence_level * 100:.0f}\\%$ Confidence",
             alpha=0.6,
         )
 
@@ -510,7 +487,7 @@ class SamplingPlotter:
                 band_kwargs = {
                     "alpha": 0.3,
                     "color": "deepskyblue",
-                    "label": f"${confidence_level*100:.1f}\\%$ Confidence",
+                    "label": f"${confidence_level * 100:.1f}\\%$ Confidence",
                     "zorder": 5,
                 }
                 band_kwargs.update(kwargs.get("band_kwargs", {}))
@@ -529,9 +506,9 @@ class SamplingPlotter:
 
     def _extract_x_var_latex(
         self,
-        x_values: Union[np.ndarray, List["SigmondSampling"]],
+        x_values: np.ndarray | list["SigmondSampling"],
         x_has_uncertainties: bool,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Extract LaTeX string for the independent variable from x_values.
 
@@ -551,8 +528,8 @@ class SamplingPlotter:
 
     def plot_correlation_matrix(
         self,
-        ax: Optional[plt.Axes] = None,
-        figsize: Optional[Tuple[float, float]] = None,
+        ax: plt.Axes | None = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -567,9 +544,7 @@ class SamplingPlotter:
             matplotlib Axes object
         """
         if self.stats is None:
-            raise ValueError(
-                "Must initialize with SamplingStats for correlation matrix"
-            )
+            raise ValueError("Must initialize with SamplingStats for correlation matrix")
 
         if ax is None:
             figsize = figsize or self.default_figsize
@@ -595,9 +570,7 @@ class SamplingPlotter:
 
         return ax
 
-    def plot_stats_summary(
-        self, figsize: Optional[Tuple[float, float]] = None
-    ) -> plt.Figure:
+    def plot_stats_summary(self, figsize: tuple[float, float] | None = None) -> plt.Figure:
         """
         Create a comprehensive summary plot with multiple panels.
 
@@ -639,12 +612,12 @@ class SamplingPlotter:
 
     def plot_bootstrap_intervals(
         self,
-        samplings: Optional[Union[SigmondSampling, List[SigmondSampling]]] = None,
-        x_values: Optional[Union[np.ndarray, List]] = None,
-        confidence_levels: List[float] = [0.68, 0.95],
-        ax: Optional[plt.Axes] = None,
-        labels: Optional[List[str]] = None,
-        figsize: Optional[Tuple[float, float]] = None,
+        samplings: SigmondSampling | list[SigmondSampling] | None = None,
+        x_values: np.ndarray | list | None = None,
+        confidence_levels: list[float] = [0.68, 0.95],
+        ax: plt.Axes | None = None,
+        labels: list[str] | None = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -665,9 +638,7 @@ class SamplingPlotter:
         # Use provided samplings or all from stats
         if samplings is None:
             if self.stats is None:
-                raise ValueError(
-                    "Must provide samplings or initialize with SamplingStats"
-                )
+                raise ValueError("Must provide samplings or initialize with SamplingStats")
             samplings = self.stats
 
         if ax is None:
@@ -679,9 +650,7 @@ class SamplingPlotter:
             samplings = [samplings]
 
         # Filter only bootstrap samplings
-        bootstrap_samplings = [
-            s for s in samplings if s.sampling_info.method == "bootstrap"
-        ]
+        bootstrap_samplings = [s for s in samplings if s.sampling_info.method == "bootstrap"]
         if not bootstrap_samplings:
             raise ValueError("No bootstrap samplings found")
 
@@ -691,17 +660,13 @@ class SamplingPlotter:
         if x_values is None:
             x_values = np.arange(n_samplings)
         elif len(x_values) != n_samplings:
-            raise ValueError(
-                "Length of x_values must match number of bootstrap samplings"
-            )
+            raise ValueError("Length of x_values must match number of bootstrap samplings")
 
         # Set default labels - use str() method which handles latex_str automatically
         if labels is None:
             labels = [str(s.observable_info) for s in bootstrap_samplings]
         elif len(labels) != n_samplings:
-            raise ValueError(
-                "Length of labels must match number of bootstrap samplings"
-            )
+            raise ValueError("Length of labels must match number of bootstrap samplings")
 
         # Extract means
         means = np.array([s.mean for s in bootstrap_samplings])
@@ -759,9 +724,7 @@ class SamplingPlotter:
 
         # Labels and formatting
         ax.set_xlabel(
-            "Observable Index"
-            if np.array_equal(x_values, np.arange(n_samplings))
-            else "X Value"
+            "Observable Index" if np.array_equal(x_values, np.arange(n_samplings)) else "X Value"
         )
         ax.set_ylabel("Value")
         ax.set_title("Bootstrap Confidence Intervals")
@@ -780,17 +743,16 @@ class SamplingPlotter:
         self,
         prediction_func: Callable[[np.ndarray], np.ndarray],
         param_index: int,
-        param_range: Tuple[float, float],
+        param_range: tuple[float, float],
         n_points: int = 100,
-        fixed_params: Optional[Dict[int, float]] = None,
-        param_names: Optional[List[str]] = None,
-        color_function: Optional[
-            Callable[[np.ndarray, float], Union[str, Tuple[float, float, float]]]
-        ] = None,
-        ax: Optional[plt.Axes] = None,
+        fixed_params: dict[int, float] | None = None,
+        param_names: list[str] | None = None,
+        color_function: Callable[[np.ndarray, float], str | tuple[float, float, float]]
+        | None = None,
+        ax: plt.Axes | None = None,
         resamp_idx: int = 0,
         use_correlation: bool = True,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ) -> plt.Axes:
         """
@@ -879,9 +841,7 @@ class SamplingPlotter:
         min_idx = np.argmin(chi2_values)
         min_param = param_values_to_scan[min_idx]
         min_chi2 = chi2_values[min_idx]
-        ax.plot(
-            min_param, min_chi2, "ro", markersize=8, label=f"Min: χ²={min_chi2:.3f}"
-        )
+        ax.plot(min_param, min_chi2, "ro", markersize=8, label=f"Min: χ²={min_chi2:.3f}")
 
         # Add confidence level lines
         chi2_min = np.min(chi2_values)
@@ -917,14 +877,13 @@ class SamplingPlotter:
     def plot_chi2_2d(
         self,
         prediction_func: Callable[[np.ndarray], np.ndarray],
-        param_indices: Tuple[int, int],
-        param_ranges: Tuple[Tuple[float, float], Tuple[float, float]],
-        n_points: Tuple[int, int] = (50, 50),
-        fixed_params: Optional[Dict[int, float]] = None,
-        param_names: Optional[List[str]] = None,
-        color_function: Optional[
-            Callable[[np.ndarray, float], Union[str, Tuple[float, float, float]]]
-        ] = None,
+        param_indices: tuple[int, int],
+        param_ranges: tuple[tuple[float, float], tuple[float, float]],
+        n_points: tuple[int, int] = (50, 50),
+        fixed_params: dict[int, float] | None = None,
+        param_names: list[str] | None = None,
+        color_function: Callable[[np.ndarray, float], str | tuple[float, float, float]]
+        | None = None,
         use_plotly: bool = True,
         resamp_idx: int = 0,
         use_correlation: bool = True,
@@ -960,15 +919,11 @@ class SamplingPlotter:
         # Create parameter grids
         param1_values = np.linspace(param_ranges[0][0], param_ranges[0][1], n_points[0])
         param2_values = np.linspace(param_ranges[1][0], param_ranges[1][1], n_points[1])
-        param1_grid, param2_grid = np.meshgrid(
-            param1_values, param2_values, indexing="ij"
-        )
+        param1_grid, param2_grid = np.meshgrid(param1_values, param2_values, indexing="ij")
 
         # Evaluate chi2 at each point
         chi2_grid = np.zeros_like(param1_grid)
-        color_grid = (
-            np.zeros_like(param1_grid, dtype=object) if color_function else None
-        )
+        color_grid = np.zeros_like(param1_grid, dtype=object) if color_function else None
 
         for i in range(param1_grid.shape[0]):
             for j in range(param1_grid.shape[1]):
@@ -1035,9 +990,9 @@ class SamplingPlotter:
         param1_grid: np.ndarray,
         param2_grid: np.ndarray,
         chi2_grid: np.ndarray,
-        param_indices: Tuple[int, int],
-        param_names: Optional[List[str]],
-        color_grid: Optional[np.ndarray],
+        param_indices: tuple[int, int],
+        param_names: list[str] | None,
+        color_grid: np.ndarray | None,
         resamp_idx: int,
         **kwargs,
     ):
@@ -1074,9 +1029,7 @@ class SamplingPlotter:
 
         fig.update_layout(
             title=f"χ² Landscape (resample {resamp_idx})",
-            scene=dict(
-                xaxis_title=param1_name, yaxis_title=param2_name, zaxis_title="χ²"
-            ),
+            scene=dict(xaxis_title=param1_name, yaxis_title=param2_name, zaxis_title="χ²"),
         )
 
         return fig
@@ -1086,11 +1039,11 @@ class SamplingPlotter:
         param1_grid: np.ndarray,
         param2_grid: np.ndarray,
         chi2_grid: np.ndarray,
-        param_indices: Tuple[int, int],
-        param_names: Optional[List[str]],
-        color_grid: Optional[np.ndarray],
+        param_indices: tuple[int, int],
+        param_names: list[str] | None,
+        color_grid: np.ndarray | None,
         resamp_idx: int,
-        figsize: Optional[Tuple[float, float]] = None,
+        figsize: tuple[float, float] | None = None,
         **kwargs,
     ):
         """Create contour plot using matplotlib."""
@@ -1157,9 +1110,7 @@ class SamplingPlotter:
         # Labels and formatting
         ax.set_xlabel(param1_name)
         ax.set_ylabel(param2_name)
-        ax.set_title(
-            f"χ² Landscape: {param1_name} vs {param2_name} (resample {resamp_idx})"
-        )
+        ax.set_title(f"χ² Landscape: {param1_name} vs {param2_name} (resample {resamp_idx})")
         ax.legend()
 
         return ax

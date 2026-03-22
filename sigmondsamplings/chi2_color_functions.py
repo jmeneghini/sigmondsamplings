@@ -5,8 +5,9 @@ This module provides pre-built color functions that can be used with the Chi2Plo
 to customize the coloring of chi-squared landscape plots.
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
-from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .model_func import SigmondModelFunc
@@ -97,7 +98,7 @@ def parameter_based_color_function(param_index: int, threshold: float):
     return color_func
 
 
-def gradient_color_function(param_index: int, param_range: Tuple[float, float]):
+def gradient_color_function(param_index: int, param_range: tuple[float, float]):
     """
     Create a color function that uses a gradient based on parameter values.
 
@@ -116,9 +117,7 @@ def gradient_color_function(param_index: int, param_range: Tuple[float, float]):
         if param_index < len(params):
             param_val = params[param_index]
             # Normalize parameter to [0, 1] range
-            normalized = (param_val - param_range[0]) / (
-                param_range[1] - param_range[0]
-            )
+            normalized = (param_val - param_range[0]) / (param_range[1] - param_range[0])
             normalized = np.clip(normalized, 0, 1)
             return cm.viridis(normalized)
         else:
