@@ -39,7 +39,7 @@ class SigmondLoader:
         loader.observables.find(lambda obs: 'PSQ' in obs.name)
         loader.observables.find(lambda obs: re.search(r'PSQ.*', obs.name))
     """
-
+    # TODO: some major issues with appending. Creates a 'working' file, still uses sigmond_query, and doesn't replace the original file with the working file.
     def __init__(
         self,
         filename: str = None,
@@ -211,6 +211,8 @@ class SigmondLoader:
             return result.stdout
         except subprocess.TimeoutExpired:
             raise RuntimeError("sigmond_query timed out")
+        except Exception as e:
+            raise RuntimeError(f"sigmond_query error with cmd '{' '.join(cmd)}': {e}")
 
     def check_file_validity(
         self, filename: str

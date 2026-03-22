@@ -380,7 +380,8 @@ class ObservableInfo:
         if self._latex_str:
             return self._latex_str
         else:
-            return rf"\text{str(self.name)}"
+            name = str(self.name).replace('_', r'\_')
+            return rf"\text{{{name}}}"
 
     @latex_str.setter
     def latex_str(self, value: str):

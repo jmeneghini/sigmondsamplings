@@ -166,8 +166,9 @@ class SamplingPlotter:
         # Labels and formatting
         ax.set_xlabel("Value")
         ax.set_ylabel("Density")
+        title_header = f"${sampling.latex_str}$" if sampling.latex_str else sampling.observable_name.replace("_", " ")
         ax.set_title(
-            f"${sampling.latex_str}$\n"
+            f"{title_header}\n"
             f"({sampling.sampling_info.method.title()}, "
             f"N={sampling.sampling_info.num_resamplings})"
         )

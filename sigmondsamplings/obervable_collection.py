@@ -1065,6 +1065,10 @@ class ObservableCollection(PandasExportMixin):
 
         new_data = sorted(self._data, key=sort_key, reverse=reverse)
         return self._fast_load(new_data, self._return_type)
+    
+    def to_list(self) -> List[SigmondSampling]:
+        """Return list of SigmondSampling objects."""
+        return self._data[:]
 
     def to_dict(self) -> Dict:
         """Return dictionary mapping ObsInfo to SigmondSampling."""
@@ -1084,6 +1088,8 @@ class ObservableCollection(PandasExportMixin):
             return np.array([])
         return np.array([samp.data for samp in self._data])
 
+    # TODO: Actually seems broken!
+    # TODO: would like a better updating mechanism. Want to be able to 'update' or 'append'.
     def to_hdf5(
         self, filename: str, create_backups: bool = True, root_path: str = "samplings"
     ) -> None:

@@ -42,6 +42,7 @@ class EnergyLevelMixin:
     ObservableCollection interface (obs accessor, filter, group_by, etc.).
     """
 
+    # TODO: really need to consider if we want mutability here.
     _data: List[SigmondSampling]
 
     # -------------------------------------------------------------------------
@@ -481,6 +482,137 @@ class EnergyLevelMixin:
 
         with open(yml_path, "w") as f:
             yaml.dump(output, f, default_flow_style=False)
+
+    # -------------------------------------------------------------------------
+    # Spec Filtering and Persistence
+    # -------------------------------------------------------------------------
+
+    def filter_by_spec(
+        self,
+        spec: Iterable[Tuple],
+    ):
+        """
+        Filter collection to only include observables matching the given spec.
+
+        Each entry in ``spec`` is a tuple of the form:
+        - ``(psq, irrep, level_index)``       – single level
+        - ``(psq, irrep, [level_index, ...])`` – multiple levels (flattened)
+
+        Args:
+            spec: Iterable of (psq, irrep, level_index_or_list) tuples
+
+        Returns:
+            Collection of the same type containing only matching observables
+
+        Example:
+            >>> result = coll.filter_by_spec([(0, 'A1g', 0), (1, 'E', [0, 1])])
+        """
+        allowed: Set[Tuple[int, str, int]] = set()
+        for entry in spec:
+            psq, irrep, level = entry
+            if isinstance(level, list):
+                for lvl in level:
+                    allowed.add((psq, irrep, lvl))
+            else:
+                allowed.add((psq, irrep, level))
+
+        return self.filter(
+            predicate=lambda obs_info: (
+                obs_info.psq,
+                obs_info.irrep,
+                obs_info.level_index,
+            )
+            in allowed
+        )
+
+    @property
+    def spec(self) -> List[Tuple[int, str, int]]:
+        """
+        List the (psq, irrep, level_index) spec of the current collection.
+
+        Returns:
+            List[Tuple[int, str, int]]: List of (psq, irrep, level_index) tuples for all observables
+
+        Example:
+            >>> spec = coll.spec
+            >>> print(spec)
+            [(0, 'A1g', 0), (0, 'A1g', 1), (1, 'E', 0)]
+        """
+        return sorted(
+            set(
+                (
+                    obs.observable_info.psq,
+                    obs.observable_info.irrep,
+                    obs.observable_info.level_index,
+                )
+                for obs in self._data
+            )
+        )
+
+    def save_spec(self, yml_path: str) -> None:
+        """
+        Save the current collection's (psq, irrep, level_index) spec to a YAML file.
+
+        The YAML groups level indices by (psq, irrep) sector:
+
+        .. code-block:: yaml
+
+            spec:
+              - psq: 0
+                irrep: A1g
+                levels: [0, 1, 2]
+              - psq: 1
+                irrep: E
+                levels: [0]
+
+        Args:
+            yml_path: Path to write the spec YAML file
+
+        Example:
+            >>> coll.save_spec('my_spec.yml')
+        """
+        import yaml
+
+        sectors: Dict[Tuple[int, str], Set[int]] = {}
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            key = (obs_info.psq, obs_info.irrep)
+            sectors.setdefault(key, set()).add(obs_info.level_index)
+
+        spec_list = [
+            {"psq": psq, "irrep": irrep, "levels": sorted(levels)}
+            for (psq, irrep), levels in sorted(sectors.items())
+        ]
+
+        with open(yml_path, "w") as f:
+            yaml.dump({"spec": spec_list}, f, default_flow_style=False)
+
+    def filter_by_spec_yml(self, yml_path: str):
+        """
+        Load a spec from a YAML file and filter this collection to match it.
+
+        Reads a YAML file produced by :meth:`save_spec` and delegates to
+        :meth:`filter_by_spec`.
+
+        Args:
+            yml_path: Path to a spec YAML file
+
+        Returns:
+            Collection of the same type filtered to the spec
+
+        Example:
+            >>> filtered = coll.filter_by_spec_yml('my_spec.yml')
+        """
+        import yaml
+
+        with open(yml_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        spec = [
+            (entry["psq"], entry["irrep"], entry["levels"])
+            for entry in config["spec"]
+        ]
+        return self.filter_by_spec(spec)
 
     def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:
         """

@@ -144,7 +144,7 @@ class SamplingStats(MultiEnsembleCollection):
         cov_arr = np.zeros((self.num_observables, self.num_observables))
         for i in range(self.num_observables):
             for j in range(i, self.num_observables):
-                cov_ij = self.cov(i, j)
+                cov_ij = self.cov(i, j, bias=False)
                 cov_arr[i, j] = cov_ij
                 cov_arr[j, i] = cov_ij
 
@@ -174,7 +174,9 @@ class SamplingStats(MultiEnsembleCollection):
         """Calculate the condition number of the correlation matrix."""
         return np.linalg.cond(self.corr_matrix)
 
-    def cov(self, obs1_idx: int, obs2_idx: int) -> float:
+    # should add static versions of these.
+
+    def cov(self, obs1_idx: int, obs2_idx: int, bias = False) -> float:
         """
         Calculate covariance between two specific observables.
 
@@ -183,6 +185,8 @@ class SamplingStats(MultiEnsembleCollection):
         Args:
             obs1_idx: Index of first observable
             obs2_idx: Index of second observable
+            bias:     Whether to use biased estimator (divide by n) or unbiased (divide by n-1).
+                        default is False (unbiased)
 
         Returns:
             Covariance value
@@ -209,7 +213,7 @@ class SamplingStats(MultiEnsembleCollection):
         data1 = sampling1.resampled_values
         data2 = sampling2.resampled_values
 
-        cov = np.cov(data1, data2, ddof=1)[0, 1]
+        cov = np.cov(data1, data2, bias=bias)[0, 1]
 
         # Apply jackknife correction if needed
         if self._sampling_info and self._sampling_info.method == "jackknife":
@@ -248,6 +252,9 @@ class SamplingStats(MultiEnsembleCollection):
         min_val = self.find_data(mode="min")
         max_val = self.find_data(mode="max")
         delta = max_val - min_val
+        # silly work around for delta being zero
+        if np.isclose(delta.full_sample_value, 0.0):
+            delta.data = np.full_like(delta.data, 10 * np.max(self.val.error))
         diff = delta * buffer
         min_buff = min_val - diff
         max_buff = max_val + diff
@@ -256,11 +263,97 @@ class SamplingStats(MultiEnsembleCollection):
     # -------------------------------------------------------------------------
     # Chi-Squared and Residual Methods
     # -------------------------------------------------------------------------
-    
+
+    # TODO: speed up this algorithm
+
+    def _transformed_cov_matrix(self, A: np.ndarray) -> np.ndarray:
+        """
+        Compute the M×M covariance of A @ x directly from resampled samples.
+
+        More accurate than A @ C @ A.T: estimates the M×M matrix we actually need
+        rather than the full N×N C first. Cross-ensemble entries are zeroed out
+        since different ensembles are statistically independent.
+
+        Args:
+            A: Transformation matrix of shape (M, N)
+
+        Returns:
+            Covariance matrix of shape (M, M)
+        """
+        resampled = self._numpy_data[:, 1:]  # N x n_resamples
+        transformed = A @ resampled  # M x n_resamples
+
+        cov = np.atleast_2d(np.cov(transformed, ddof=1))
+
+        if self._sampling_info and self._sampling_info.method == "jackknife":
+            cov *= resampled.shape[1] - 1
+
+        # Zero out entries where the two rows draw exclusively from different ensembles
+        ensembles = [s.observable_info.ensemble_info for s in self._data]
+        M = A.shape[0]
+        for i in range(M):
+            for j in range(i + 1, M):
+                src_i = {k for k in np.nonzero(A[i])[0]}
+                src_j = {k for k in np.nonzero(A[j])[0]}
+                if {ensembles[k] for k in src_i}.isdisjoint(
+                    {ensembles[k] for k in src_j}
+                ):
+                    cov[i, j] = 0.0
+                    cov[j, i] = 0.0
+
+        return cov
+
+    def get_transformation_matrix(
+        self,
+        linear_superposition: List[List[Tuple[int, float]]],
+    ) -> np.ndarray:
+        """
+        Build the linear transformation matrix A for a superposition of observables.
+
+        Each entry in linear_superposition defines one combined observable as a weighted
+        sum of existing observables. Observable indices not mentioned in any entry are
+        retained as identity rows (in sorted order, before the explicit reductions).
+        The result is a matrix A of shape (M, N) where N = num_observables and
+        M = n_untouched + n_reductions.
+
+        The transformed residuals are A @ r. The transformed covariance is computed
+        directly from the resampled samples via _transformed_cov_matrix(A).
+
+        Args:
+            linear_superposition: List of reductions, each a list of (index, coefficient)
+                pairs. E.g. [[(1, 0.5), (2, -0.5)]] creates E = 0.5*E1 - 0.5*E2 while
+                all other observable indices are retained as identity rows.
+
+        Returns:
+            A: ndarray of shape (M, N)
+        """
+        N = self.num_observables
+        touched: set = set()
+        for reduction in linear_superposition:
+            for idx, _ in reduction:
+                if idx < 0 or idx >= N:
+                    raise IndexError(f"Observable index {idx} out of range [0, {N})")
+                touched.add(idx)
+
+        untouched = sorted(set(range(N)) - touched)
+        M = len(untouched) + len(linear_superposition)
+        A = np.zeros((M, N))
+
+        for row, col in enumerate(untouched):
+            A[row, col] = 1.0
+
+        offset = len(untouched)
+        for i, reduction in enumerate(linear_superposition):
+            for idx, coeff in reduction:
+                A[offset + i, idx] = float(coeff)
+
+        return A
+
     def residuals(
         self,
         theory_values: np.ndarray,
         resamp_idx: int = 0,
+        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
     ) -> np.ndarray:
         """
         Calculate residuals with respect to theory values.
@@ -268,6 +361,10 @@ class SamplingStats(MultiEnsembleCollection):
         Args:
             theory_values: Array of theoretical values to compare against
             resamp_idx: Resampling index to use (0 for full sample)
+            linear_superposition: Optional linear combinations of observables. Each entry
+                is a list of (index, coefficient) pairs defining one combined observable.
+                Untouched indices are retained as-is. The returned residuals are A @ r
+                where A is the transformation matrix from get_transformation_matrix.
 
         Returns:
             Array of residuals
@@ -279,6 +376,9 @@ class SamplingStats(MultiEnsembleCollection):
 
         obs = self._numpy_data[:, resamp_idx]
         diff = obs - theory_values
+        if linear_superposition is not None:
+            A = self.get_transformation_matrix(linear_superposition)
+            diff = A @ diff
         return diff
 
     def whitened_residuals(
@@ -286,6 +386,8 @@ class SamplingStats(MultiEnsembleCollection):
         theory_values: np.ndarray,
         use_corr: bool = True,
         resamp_idx: int = 0,
+        cov_matrix = None,
+        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
     ) -> np.ndarray:
         """
         Calculate whitened residuals with respect to theory values.
@@ -294,6 +396,10 @@ class SamplingStats(MultiEnsembleCollection):
             theory_values: Array of theoretical values to compare against
             use_corr: Whether to use full covariance matrix
             resamp_idx: Resampling index to use (0 for full sample)
+            cov_matrix: Optional covariance matrix to use instead of self.cov_matrix. Only used if use_corr is True. This will not be transformed if linear_superposition is provided - the user must provide the appropriately transformed covariance matrix in that case.
+            linear_superposition: Optional linear combinations of observables. Each entry
+                is a list of (index, coefficient) pairs defining one combined observable.
+                Residuals become A @ r and covariance becomes A @ C @ A.T before whitening.
 
         Returns:
             Array of whitened residuals
@@ -305,18 +411,32 @@ class SamplingStats(MultiEnsembleCollection):
 
         obs = self._numpy_data[:, resamp_idx]
         diff = obs - theory_values
+
+        A = None
+        if linear_superposition is not None:
+            A = self.get_transformation_matrix(linear_superposition)
+            diff = A @ diff
+
         if use_corr:
-            cov_matrix = self.cov_matrix
+            if cov_matrix is not None:
+                if cov_matrix.shape != (diff.size, diff.size):
+                    raise ValueError(
+                        f"Provided covariance matrix shape {cov_matrix.shape} does not match expected shape {(diff.size, diff.size)}"
+                    )
+                else:
+                    cov_matrix = np.asarray(cov_matrix)
+            else:
+                cov_matrix = self._transformed_cov_matrix(A) if A is not None else self.cov_matrix
             try:
                 # Optimized SciPy path for Cholesky and forward substitution
                 L = scipy.linalg.cholesky(cov_matrix, lower=True)
                 whitened = scipy.linalg.solve_triangular(L, diff, lower=True)
-                
+
             except scipy.linalg.LinAlgError:
                 # Fallback to eigenvalue decomposition for ill-conditioned/singular matrices
                 try:
                     eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
-                    
+
                     # Cutoff for zero/negative eigenvalues caused by numerical noise
                     valid_mask = eigenvals > 1e-12 * np.max(eigenvals)
                     if np.sum(valid_mask) == 0:
@@ -325,24 +445,29 @@ class SamplingStats(MultiEnsembleCollection):
                     sqrt_inv_eigenvals = np.zeros_like(eigenvals)
                     sqrt_inv_eigenvals[valid_mask] = 1.0 / np.sqrt(eigenvals[valid_mask])
 
-                    # Cleaned up 1D array multiplication
                     whitened = eigenvecs @ (sqrt_inv_eigenvals * (eigenvecs.T @ diff))
-                    
+
                 except np.linalg.LinAlgError:
-                    # Final fallback to diagonal errors
-                    errors = self.val.error
+                    # Final fallback to diagonal of (possibly transformed) cov
+                    errors = np.sqrt(np.diag(cov_matrix))
                     whitened = diff / errors
         else:
-            errors = self.val.error
+            if A is not None:
+                errors_sq = np.array([s.error for s in self._data]) ** 2
+                errors = np.sqrt(np.diag(A * errors_sq @ A.T))
+            else:
+                errors = np.array(self.val.error)
             whitened = diff / errors
 
         return whitened
-    
+
     def chi_squared(
         self,
         theory_values: np.ndarray,
         use_corr: bool = True,
         resamp_idx: int = 0,
+        cov_matrix = None,
+        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
     ) -> float:
         """
         Calculate chi-squared with respect to theory values.
@@ -351,11 +476,16 @@ class SamplingStats(MultiEnsembleCollection):
             theory_values: Array of theoretical values to compare against
             use_corr: Whether to use full covariance matrix
             resamp_idx: Resampling index to use (0 for full sample)
+            cov_matrix: Optional covariance matrix to use instead of self.cov_matrix. Only used if use_corr is True. This will not be transformed if linear_superposition is provided - the user must provide the appropriately transformed covariance matrix in that case.
+            linear_superposition: Optional linear combinations of observables; see
+                get_transformation_matrix for format.
 
         Returns:
             Chi-squared value
         """
-        whitened = self.whitened_residuals(theory_values, use_corr, resamp_idx)
+        whitened = self.whitened_residuals(
+            theory_values, use_corr, resamp_idx, cov_matrix, linear_superposition
+        )
         return np.sum(whitened**2)
 
     def goodness_of_fit(
@@ -364,6 +494,7 @@ class SamplingStats(MultiEnsembleCollection):
         nparams: int,
         use_corr: bool = True,
         resamp_idx: int = 0,
+        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
     ) -> float:
         """
         Calculate Q (goodness-of-fit) with respect to theory values.
@@ -373,12 +504,21 @@ class SamplingStats(MultiEnsembleCollection):
             nparams: Number of fitted parameters (for degrees of freedom)
             use_corr: Whether to use full covariance matrix
             resamp_idx: Resampling index to use (0 for full sample)
+            linear_superposition: Optional linear combinations of observables; see
+                get_transformation_matrix for format. The degrees of freedom use M
+                (the reduced number of observables) rather than N.
 
         Returns:
             Q value
         """
-        chi2_val = self.chi_squared(theory_values, use_corr, resamp_idx)
-        dof = self.num_observables - nparams
+        chi2_val = self.chi_squared(
+            theory_values, use_corr, resamp_idx, linear_superposition
+        )
+        if linear_superposition is not None:
+            n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
+        else:
+            n_obs = self.num_observables
+        dof = n_obs - nparams
         return chi2.sf(chi2_val, dof)
 
     @cached_property
@@ -472,6 +612,7 @@ class SamplingStats(MultiEnsembleCollection):
         self,
         theory_values: Union[np.ndarray, List[SigmondSampling], ObservableCollection],
         use_corr: bool = True,
+        linear_superposition: Optional[List[List[Tuple[int, float]]]] = None,
     ) -> SigmondSampling:
         """
         Calculate chi-squared for each resampling.
@@ -479,6 +620,9 @@ class SamplingStats(MultiEnsembleCollection):
         Args:
             theory_values: Theory values - array, list of SigmondSampling, or collection
             use_corr: Whether to use full covariance matrix
+            linear_superposition: Optional linear combinations of observables; see
+                get_transformation_matrix for format. Applied as A @ diff and A @ C @ A.T
+                before computing chi-squared at each resampling index.
 
         Returns:
             SigmondSampling object containing chi-squared values for each resampling
@@ -519,10 +663,18 @@ class SamplingStats(MultiEnsembleCollection):
                 "Theory values must be array, list, or ObservableCollection"
             )
 
+        diff_matrix = data_matrix - theory_data  # shape: (N, n_samples)
+
+        # Apply linear superposition: A @ diff, A @ C @ A.T
+        A = None
+        if linear_superposition is not None:
+            A = self.get_transformation_matrix(linear_superposition)
+            diff_matrix = A @ diff_matrix  # shape: (M, n_samples)
+
         # Compute covariance
         if use_corr:
             try:
-                cov_matrix = self.cov_matrix
+                cov_matrix = self._transformed_cov_matrix(A) if A is not None else self.cov_matrix
                 inv_cov = np.linalg.inv(cov_matrix)
                 use_covariance = True
             except np.linalg.LinAlgError:
@@ -530,14 +682,16 @@ class SamplingStats(MultiEnsembleCollection):
         else:
             use_covariance = False
 
-        errors = np.array(self.val.error)
-        diff_matrix = data_matrix - theory_data
-
         if use_covariance:
             chi_squared_values = np.einsum(
                 "ij,ji->i", diff_matrix.T, inv_cov @ diff_matrix
             )
         else:
+            if A is not None:
+                errors_sq = np.array([s.error for s in self._data]) ** 2
+                errors = np.sqrt(np.diag(A * errors_sq @ A.T))
+            else:
+                errors = np.array(self.val.error)
             chi_squared_values = np.sum(
                 (diff_matrix / errors[:, np.newaxis]) ** 2, axis=0
             )

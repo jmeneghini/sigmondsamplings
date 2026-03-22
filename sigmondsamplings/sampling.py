@@ -485,6 +485,7 @@ class SigmondSampling:
         else:
             # Multiple samplings - check if all have same observable_info
             first_info = next(iter(samplings)).observable_info
+            # TODO: this shouldn't preserve observable_info. However, this may have significant downstream consequences, so we should consider how to handle this in a future PR. For now, we will preserve observable_info if all samplings have the same one, and otherwise create a new one with a mixed name.
             if all(s.observable_info == first_info for s in samplings):
                 # All samplings have same observable_info
                 result_observable_info = first_info
