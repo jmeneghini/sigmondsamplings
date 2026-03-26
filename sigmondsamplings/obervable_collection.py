@@ -47,10 +47,25 @@ class PandasExportMixin:
         if not data_source:
             return pd.DataFrame()
 
+        samp_val_attrs = ["full_sample_value", "mean", "error"]
+        samp_val_methods = []
+
         rows = []
         for s in data_source:
             # Base row with data value
-            row = {"name": str(s.observable_info.name), "data": s.pdg_format()}
+            row = {"name": str(s.observable_info.name), "data_str": s.pdg_format()}
+            for key in samp_val_attrs:
+                if hasattr(s, key):
+                    row[key] = getattr(s, key)
+            CI_tuple = s.confidence_interval()
+            row["CI_upper"] = CI_tuple[0]
+            row["CI_lower"] = CI_tuple[1]
+            for method in samp_val_methods:
+                if hasattr(s, method):
+                    try:
+                        row[method] = getattr(s, method)()
+                    except Exception:
+                        row[method] = None
 
             # Dynamically add all available ObsInfo attributes
             # This replaces the hardcoded list of attributes

@@ -432,12 +432,44 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
 
 
 def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
+    """Compute jittered x-positions that stack overlapping data points into columns.
+
+    Only points whose y-intervals (y ± yerr) overlap with at least one other
+    point in their group are displaced. Non-overlapping points are returned at
+    exactly their group center x. Displaced points are assigned to the minimum
+    number of non-overlapping columns via greedy interval scheduling, then placed
+    at evenly-spaced positions centered about x. Column spacing is uniform across
+    all groups.
+
+    Parameters
+    ----------
+    y : array-like
+        Y values of the data points.
+    yerr : array-like or scalar
+        Y errors. A scalar is broadcast to all points.
+    x : array-like, scalar, or None
+        Group centers. None defaults to 0. A scalar is broadcast to all points.
+        An array assigns each point to a group; points sharing the same x value
+        are stacked together independently.
+    width : float
+        Total horizontal span available for stacking within each group. The
+        outermost columns are placed at most ±width/2 from the group center.
+    pad : float
+        Extra padding added to each side of a y-interval before overlap testing,
+        increasing the separation required before two points share a column.
+
+    Returns
+    -------
+    xj : np.ndarray
+        Jittered x-positions, one per input point. Points with no overlapping
+        neighbours are returned at exactly x.
+    """
     y = np.asarray(y)
     yerr = np.asarray(yerr)
     if yerr.ndim == 0:
         yerr = np.full_like(y, yerr)
 
-    # 1. Standardize x to be the centers (default to 0.0 if None)
+    # 1. Standardize x to an array of group centers
     if x is None:
         x = np.zeros_like(y, dtype=float)
     elif isinstance(x, (int, float)):
@@ -445,55 +477,67 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
     else:
         x = np.asarray(x)
 
-    xj = np.zeros_like(y, dtype=float)
+    offsets = np.zeros_like(y, dtype=float)
 
     # 2. Process each x-group independently
     for group_val in np.unique(x):
-        # Indices for this group, sorted by Y
+        # Sorted indices for this group (stable greedy sweep)
         idx = np.where(x == group_val)[0]
         idx = idx[np.argsort(y[idx])]
 
-        # 'columns' holds list of [ymin, ymax] intervals for each column
-        columns = []
+        ym = y[idx] - yerr[idx] - pad  # interval lower bounds
+        yM = y[idx] + yerr[idx] + pad  # interval upper bounds
+        n = len(idx)
 
-        for i in idx:
-            y_min = y[i] - yerr[i] - pad
-            y_max = y[i] + yerr[i] + pad
+        # 3. Find which points overlap with at least one other in the group.
+        #    Non-overlapping points keep offset = 0 and are excluded from stacking.
+        has_overlap = np.zeros(n, dtype=bool)
+        for a in range(n):
+            for b in range(n):
+                if a != b and ym[a] <= yM[b] and yM[a] >= ym[b]:
+                    has_overlap[a] = True
+                    break
 
+        if not np.any(has_overlap):
+            continue  # all points are isolated — nothing to stack
+
+        # Local indices (within idx) and original indices of overlapping points
+        over_local = np.where(has_overlap)[0]
+        over_idx = idx[over_local]
+        ym_o = ym[over_local]
+        yM_o = yM[over_local]
+
+        # 4. Greedy interval scheduling: assign each overlapping point to the
+        #    first column it fits in, opening a new column if needed.
+        columns: list[list[tuple[float, float]]] = []
+        col_assign = np.full(len(over_idx), -1, dtype=int)
+
+        for j in range(len(over_idx)):
             placed = False
-
-            # 3. Greedy placement: try existing columns
             for col_idx, intervals in enumerate(columns):
-                # Vectorized overlap check: (StartA <= EndB) and (EndA >= StartB)
-                # We check this point against ALL intervals in this column at once
-                if intervals:
-                    int_arr = np.array(intervals)
-                    # if overlap exists with ANY interval in this column
-                    if np.any((y_min <= int_arr[:, 1]) & (y_max >= int_arr[:, 0])):
-                        continue
-
-                # No overlap found in this column; place it here
-                columns[col_idx].append((y_min, y_max))
-                # Calculate offset based on column index (0, -1, 1, -2, 2...)
-                sign = -1 if col_idx % 2 else 1
-                offset_idx = (col_idx + 1) // 2
-                xj[i] = group_val + (sign * offset_idx * width)  # Raw offset, unscaled
+                int_arr = np.array(intervals)
+                if np.any((ym_o[j] <= int_arr[:, 1]) & (yM_o[j] >= int_arr[:, 0])):
+                    continue
+                columns[col_idx].append((ym_o[j], yM_o[j]))
+                col_assign[j] = col_idx
                 placed = True
                 break
 
-            # 4. If it didn't fit anywhere, start a new column
             if not placed:
-                columns.append([(y_min, y_max)])
-                col_idx = len(columns) - 1
-                sign = -1 if col_idx % 2 else 1
-                offset_idx = (col_idx + 1) // 2
-                xj[i] = group_val + (sign * offset_idx * width)
+                columns.append([(ym_o[j], yM_o[j])])
+                col_assign[j] = len(columns) - 1
 
-    # 5. Normalize width (Optional: ensures tight packing fits exactly in `width`)
-    # If you prefer exact pixel control, remove this block.
-    # This block scales the offsets so the widest point hits exactly `width/2`.
-    if np.max(np.abs(xj - x)) > 0:
-        scale = (width / 2) / np.max(np.abs(xj - x))
-        xj = x + (xj - x) * scale
+        # 5. Map k columns to k evenly-spaced positions centered about 0
+        k = len(columns)
+        positions = np.linspace(-width / 2, width / 2, k) if k > 1 else np.array([0.0])
 
-    return xj
+        for j, i in enumerate(over_idx):
+            offsets[i] = positions[col_assign[j]]
+
+    # 6. Scale all offsets globally so the largest reaches exactly ±width/2,
+    #    keeping column spacing consistent across groups.
+    max_abs = np.max(np.abs(offsets))
+    if max_abs > 0:
+        offsets *= (width / 2) / max_abs
+
+    return x + offsets

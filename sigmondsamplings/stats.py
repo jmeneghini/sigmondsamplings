@@ -68,6 +68,7 @@ class SamplingStats(MultiEnsembleCollection):
         instance._return_type = "numpy"  # Always numpy for SamplingStats
         instance._shared_attr_cache = {}
         instance._numpy_data = instance.to_numpy()
+        instance._sampling_info = instance.sampling_info
         return instance
 
     @property
@@ -118,6 +119,19 @@ class SamplingStats(MultiEnsembleCollection):
     # -------------------------------------------------------------------------
 
     @cached_property
+    def inv_cov_matrix(self) -> np.ndarray:
+        """
+        Cached inverse of the covariance matrix.
+
+        Returns:
+            Inverse covariance matrix (num_observables x num_observables)
+
+        Raises:
+            np.linalg.LinAlgError: If the covariance matrix is singular
+        """
+        return np.linalg.inv(self.cov_matrix)
+
+    @cached_property
     def inv_cholesky_cov_matrix(self) -> np.ndarray:
         """
         Calculate the inverse Cholesky decomposition of the covariance matrix.
@@ -126,10 +140,9 @@ class SamplingStats(MultiEnsembleCollection):
             Inverse Cholesky factor of the covariance matrix
         """
         try:
-            L = np.linalg.cholesky(self.cov_matrix)
-            inv_L = np.linalg.inv(L)
-            return inv_L
-        except np.linalg.LinAlgError:
+            L = scipy.linalg.cholesky(self.cov_matrix, lower=True)
+            return scipy.linalg.solve_triangular(L, np.eye(len(L)), lower=True)
+        except scipy.linalg.LinAlgError:
             raise ValueError(
                 "Covariance matrix is not positive definite for Cholesky decomposition"
             )
@@ -144,12 +157,19 @@ class SamplingStats(MultiEnsembleCollection):
         Returns:
             Covariance matrix (num_observables x num_observables)
         """
-        cov_arr = np.zeros((self.num_observables, self.num_observables))
+        resampled = self._numpy_data[:, 1:]  # (N, n_resamples)
+        cov_arr = np.atleast_2d(np.cov(resampled, ddof=1))
+
+        if self._sampling_info and self._sampling_info.method == "jackknife":
+            cov_arr = cov_arr * (resampled.shape[1] - 1)
+
+        # Zero out entries between observables from different ensembles
+        ensembles = [s.observable_info.ensemble_info for s in self._data]
         for i in range(self.num_observables):
-            for j in range(i, self.num_observables):
-                cov_ij = self.cov(i, j, bias=False)
-                cov_arr[i, j] = cov_ij
-                cov_arr[j, i] = cov_ij
+            for j in range(i + 1, self.num_observables):
+                if ensembles[i] != ensembles[j]:
+                    cov_arr[i, j] = 0.0
+                    cov_arr[j, i] = 0.0
 
         return cov_arr
 
@@ -347,6 +367,37 @@ class SamplingStats(MultiEnsembleCollection):
 
         return A
 
+    @staticmethod
+    def _whiten(
+        diff: np.ndarray,
+        cov_matrix: np.ndarray | None,
+        errors: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """
+        Whiten a residual vector.
+
+        If cov_matrix is provided, uses Cholesky decomposition with fallbacks to
+        eigendecomposition and then diagonal scaling.
+        If cov_matrix is None, divides element-wise by errors.
+        """
+        if cov_matrix is not None:
+            try:
+                L = scipy.linalg.cholesky(cov_matrix, lower=True)
+                return scipy.linalg.solve_triangular(L, diff, lower=True)
+            except scipy.linalg.LinAlgError:
+                pass
+            try:
+                eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
+                valid_mask = eigenvals > 1e-12 * np.max(eigenvals)
+                if np.sum(valid_mask) == 0:
+                    raise np.linalg.LinAlgError("All eigenvalues too small")
+                sqrt_inv = np.zeros_like(eigenvals)
+                sqrt_inv[valid_mask] = 1.0 / np.sqrt(eigenvals[valid_mask])
+                return eigenvecs @ (sqrt_inv * (eigenvecs.T @ diff))
+            except np.linalg.LinAlgError:
+                return diff / np.sqrt(np.diag(cov_matrix))
+        return diff / errors
+
     def residuals(
         self,
         theory_values: np.ndarray,
@@ -381,142 +432,316 @@ class SamplingStats(MultiEnsembleCollection):
 
     def whitened_residuals(
         self,
-        theory_values: np.ndarray,
+        theory_values: np.ndarray | None = None,
         use_corr: bool = True,
         resamp_idx: int = 0,
         cov_matrix=None,
         linear_superposition: list[list[tuple[int, float]]] | None = None,
+        residuals: np.ndarray | None = None,
     ) -> np.ndarray:
         """
         Calculate whitened residuals with respect to theory values.
 
         Args:
-            theory_values: Array of theoretical values to compare against
+            theory_values: Theory values to compare against. Not required if residuals
+                is provided.
             use_corr: Whether to use full covariance matrix
             resamp_idx: Resampling index to use (0 for full sample)
             cov_matrix: Optional covariance matrix to use instead of self.cov_matrix. Only used if use_corr is True. This will not be transformed if linear_superposition is provided - the user must provide the appropriately transformed covariance matrix in that case.
             linear_superposition: Optional linear combinations of observables. Each entry
                 is a list of (index, coefficient) pairs defining one combined observable.
                 Residuals become A @ r and covariance becomes A @ C @ A.T before whitening.
+                Still used to derive the transformed covariance even when residuals are
+                pre-computed.
+            residuals: Pre-computed (possibly transformed) residuals from self.residuals().
+                If provided, theory_values, resamp_idx are ignored.
 
         Returns:
             Array of whitened residuals
         """
-        if len(theory_values) != self.num_observables:
-            raise ValueError("Theory values length must match number of observables")
-        if resamp_idx < 0 or resamp_idx > self.num_samples:
-            raise IndexError("Resampling index out of range")
-
-        obs = self._numpy_data[:, resamp_idx]
-        diff = obs - theory_values
-
-        A = None
-        if linear_superposition is not None:
-            A = self.get_transformation_matrix(linear_superposition)
-            diff = A @ diff
+        if residuals is None:
+            if theory_values is None:
+                raise ValueError("Either theory_values or residuals must be provided")
+            residuals = self.residuals(theory_values, resamp_idx, linear_superposition)
 
         if use_corr:
             if cov_matrix is not None:
-                if cov_matrix.shape != (diff.size, diff.size):
+                if cov_matrix.shape != (residuals.size, residuals.size):
                     raise ValueError(
-                        f"Provided covariance matrix shape {cov_matrix.shape} does not match expected shape {(diff.size, diff.size)}"
+                        f"Provided covariance matrix shape {cov_matrix.shape} does not match expected shape {(residuals.size, residuals.size)}"
                     )
-                else:
-                    cov_matrix = np.asarray(cov_matrix)
+                cov_matrix = np.asarray(cov_matrix)
+            elif linear_superposition is not None:
+                A = self.get_transformation_matrix(linear_superposition)
+                cov_matrix = self._transformed_cov_matrix(A)
             else:
-                cov_matrix = self._transformed_cov_matrix(A) if A is not None else self.cov_matrix
-            try:
-                # Optimized SciPy path for Cholesky and forward substitution
-                L = scipy.linalg.cholesky(cov_matrix, lower=True)
-                whitened = scipy.linalg.solve_triangular(L, diff, lower=True)
-
-            except scipy.linalg.LinAlgError:
-                # Fallback to eigenvalue decomposition for ill-conditioned/singular matrices
-                try:
-                    eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)
-
-                    # Cutoff for zero/negative eigenvalues caused by numerical noise
-                    valid_mask = eigenvals > 1e-12 * np.max(eigenvals)
-                    if np.sum(valid_mask) == 0:
-                        raise np.linalg.LinAlgError("All eigenvalues too small")
-
-                    sqrt_inv_eigenvals = np.zeros_like(eigenvals)
-                    sqrt_inv_eigenvals[valid_mask] = 1.0 / np.sqrt(eigenvals[valid_mask])
-
-                    whitened = eigenvecs @ (sqrt_inv_eigenvals * (eigenvecs.T @ diff))
-
-                except np.linalg.LinAlgError:
-                    # Final fallback to diagonal of (possibly transformed) cov
-                    errors = np.sqrt(np.diag(cov_matrix))
-                    whitened = diff / errors
+                cov_matrix = self.cov_matrix
+            return self._whiten(residuals, cov_matrix)
         else:
-            if A is not None:
+            if linear_superposition is not None:
+                A = self.get_transformation_matrix(linear_superposition)
                 errors_sq = np.array([s.error for s in self._data]) ** 2
                 errors = np.sqrt(np.diag(A * errors_sq @ A.T))
             else:
                 errors = np.array(self.val.error)
-            whitened = diff / errors
-
-        return whitened
+            return self._whiten(residuals, None, errors)
 
     def chi_squared(
         self,
-        theory_values: np.ndarray,
+        theory_values: np.ndarray | None = None,
         use_corr: bool = True,
         resamp_idx: int = 0,
         cov_matrix=None,
         linear_superposition: list[list[tuple[int, float]]] | None = None,
+        residuals: np.ndarray | None = None,
+        whitened: np.ndarray | None = None,
     ) -> float:
         """
         Calculate chi-squared with respect to theory values.
 
         Args:
-            theory_values: Array of theoretical values to compare against
-            use_corr: Whether to use full covariance matrix
-            resamp_idx: Resampling index to use (0 for full sample)
-            cov_matrix: Optional covariance matrix to use instead of self.cov_matrix. Only used if use_corr is True. This will not be transformed if linear_superposition is provided - the user must provide the appropriately transformed covariance matrix in that case.
+            theory_values: Theory values to compare against. Not required if residuals
+                or whitened is provided.
+            use_corr: Whether to use full covariance matrix.
+            resamp_idx: Resampling index to use (0 for full sample).
+            cov_matrix: Optional covariance matrix to use instead of self.cov_matrix.
+                Only used if use_corr is True and linear_superposition is None.
             linear_superposition: Optional linear combinations of observables; see
                 get_transformation_matrix for format.
+            residuals: Pre-computed residuals from self.residuals(); ignored if
+                whitened is provided.
+            whitened: Pre-computed whitened residuals; if provided all other args
+                are ignored.
 
         Returns:
             Chi-squared value
         """
-        whitened = self.whitened_residuals(
-            theory_values, use_corr, resamp_idx, cov_matrix, linear_superposition
-        )
-        return np.sum(whitened**2)
+        if whitened is None:
+            whitened = self.whitened_residuals(
+                theory_values, use_corr, resamp_idx, cov_matrix,
+                linear_superposition, residuals=residuals,
+            )
+        return float(np.sum(whitened**2))
 
     def goodness_of_fit(
         self,
-        theory_values: np.ndarray,
-        nparams: int,
+        theory_values: np.ndarray | None = None,
+        nparams: int = 0,
         use_corr: bool = True,
         resamp_idx: int = 0,
         linear_superposition: list[list[tuple[int, float]]] | None = None,
+        chi2_val: float | None = None,
+        whitened: np.ndarray | None = None,
     ) -> float:
         """
         Calculate Q (goodness-of-fit) with respect to theory values.
 
+        Pass ``whitened`` to avoid recomputing chi-squared and to supply n_obs
+        without an extra get_transformation_matrix call.  Alternatively pass
+        both ``chi2_val`` and ``whitened`` (whitened is used only for n_obs).
+
         Args:
-            theory_values: Array of theoretical values to compare against
-            nparams: Number of fitted parameters (for degrees of freedom)
-            use_corr: Whether to use full covariance matrix
-            resamp_idx: Resampling index to use (0 for full sample)
+            theory_values: Theory values to compare against. Not required if
+                chi2_val or whitened is provided.
+            nparams: Number of fitted parameters (for degrees of freedom).
+            use_corr: Whether to use full covariance matrix.
+            resamp_idx: Resampling index to use (0 for full sample).
             linear_superposition: Optional linear combinations of observables; see
-                get_transformation_matrix for format. The degrees of freedom use M
-                (the reduced number of observables) rather than N.
+                get_transformation_matrix. When provided without whitened, an extra
+                get_transformation_matrix call is made to determine n_obs.
+            chi2_val: Pre-computed chi-squared value; if provided skips chi_squared.
+            whitened: Pre-computed whitened residuals. Provides chi2 (if chi2_val is
+                None) and n_obs = len(whitened), avoiding redundant computation.
 
         Returns:
             Q value
         """
-        chi2_val = self.chi_squared(theory_values, use_corr, resamp_idx, linear_superposition)
-        if linear_superposition is not None:
+        if chi2_val is None:
+            chi2_val = self.chi_squared(
+                theory_values, use_corr, resamp_idx,
+                linear_superposition=linear_superposition, whitened=whitened,
+            )
+
+        if whitened is not None:
+            n_obs = len(whitened)
+        elif linear_superposition is not None:
             n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
         else:
             n_obs = self.num_observables
+
         dof = n_obs - nparams
         return chi2.sf(chi2_val, dof)
 
+    def aic(
+        self,
+        nparams: int = 0,
+        theory_values: np.ndarray | None = None,
+        use_corr: bool = True,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
+        whitened: np.ndarray | None = None,
+        chi2_val: float | None = None,
+    ) -> float:
+        """
+        Akaike Information Criterion: AIC = chi2 + 2 * nparams.
+
+        Args:
+            nparams: Number of fitted parameters.
+            theory_values: Theory values to compare against. Not required if whitened
+                or chi2_val is provided.
+            use_corr: Whether to use full covariance matrix.
+            linear_superposition: Optional linear combinations; see get_transformation_matrix.
+            whitened: Pre-computed whitened residuals (skips whitened_residuals call).
+            chi2_val: Pre-computed chi-squared value (skips chi_squared call).
+
+        Returns:
+            AIC value.
+        """
+        if chi2_val is None:
+            chi2_val = self.chi_squared(
+                theory_values, use_corr=use_corr,
+                linear_superposition=linear_superposition, whitened=whitened,
+            )
+        return chi2_val + 2 * nparams
+
+    def bic(
+        self,
+        nparams: int = 0,
+        theory_values: np.ndarray | None = None,
+        use_corr: bool = True,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
+        whitened: np.ndarray | None = None,
+        chi2_val: float | None = None,
+    ) -> float:
+        """
+        Bayesian Information Criterion: BIC = chi2 + nparams * ln(n_obs).
+
+        Args:
+            nparams: Number of fitted parameters.
+            theory_values: Theory values to compare against. Not required if whitened
+                or chi2_val is provided.
+            use_corr: Whether to use full covariance matrix.
+            linear_superposition: Optional linear combinations; see get_transformation_matrix.
+            whitened: Pre-computed whitened residuals (skips whitened_residuals call).
+            chi2_val: Pre-computed chi-squared value (skips chi_squared call).
+
+        Returns:
+            BIC value.
+        """
+        if chi2_val is None:
+            chi2_val = self.chi_squared(
+                theory_values, use_corr=use_corr,
+                linear_superposition=linear_superposition, whitened=whitened,
+            )
+        if whitened is not None:
+            n_obs = len(whitened)
+        elif linear_superposition is not None:
+            n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
+        else:
+            n_obs = self.num_observables
+        return chi2_val + nparams * np.log(n_obs)
+
+    def aicc(
+        self,
+        nparams: int = 0,
+        theory_values: np.ndarray | None = None,
+        use_corr: bool = True,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
+        whitened: np.ndarray | None = None,
+        chi2_val: float | None = None,
+    ) -> float:
+        """
+        Corrected Akaike Information Criterion: AICc = AIC + 2k(k+1)/(n-k-1).
+
+        Preferred over AIC when n_obs is small relative to nparams.
+
+        Args:
+            nparams: Number of fitted parameters.
+            theory_values: Theory values to compare against. Not required if whitened
+                or chi2_val is provided.
+            use_corr: Whether to use full covariance matrix.
+            linear_superposition: Optional linear combinations; see get_transformation_matrix.
+            whitened: Pre-computed whitened residuals (skips whitened_residuals call).
+            chi2_val: Pre-computed chi-squared value (skips chi_squared call).
+
+        Returns:
+            AICc value.
+        """
+        if chi2_val is None:
+            chi2_val = self.chi_squared(
+                theory_values, use_corr=use_corr,
+                linear_superposition=linear_superposition, whitened=whitened,
+            )
+        if whitened is not None:
+            n_obs = len(whitened)
+        elif linear_superposition is not None:
+            n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
+        else:
+            n_obs = self.num_observables
+        aic_val = chi2_val + 2 * nparams
+        denom = n_obs - nparams - 1
+        if denom <= 0:
+            return float("inf")
+        return aic_val + 2 * nparams * (nparams + 1) / denom
+
+    def fit_summary(
+        self,
+        theory_values: np.ndarray,
+        nparams: int,
+        use_corr: bool = True,
+        linear_superposition: list[list[tuple[int, float]]] | None = None,
+        print_results: bool = False,
+    ) -> dict:
+        """
+        Summary of goodness-of-fit statistics for given theory values.
+
+        Computes whitened residuals once and reuses them for chi2, Q, and AIC.
+
+        Args:
+            theory_values: Theory values to compare against.
+            nparams: Number of fitted parameters (for dof, Q, AIC).
+            use_corr: Whether to use full covariance matrix.
+            linear_superposition: Optional linear combinations; see get_transformation_matrix.
+            print_results: If True, print a formatted summary to stdout.
+
+        Returns:
+            Dictionary with keys: residuals, whitened_residuals, chi2, dof,
+            chi2_per_dof, Q, AIC.
+        """
+        r = self.residuals(theory_values, linear_superposition=linear_superposition)
+        w = self.whitened_residuals(use_corr=use_corr, linear_superposition=linear_superposition, residuals=r)
+        chi2_val = self.chi_squared(whitened=w)
+        dof = len(w) - nparams
+
+        result: dict = {
+            "residuals": r,
+            "whitened_residuals": w,
+            "chi2": chi2_val,
+            "dof": dof,
+            "chi2_per_dof": chi2_val / dof if dof > 0 else float("nan"),
+            "Q": self.goodness_of_fit(nparams=nparams, chi2_val=chi2_val, whitened=w),
+            "AIC": self.aic(nparams, chi2_val=chi2_val),
+        }
+
+        if print_results:
+            W = 42
+            print("=" * W)
+            print("  Fit Summary")
+            print("=" * W)
+            print(f"  chi2        : {result['chi2']:.6g}")
+            print(f"  dof         : {result['dof']}")
+            print(f"  chi2/dof    : {result['chi2_per_dof']:.4g}")
+            print(f"  Q           : {result['Q']:.4g}")
+            print(f"  AIC         : {result['AIC']:.6g}")
+            print(f"\n  {'Obs':<5}  {'Residual':>14}  {'Whitened':>14}")
+            print(f"  {'-'*(W-2)}")
+            for i, (r, wh) in enumerate(
+                zip(result["residuals"], result["whitened_residuals"])
+            ):
+                print(f"  {i:<5}  {r:>14.6g}  {wh:>14.6g}")
+            print("=" * W)
+
+        return result
+    
     @cached_property
     def effective_sample_size(self) -> np.ndarray:
         """
@@ -660,8 +885,11 @@ class SamplingStats(MultiEnsembleCollection):
         # Compute covariance
         if use_corr:
             try:
-                cov_matrix = self._transformed_cov_matrix(A) if A is not None else self.cov_matrix
-                inv_cov = np.linalg.inv(cov_matrix)
+                if A is not None:
+                    cov_matrix = self._transformed_cov_matrix(A)
+                    inv_cov = np.linalg.inv(cov_matrix)
+                else:
+                    inv_cov = self.inv_cov_matrix
                 use_covariance = True
             except np.linalg.LinAlgError:
                 use_covariance = False
@@ -754,8 +982,7 @@ class SamplingStats(MultiEnsembleCollection):
         # Precompute covariance
         if use_corr:
             try:
-                cov_matrix = self.cov_matrix
-                inv_cov = np.linalg.inv(cov_matrix)
+                inv_cov = self.inv_cov_matrix
                 use_covariance = True
             except np.linalg.LinAlgError:
                 use_covariance = False
@@ -764,13 +991,13 @@ class SamplingStats(MultiEnsembleCollection):
 
         errors = np.array(self.val.error)
 
-        def chi_squared(params):
+        def chi_sq(params):
             theory_vals = model_func(x_array, params)
             return self.chi_squared(theory_vals, use_corr)
 
         # Fit full sample
         if method == "minimize":
-            result = minimize(chi_squared, initial_params, bounds=param_bounds)
+            result = minimize(chi_sq, initial_params, bounds=param_bounds)
             if not result.success:
                 raise RuntimeError(f"Fitting failed: {result.message}")
             best_params = result.x
@@ -942,15 +1169,49 @@ class SamplingStats(MultiEnsembleCollection):
         initial_params = np.array([A_guess, m_guess])
         return self.fit_function(x_values, exp_func, initial_params, use_corr=use_corr)
 
-    def summary(self) -> dict:
-        """Generate a summary of statistical information."""
-        return {
+    def summary(self, print_results: bool = False) -> dict:
+        """
+        Summary of dataset statistics (observables, covariance, correlations).
+
+        Args:
+            print_results: If True, print a formatted table to stdout.
+
+        Returns:
+            Dictionary with keys: num_observables, num_samples, ensembles,
+            sampling_method, means, errors, cov_matrix, corr_matrix,
+            cov_cond_num, corr_cond_num, effective_sample_sizes.
+        """
+        result: dict = {
             "num_observables": self.num_observables,
             "num_samples": self.num_samples,
             "ensembles": [e.name for e in self.ensembles],
             "sampling_method": (self._sampling_info.method if self._sampling_info else None),
             "means": np.array(self.val.mean),
             "errors": np.array(self.val.error),
+            "cov_matrix": self.cov_matrix,
+            "corr_matrix": self.corr_matrix,
+            "cov_cond_num": self.cov_matrix_cond_num,
+            "corr_cond_num": self.corr_matrix_cond_num,
             "effective_sample_sizes": self.effective_sample_size,
-            "correlation_matrix": self.corr_matrix,
         }
+
+        if print_results:
+            W = 52
+            print("=" * W)
+            print("  SamplingStats Summary")
+            print("=" * W)
+            print(f"  Observables : {result['num_observables']}")
+            print(f"  Samples     : {result['num_samples']}")
+            print(f"  Ensembles   : {', '.join(result['ensembles'])}")
+            print(f"  Method      : {result['sampling_method']}")
+            print(f"\n  {'Obs':<5}  {'Mean':>18}  {'Error':>14}  {'Eff. N':>7}")
+            print(f"  {'-'*(W-2)}")
+            for i, (m, e, n) in enumerate(
+                zip(result["means"], result["errors"], result["effective_sample_sizes"])
+            ):
+                print(f"  {i:<5}  {m:>18.6g}  {e:>14.6g}  {n:>7.1f}")
+            print(f"\n  Cov cond. number  : {result['cov_cond_num']:.4g}")
+            print(f"  Corr cond. number : {result['corr_cond_num']:.4g}")
+            print("=" * W)
+
+        return result

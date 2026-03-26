@@ -2,6 +2,7 @@
 Plotting utilities for SigmondSamplings and SigmondStats.
 """
 
+import math
 from collections.abc import Callable, Iterable
 from typing import (
     TYPE_CHECKING,
@@ -18,7 +19,28 @@ from .stats import SamplingStats
 if TYPE_CHECKING:
     from .model_func import SigmondModelFunc
 
-# Import color functions for chi2 plotting
+# Summary plot configuration
+_VALID_PANELS = frozenset({"errorbar", "correlation", "histogram", "eff_sample_size"})
+_DEFAULT_PANELS = ["histogram", "correlation"]
+_PANEL_W = 6.5  # inches per column
+_PANEL_H = 5.0  # inches per row
+
+
+def _summary_grid(n: int) -> tuple[int, int]:
+    """Compute (nrows, ncols) grid shape for n panels."""
+    if n <= 3:
+        return (1, n)
+    ncols = math.ceil(math.sqrt(n))
+    nrows = math.ceil(n / ncols)
+    return (nrows, ncols)
+
+
+def _summary_figsize(nrows: int, ncols: int, panels: list[str], num_observables: int) -> tuple[float, float]:
+    w = ncols * _PANEL_W
+    h = nrows * _PANEL_H
+    if "correlation" in panels:
+        h += min(3.0, num_observables * 0.15)
+    return (w, h)
 
 
 class SamplingPlotter:
@@ -570,12 +592,68 @@ class SamplingPlotter:
 
         return ax
 
-    def plot_stats_summary(self, figsize: tuple[float, float] | None = None) -> plt.Figure:
+    def plot_effective_sample_size(
+        self,
+        ax: plt.Axes | None = None,
+        figsize: tuple[float, float] | None = None,
+        max_labels: int = 20,
+        **kwargs,
+    ) -> plt.Axes:
         """
-        Create a comprehensive summary plot with multiple panels.
+        Plot effective sample sizes for all observables as a bar chart.
 
         Args:
-            figsize: Figure size (uses larger default if None)
+            ax: Matplotlib axes to plot on (creates new if None)
+            figsize: Figure size (uses default if None)
+            max_labels: Max number of observables before suppressing x-tick labels
+            **kwargs: Additional arguments passed to matplotlib bar()
+
+        Returns:
+            matplotlib Axes object
+        """
+        if self.stats is None:
+            raise ValueError("Must initialize with SamplingStats for effective sample size plot")
+
+        if ax is None:
+            figsize = figsize or self.default_figsize
+            _, ax = plt.subplots(figsize=figsize)
+
+        eff_sizes = self.stats.effective_sample_size
+        obs_names = ["$" + s + "$" for s in self.stats.obs.latex_str]
+
+        ax.bar(range(len(eff_sizes)), eff_sizes, **kwargs)
+        ax.set_xlabel("Observable Index")
+        ax.set_ylabel("Effective Sample Size")
+        ax.set_title("Effective Sample Sizes")
+        if len(obs_names) <= max_labels:
+            ax.set_xticks(range(len(obs_names)))
+            ax.set_xticklabels(obs_names, rotation=45, ha="right")
+        ax.grid(True, alpha=0.3)
+
+        return ax
+
+    def plot_stats_summary(
+        self,
+        figsize: tuple[float, float] | None = None,
+        panels: list[str] | None = None,
+        obs_index: int | None = None,
+        title: str | None = None,
+        layout: tuple[int, int] | None = None,
+    ) -> plt.Figure:
+        """
+        Create a summary plot composed of configurable panels.
+
+        Args:
+            figsize: Figure size. Computed adaptively from panel count and observable
+                count if None.
+            panels: Ordered list of panel names to include. Valid names:
+                ``"errorbar"``, ``"correlation"``, ``"histogram"``,
+                ``"eff_sample_size"``. Defaults to ``["histogram", "correlation"]``.
+            obs_index: Index of the observable shown in the histogram panel.
+                ``None`` (default) plots one histogram per observable.
+            title: Optional overall figure title (suptitle).
+            layout: Override grid shape ``(nrows, ncols)``. Computed from panel
+                count if None.
 
         Returns:
             matplotlib Figure object
@@ -583,32 +661,191 @@ class SamplingPlotter:
         if self.stats is None:
             raise ValueError("Must initialize with SamplingStats for summary plots")
 
-        figsize = figsize or (15, 10)
-        fig, axes = plt.subplots(2, 2, figsize=figsize)
+        panels = list(panels) if panels is not None else list(_DEFAULT_PANELS)
 
-        # Error bar plot
-        self.plot_sampling_errorbar(ax=axes[0, 0])
-        axes[0, 0].set_title("Observable Values")
+        unknown = [p for p in panels if p not in _VALID_PANELS]
+        if unknown:
+            raise ValueError(
+                f"Unknown panel(s): {unknown}. Valid panels: {sorted(_VALID_PANELS)}"
+            )
 
-        # Correlation matrix
-        self.plot_correlation_matrix(ax=axes[0, 1])
+        # Expand panels into (panel_name, histogram_idx) slots.
+        # "histogram" with obs_index=None becomes one slot per observable;
+        # combined panels (correlation, errorbar, eff_sample_size) are always one slot.
+        slots: list[tuple[str, int | None]] = []
+        for p in panels:
+            if p == "histogram" and obs_index is None:
+                for i in range(self.stats.num_observables):
+                    slots.append(("histogram", i))
+            else:
+                slots.append((p, obs_index if p == "histogram" else None))
 
-        # First observable histogram
-        self.plot_sampling_histogram(ax=axes[1, 0])
+        n = len(slots)
+        nrows, ncols = layout if layout is not None else _summary_grid(n)
+        figsize = figsize or _summary_figsize(nrows, ncols, panels, self.stats.num_observables)
 
-        # Effective sample sizes
-        eff_sizes = self.stats.effective_sample_size
-        obs_names = ["$" + s + "$" for s in self.stats.obs.latex_str]
+        fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
 
-        axes[1, 1].bar(range(len(eff_sizes)), eff_sizes)
-        axes[1, 1].set_xlabel("Observable Index")
-        axes[1, 1].set_ylabel("Effective Sample Size")
-        axes[1, 1].set_title("Effective Sample Sizes")
-        axes[1, 1].set_xticks(range(len(obs_names)))
-        axes[1, 1].set_xticklabels(obs_names, rotation=45, ha="right")
+        def _draw(ax: plt.Axes, panel: str, idx: int | None) -> None:
+            if panel == "histogram":
+                self.plot_sampling_histogram(sampling=idx, ax=ax)
+            elif panel == "correlation":
+                self.plot_correlation_matrix(ax=ax)
+            elif panel == "errorbar":
+                self.plot_sampling_errorbar(ax=ax)
+            elif panel == "eff_sample_size":
+                self.plot_effective_sample_size(ax=ax)
 
-        plt.tight_layout()
+        for i, (panel, idx) in enumerate(slots):
+            _draw(axes[i // ncols, i % ncols], panel, idx)
+
+        # Hide unused cells
+        for i in range(n, nrows * ncols):
+            axes[i // ncols, i % ncols].set_visible(False)
+
+        if title:
+            fig.suptitle(title, y=1.02)
+            fig.tight_layout(rect=[0, 0, 1, 0.96])
+        else:
+            fig.tight_layout()
+
         return fig
+
+    def plot_spectrum(
+        self,
+        energy_samplings: Iterable[SigmondSampling] | None = None,
+        energy_type: str | None = None,
+        ax: plt.Axes | None = None,
+        figsize: tuple[float, float] | None = None,
+        col_spacing: float = 1.0,
+        psq_gap: float = 1.5,
+        stack_width: float = 0.3,
+        capsize: float = 5,
+        markersize: float = 6,
+    ) -> plt.Axes:
+        """
+        Plot an energy spectrum grouped by PSQ and irrep.
+
+        Builds a SingleEnsembleEnergyCollection from the provided samplings,
+        groups by PSQ then irrep, and plots each irrep as a vertical column of
+        energy levels. Levels within a column are spread horizontally with
+        stacked_positions to avoid overlap and colored with IndexedCycle(COLORS).
+
+        Args:
+            energy_samplings: Iterable of SigmondSampling objects with
+                EnergyObsInfo or SHEnergyObsInfo observable info.
+                If None, uses all samplings from self.stats.
+            energy_type: Optional string to indicate the type of energy spectrum.
+                Only necessary if the observables have mixed energy types.
+            ax: Matplotlib axes (creates new figure if None).
+            figsize: Figure size (adaptive default if None).
+            col_spacing: Horizontal spacing between irrep columns.
+            psq_gap: Extra horizontal gap between PSQ groups (on top of
+                col_spacing).
+            stack_width: Maximum horizontal spread for stacked overlapping
+                levels within one column, passed to stacked_positions.
+            capsize: Error bar cap size in points.
+            markersize: Marker size in points.
+
+        Returns:
+            matplotlib Axes object
+        """
+        from kbfit import COLORS, IndexedCycle, get_irrep_latex_str
+
+        from .energy_level_collection import SingleEnsembleEnergyCollection
+        from .utils import stacked_positions
+
+        energies = energy_samplings if energy_samplings is not None else self.stats
+        coll = SingleEnsembleEnergyCollection(energies)
+        by_psq = coll.group_by_psq()
+        sorted_psqs = sorted(by_psq.keys())
+
+        # Build ordered column list and PSQ midpoint positions
+        columns: list[tuple[int, str, float, Any]] = []  # (psq, irrep, x_center, sub_coll)
+        psq_midpoints: dict[int, float] = {}
+        x = 0.0
+
+        for i, psq in enumerate(sorted_psqs):
+            if i > 0:
+                x += psq_gap
+            psq_start = x
+            by_irrep = by_psq[psq].group_by_irrep()
+            for irrep in sorted(by_irrep.keys()):
+                columns.append((psq, irrep, x, by_irrep[irrep]))
+                x += col_spacing
+            psq_midpoints[psq] = (psq_start + x - col_spacing) / 2
+
+        if ax is None:
+            fig_w = max(6.0, len(columns) * 1.2)
+            figsize = figsize or (fig_w, 6.0)
+            _, ax = plt.subplots(figsize=figsize, constrained_layout=True)
+
+        xtick_positions: list[float] = []
+        xtick_labels: list[str] = []
+
+        for psq, irrep, x_center, sub_coll in columns:
+            ys = np.array([s.mean for s in sub_coll])
+            yerrs = np.array([s.error for s in sub_coll])
+            xs = stacked_positions(ys, yerrs, x=x_center, width=stack_width)
+
+            color_cycle = IndexedCycle(COLORS)
+            for xi, yi, yerri in zip(xs, ys, yerrs):
+                ax.errorbar(
+                    xi,
+                    yi,
+                    yerr=yerri,
+                    fmt="o",
+                    color=next(color_cycle),
+                    capsize=capsize,
+                    markersize=markersize,
+                    capthick=1.5,
+                    linewidth=1.5,
+                )
+
+            xtick_positions.append(x_center)
+            xtick_labels.append(f"${get_irrep_latex_str(irrep)}$")
+
+        ax.set_xticks(xtick_positions)
+        ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
+
+        # PSQ labels ($d^2 = N$) centered on each group, below the irrep ticks
+        for psq, mid_x in psq_midpoints.items():
+            ax.annotate(
+                f"$d^2 = {psq}$",
+                xy=(mid_x, 0),
+                xycoords=("data", "axes fraction"),
+                xytext=(0, -50),
+                textcoords="offset points",
+                ha="center",
+                va="top",
+                fontsize=10,
+            )
+            
+        # Determin energy-type of spectrum for y-axis label
+        energy_types = coll.energy_types
+        if energy_type is not None:
+            if energy_type not in energy_types:
+                raise ValueError(f"Specified energy_type '{energy_type}' not found in data")
+            else:
+                energy_types = [energy_type]
+        if len(energy_types) == 1:
+            energy_type_latex = coll[0].observable_info.specify_latex_str(
+                include_irrep = False,
+                include_psq = False,
+                include_particles =  False,
+                include_level_index = False,
+            )
+            # print(coll[0].observable_info.ref_particle)
+            ax.set_ylabel(f"${energy_type_latex}$")
+        else:
+            import logging
+            logging.warning(f"Multiple energy types found ({energy_types}), using generic 'Energy' label")
+            ax.set_ylabel("E")
+
+        ax.set_xlim(-col_spacing, x)
+        ax.grid(True, alpha=0.3, axis="y")
+
+        return ax
 
     def plot_bootstrap_intervals(
         self,
