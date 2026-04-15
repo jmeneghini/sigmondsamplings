@@ -5,6 +5,7 @@ This package provides tools to load, manipulate, and analyze Sigmond samplings f
 in both fstream and HDF5 formats using the sigmond_query tool.
 """
 
+from .bins import SigmondBins
 from .energy_level_collection import (
     EnergyLevelMixin,
     MultiEnsembleEnergyCollection,
@@ -86,6 +87,7 @@ __all__ = [
     "MultiEnsembleEnergyCollection",
     "SigmondWriter",
     "SigmondSampling",
+    "SigmondBins",
     "KnownEnsembles",
     "SamplingInfo",
     "EnsembleInfo",

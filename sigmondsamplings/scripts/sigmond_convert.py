@@ -32,7 +32,7 @@ def detect_output_format(output_file: str) -> str:
     output_file_lower = output_file.lower()
     if output_file_lower.endswith(".hdf5"):
         return "hdf5"
-    elif output_file_lower.endswith(".smp"):
+    elif output_file_lower.endswith(".smp") or output_file_lower.endswith(".dat"):
         return "smp"
     elif output_file_lower.endswith(".fstream"):
         return "fstream"
@@ -83,8 +83,7 @@ def convert_to_smp(input_file: str, output_file: str, hdf5_path: str | None = No
         raise RuntimeError(
             "sigmond_query command not found. Please ensure Sigmond is installed and in PATH."
         )
-    except Exception as e:
-        print(f"Conversion failed: {e}")
+    except Exception:
         raise
 
 
@@ -124,8 +123,7 @@ def convert_to_hdf5(
         print(f"Successfully converted to {output_path}")
         return output_path
 
-    except Exception as e:
-        print(f"Conversion failed: {e}")
+    except Exception:
         raise
 
 

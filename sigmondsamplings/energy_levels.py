@@ -276,7 +276,7 @@ def _parse_particles(name: str, bounds: _BoundaryPatterns) -> tuple[list[str], i
     return particles, psq_from_particle
 
 
-def parse_energy_attributes(name: str, delimiters: str = r"[_\.\s/]") -> dict[str, Any]:
+def parse_energy_attributes(name: str, delimiters: str = r"[_\.\s/|]") -> dict[str, Any]:
     """
     Parse energy level attributes from observable name with flexible delimiters.
 

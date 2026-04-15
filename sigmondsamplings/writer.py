@@ -13,6 +13,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from .bins import SigmondBins
 from .loader import SigmondLoader
 from .sampling import EnsembleInfo, ObservableInfo, SamplingInfo, SigmondSampling
 
@@ -169,6 +170,54 @@ class SigmondWriter:
         else:
             if level and (not elem.tail or not elem.tail.strip()):
                 elem.tail = i
+
+    def _generate_bins_header_xml(self, ensemble_info: EnsembleInfo) -> str:
+        """Generate the XML header for a Sigmond bins file."""
+        root = ET.Element("SigmondBinsFile")
+        bins_elem = ET.SubElement(root, "MCBinsInfo")
+        ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.name
+        ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(
+            ensemble_info.num_measurements
+        )
+        ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
+
+        if ensemble_info.tweak_info:
+            tweak_elem = ET.SubElement(bins_elem, "TweakEnsemble")
+            for key, value in ensemble_info.tweak_info.items():
+                ET.SubElement(tweak_elem, key).text = str(value)
+
+        return ET.tostring(root, encoding="unicode")
+
+    def _dataset_key_for_observable(
+        self, observable_info: ObservableInfo, re_im: str
+    ) -> str:
+        """
+        Return the HDF5-safe dataset key for an observable's Re/Im component.
+
+        Two forms are supported:
+
+        * If ``observable_info.name`` begins with ``<`` it is treated as raw XML
+          (e.g. a CorrT fragment carried over from a bins file). It is wrapped in
+          ``<MCObservable>{name}<Arg>Re|Im</Arg></MCObservable>`` and made HDF5-safe.
+        * Otherwise the simple Info-form key
+          ``<MCObservable><Info>name index op_type re_im</Info></MCObservable>``
+          is emitted.
+        """
+        name = observable_info.name
+        arg_value = "Im" if re_im.lower().startswith("im") else "Re"
+
+        if isinstance(name, str) and name.startswith("<"):
+            xml_key = f"<MCObservable>{name}<Arg>{arg_value}</Arg></MCObservable>"
+            return self._make_hdf5_safe_key(xml_key)
+
+        cloned = ObservableInfo(
+            name,
+            observable_info.index,
+            observable_info.op_type,
+            re_im,
+            observable_info.ensemble_info,
+        )
+        return self._make_hdf5_safe_key(self._generate_observable_key_xml(cloned))
 
     def _generate_observable_key_xml(self, observable_info: ObservableInfo) -> str:
         """Generate the XML key for an observable."""
@@ -342,6 +391,105 @@ class SigmondWriter:
 
             logger.info(
                 f"Successfully wrote {len(samplings)} samplings to {filename} at path '{root_path}'"
+            )
+
+    def write_bins_hdf5(
+        self,
+        filename: str,
+        bins_list: list[SigmondBins],
+        root_path: str = "/",
+        overwrite: bool = False,
+    ) -> None:
+        """
+        Write a collection of ``SigmondBins`` to an HDF5 bins file.
+
+        The output format mirrors a real Sigmond bins file: FIdentifier
+        ``Sigmond--BinsFile``, a ``SigmondBinsFile`` header XML, and one dataset
+        per observable component under ``<root_path>/Values``. Complex bins are
+        split into Re/Im datasets. If an observable carries a ``_raw_key`` (i.e.
+        it was loaded from an existing bins file), the original dataset key is
+        preserved so round-trips are lossless.
+        """
+        if Path(filename).exists() and not overwrite:
+            raise FileExistsError(
+                f"File {filename} already exists. Use overwrite=True to overwrite."
+            )
+        elif Path(filename).exists() and overwrite:
+            self._create_numbered_backup(filename)
+
+        if not bins_list:
+            raise ValueError("No bins provided")
+
+        if not root_path.startswith("/"):
+            root_path = "/" + root_path
+        if not root_path.endswith("/"):
+            root_path += "/"
+        group_name = root_path.strip("/")
+
+        first = bins_list[0]
+        ensemble_info = first.observable_info.ensemble_info
+        num_bins = first.num_bins
+
+        # Validate consistency
+        for i, b in enumerate(bins_list):
+            if not isinstance(b, SigmondBins):
+                raise TypeError(
+                    f"Item {i} is a {type(b).__name__}, expected SigmondBins"
+                )
+            if b.observable_info.ensemble_info != ensemble_info:
+                raise ValueError(f"Bins {i} has incompatible ensemble info")
+            if b.num_bins != num_bins:
+                raise ValueError(
+                    f"Bins {i} has {b.num_bins} bins; expected {num_bins}"
+                )
+
+        with h5py.File(filename, "w") as hdf5_file:
+            # Global Info group — identifies this as a bins file
+            info_group = hdf5_file.create_group("Info")
+            fid_dtype = h5py.string_dtype(encoding="utf-8", length=18)
+            info_group.create_dataset(
+                "FIdentifier", data="Sigmond--BinsFile", dtype=fid_dtype
+            )
+            end_dtype = h5py.string_dtype(encoding="utf-8", length=2)
+            info_group.create_dataset("Endianness", data="L", dtype=end_dtype)
+
+            data_group = hdf5_file.create_group(group_name)
+
+            header_xml = self._generate_bins_header_xml(ensemble_info)
+            header_len = len(header_xml.encode("utf-8")) + 1
+            header_dtype = h5py.string_dtype(encoding="utf-8", length=header_len)
+            data_group.create_dataset("Header", data=header_xml, dtype=header_dtype)
+
+            cks_dtype = h5py.string_dtype(encoding="utf-8", length=2)
+            data_group.create_dataset("IncludeCKS", data="N", dtype=cks_dtype)
+
+            values_group = data_group.create_group("Values")
+
+            for b in bins_list:
+                arr = b._as_numpy()
+                if b.is_complex:
+                    re_key = self._dataset_key_for_observable(b.observable_info, "re")
+                    im_key = self._dataset_key_for_observable(b.observable_info, "im")
+                    if re_key == im_key:
+                        raise ValueError(
+                            f"Could not construct distinct Re/Im dataset keys for "
+                            f"observable {b.observable_info}"
+                        )
+                    values_group.create_dataset(
+                        re_key, data=np.real(arr).astype(np.float64)
+                    )
+                    values_group.create_dataset(
+                        im_key, data=np.imag(arr).astype(np.float64)
+                    )
+                else:
+                    key = self._dataset_key_for_observable(
+                        b.observable_info, b.observable_info.re_im
+                    )
+                    values_group.create_dataset(key, data=arr.astype(np.float64))
+
+            logger.info(
+                f"Successfully wrote {len(bins_list)} bins observables to "
+                f"{filename} at path '{root_path}'"
             )
 
     def restore_from_backup(self, filename: str, backup_number: int | None = None) -> None:
@@ -601,7 +749,8 @@ class SigmondWriter:
         overwrite: bool = False,
     ) -> str:
         """
-        Convert Sigmond files to HDF5 format (primary supported format).
+        Convert a Sigmond file to HDF5 while preserving whether it stores
+        samplings or raw bins.
 
         Args:
             input_filename: Input file path
@@ -613,15 +762,37 @@ class SigmondWriter:
         Returns:
             Path to the converted file
         """
+        if output_format != "hdf5":
+            raise ValueError(f"Unsupported output format: {output_format}")
+
         # Ensure HDF5 output
         outpath = Path(output_filename).with_suffix(".hdf5")
 
-        # Load and convert
+        # Load and preserve the input file kind. Raw bins do not carry
+        # SamplingInfo, so routing them through write_hdf5() would fail when
+        # building a samplings header.
         loader = SigmondLoader(filename=input_filename)
-        samplings_list = list(loader.observables)
+        observables = list(loader.observables)
+        if not observables:
+            raise ValueError(f"No observables found in {input_filename}")
 
-        # Write to HDF5
-        self.write_hdf5(str(outpath), samplings_list, hdf5_root_path, overwrite=overwrite)
+        if loader.file_kind == "bins" or all(
+            isinstance(obs, SigmondBins) for obs in observables
+        ):
+            self.write_bins_hdf5(
+                str(outpath), observables, hdf5_root_path, overwrite=overwrite
+            )
+        elif loader.file_kind == "samplings" or all(
+            isinstance(obs, SigmondSampling) for obs in observables
+        ):
+            self.write_hdf5(
+                str(outpath), observables, hdf5_root_path, overwrite=overwrite
+            )
+        else:
+            raise TypeError(
+                "Loaded observables are a mixed or unsupported set of types and "
+                "cannot be converted to HDF5."
+            )
 
         return str(outpath)
 

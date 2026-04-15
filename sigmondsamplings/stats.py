@@ -33,6 +33,7 @@ class SamplingStats(MultiEnsembleCollection):
     def __init__(
         self,
         data: Iterable[SigmondSampling] | None = None,
+        use_gvar: bool = False,
     ):
         """
         Initialize SamplingStats with sampling_info and energy-level validation.
@@ -42,11 +43,13 @@ class SamplingStats(MultiEnsembleCollection):
                 - List of SigmondSampling objects with energy-level observables
                 - ObservableCollection / MultiEnsembleCollection
                 - None for empty collection
+            use_gvar: Whether to convert values to gvar objects (only supporting covariance currently)
 
         Raises:
             ValueError: If samplings have inconsistent sampling_info or non-energy observables
         """
         super().__init__(data, "numpy")
+        self.use_gvar = use_gvar
         # Convert to tuple for immutability
         self._sampling_info = self.sampling_info
         self._data = tuple(self._data)
@@ -159,6 +162,10 @@ class SamplingStats(MultiEnsembleCollection):
         """
         resampled = self._numpy_data[:, 1:]  # (N, n_resamples)
         cov_arr = np.atleast_2d(np.cov(resampled, ddof=1))
+
+        if self.use_gvar:
+            import gvar
+            cov_arr = gvar.evalcov(gvar.dataset.avg_data(self.array[:, 1:].T, bstrap=True))
 
         if self._sampling_info and self._sampling_info.method == "jackknife":
             cov_arr = cov_arr * (resampled.shape[1] - 1)
@@ -570,7 +577,7 @@ class SamplingStats(MultiEnsembleCollection):
             n_obs = self.num_observables
 
         dof = n_obs - nparams
-        return chi2.sf(chi2_val, dof)
+        return float(chi2.sf(chi2_val, dof))
 
     def aic(
         self,
@@ -721,6 +728,24 @@ class SamplingStats(MultiEnsembleCollection):
             "Q": self.goodness_of_fit(nparams=nparams, chi2_val=chi2_val, whitened=w),
             "AIC": self.aic(nparams, chi2_val=chi2_val),
         }
+
+        lines = [
+            "**Fit Summary**",
+            "",
+            "| Statistic | Value |",
+            "| --- | --- |",
+            f"| $\\chi^2$ | {result['chi2']:.6g} |",
+            f"| dof | {result['dof']} |",
+            f"| $\\chi^2/\\text{dof}$ | {result['chi2_per_dof']:.4g} |",
+            f"| Q | {result['Q']:.4g} |",
+            f"| AIC | {result['AIC']:.6g} |",
+            "",
+            "| Obs | Residual | Whitened |",
+            "| --- | --- | --- |",
+        ]
+        for i, (res, wh) in enumerate(zip(result["residuals"], result["whitened_residuals"])):
+            lines.append(f"| {i} | {res:.6g} | {wh:.6g} |")
+        result["markdown"] = "\n".join(lines)
 
         if print_results:
             W = 42

@@ -1062,18 +1062,18 @@ class ObservableCollection(PandasExportMixin):
     def to_numpy(self) -> "np.ndarray":
         """Return NumPy array of data values.
         Shape: (N, M)
-            where N is number of observables and M is sample size."""
-        try:
-            self.shared_attr(lambda s: s.sampling_info.num_resamplings, strict=True)
-        except ValueError:
-            raise ValueError(
-                "All samplings must have the same number of resamplings to convert to NumPy array."
-            )
+            where N is number of observables and M is the sample size
+            (num_resamplings + 1 for SigmondSampling, num_bins for SigmondBins)."""
         if not self._data:
             return np.array([])
-        return np.array([samp.data for samp in self._data])
+        try:
+            self.shared_attr(lambda s: len(s.data), strict=True)
+        except ValueError:
+            raise ValueError(
+                "All samplings must have the same sample length to convert to NumPy array."
+            )
+        return np.array([np.asarray(samp.data) for samp in self._data])
 
-    # TODO: Actually seems broken!
     # TODO: would like a better updating mechanism. Want to be able to 'update' or 'append'.
     def to_hdf5(
         self, filename: str, create_backups: bool = True, root_path: str = "samplings"
@@ -1081,27 +1081,45 @@ class ObservableCollection(PandasExportMixin):
         """
         Export collection data to HDF5 file in Sigmond format.
 
+        If the collection holds ``SigmondSampling`` objects, the result is a Sigmond
+        samplings file. If it holds ``SigmondBins`` objects, a Sigmond bins file is
+        written instead. Mixed collections are rejected.
+
         Args:
             filename: Path to output HDF5 file
             create_backups: If True, create backups of existing files (default: True)
             root_path: Root path in HDF5 file to store data (default: "samplings")
         """
+        from .bins import SigmondBins
+        from .ensemble_collection import SingleEnsembleCollection
         from .writer import SigmondWriter
 
-        # Try converting to SingleEnsembleCollection. We require a single ensemble
+        # Validate single-ensemble / shared sampling
         try:
-            from .ensemble_collection import SingleEnsembleCollection
-
             SingleEnsembleCollection(self._data)
         except ValueError:
             raise ValueError(
-                "All samplings must belong to the same ensemble and have the same sampling info to export to HDF5."
+                "All observables must belong to the same ensemble and have compatible "
+                "sampling metadata to export to HDF5."
+            )
+
+        all_bins = all(isinstance(s, SigmondBins) for s in self._data)
+        all_samplings = all(isinstance(s, SigmondSampling) for s in self._data)
+        if not (all_bins or all_samplings):
+            raise ValueError(
+                "Cannot export a mixed collection of SigmondBins and SigmondSampling "
+                "to a single HDF5 file."
             )
 
         writer = SigmondWriter(create_backups=create_backups)
-        writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=True)
-        # turn off backups after first write
-        writer = SigmondWriter(create_backups=False)
+        if all_bins:
+            writer.write_bins_hdf5(
+                filename, self._data, root_path=root_path, overwrite=True
+            )
+        else:
+            writer.write_hdf5(
+                filename, self._data, root_path=root_path, overwrite=True
+            )
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""
@@ -1183,5 +1201,17 @@ class ObservableCollection(PandasExportMixin):
 
         out_data = list(other_data)  # copy; don't mutate other._data
         out_data.extend(s for s in self._data if s.observable_info not in other_keys)
+
+        return self.__class__(out_data, return_type=self._return_type)
+
+    def __sub__(self: T, other: "ObservableCollection") -> T:
+        if not isinstance(other, ObservableCollection):
+            raise TypeError(
+                f"unsupported operand type(s) for -: "
+                f"'{type(self).__name__}' and '{type(other).__name__}'"
+            )
+
+        other_keys = {s.observable_info for s in other._data}
+        out_data = [s for s in self._data if s.observable_info not in other_keys]
 
         return self.__class__(out_data, return_type=self._return_type)

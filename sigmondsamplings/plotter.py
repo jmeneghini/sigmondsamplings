@@ -722,6 +722,7 @@ class SamplingPlotter:
         stack_width: float = 0.3,
         capsize: float = 5,
         markersize: float = 6,
+        fontsize: float | None = None,
     ) -> plt.Axes:
         """
         Plot an energy spectrum grouped by PSQ and irrep.
@@ -746,6 +747,8 @@ class SamplingPlotter:
                 levels within one column, passed to stacked_positions.
             capsize: Error bar cap size in points.
             markersize: Marker size in points.
+            fontsize: Font size for tick labels, PSQ annotations, and axis label.
+                Uses matplotlib's default if None.
 
         Returns:
             matplotlib Axes object
@@ -806,7 +809,7 @@ class SamplingPlotter:
             xtick_labels.append(f"${get_irrep_latex_str(irrep)}$")
 
         ax.set_xticks(xtick_positions)
-        ax.set_xticklabels(xtick_labels, rotation=45, ha="right")
+        ax.set_xticklabels(xtick_labels, rotation=45, ha="right", fontsize=fontsize)
 
         # PSQ labels ($d^2 = N$) centered on each group, below the irrep ticks
         for psq, mid_x in psq_midpoints.items():
@@ -818,7 +821,7 @@ class SamplingPlotter:
                 textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=10,
+                fontsize=fontsize if fontsize is not None else 10,
             )
             
         # Determin energy-type of spectrum for y-axis label
@@ -836,11 +839,11 @@ class SamplingPlotter:
                 include_level_index = False,
             )
             # print(coll[0].observable_info.ref_particle)
-            ax.set_ylabel(f"${energy_type_latex}$")
+            ax.set_ylabel(f"${energy_type_latex}$", fontsize=fontsize)
         else:
             import logging
             logging.warning(f"Multiple energy types found ({energy_types}), using generic 'Energy' label")
-            ax.set_ylabel("E")
+            ax.set_ylabel("E", fontsize=fontsize)
 
         ax.set_xlim(-col_spacing, x)
         ax.grid(True, alpha=0.3, axis="y")
