@@ -446,7 +446,7 @@ class EnergyObsInfo(ObservableInfo):
                 f"irrep={irrep}, psq={psq}, energy_type={energy_type}, "
                 f"particles={particles}, level_index={level_index}, ref_particle={ref_particle}"
             ) from e
-            
+
     @property
     def _default_latex_params(self) -> dict:
         """Default parameters for LaTeX generation."""
@@ -462,30 +462,26 @@ class EnergyObsInfo(ObservableInfo):
     @property
     def latex_str(self) -> str:
         """Generate LaTeX representation dynamically."""
-        return _generate_latex_str(
-            **self._default_latex_params
-        )
-        
+        return _generate_latex_str(**self._default_latex_params)
+
     def specify_latex_str(self, **kwargs) -> str:
         """Generate LaTeX string with options to include/exclude certain attributes.
-           For kwargs, one can choose from
-                irrep: str = None,
-                psq: int = None,
-                particles: list[Particle] | None = None,
-                level_index: int = None,
-                ref_particle: str = None,
-                include_irrep: bool = True,
-                include_psq: bool = True,
-                include_particles: bool = True,
-                include_level_index: bool = True,
-                is_single_hadron: bool = False
+        For kwargs, one can choose from
+             irrep: str = None,
+             psq: int = None,
+             particles: list[Particle] | None = None,
+             level_index: int = None,
+             ref_particle: str = None,
+             include_irrep: bool = True,
+             include_psq: bool = True,
+             include_particles: bool = True,
+             include_level_index: bool = True,
+             is_single_hadron: bool = False
         """
         # override defaults with any provided kwargs
         kwargs_in = self._default_latex_params.copy()
         kwargs_in.update(kwargs)
-        return _generate_latex_str(
-            **kwargs_in
-        )
+        return _generate_latex_str(**kwargs_in)
 
     @classmethod
     def from_observable_info(cls, obs_info: ObservableInfo, **energy_kwargs) -> "EnergyObsInfo":
@@ -602,7 +598,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
             level_index=None,
             ref_particle=ref_particle,
         )
-        
+
     @property
     def _default_latex_params(self) -> dict:
         """Default parameters for LaTeX generation specific to single hadron."""

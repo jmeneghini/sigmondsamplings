@@ -165,6 +165,7 @@ class SamplingStats(MultiEnsembleCollection):
 
         if self.use_gvar:
             import gvar
+
             cov_arr = gvar.evalcov(gvar.dataset.avg_data(self.array[:, 1:].T, bstrap=True))
 
         if self._sampling_info and self._sampling_info.method == "jackknife":
@@ -525,8 +526,12 @@ class SamplingStats(MultiEnsembleCollection):
         """
         if whitened is None:
             whitened = self.whitened_residuals(
-                theory_values, use_corr, resamp_idx, cov_matrix,
-                linear_superposition, residuals=residuals,
+                theory_values,
+                use_corr,
+                resamp_idx,
+                cov_matrix,
+                linear_superposition,
+                residuals=residuals,
             )
         return float(np.sum(whitened**2))
 
@@ -565,8 +570,11 @@ class SamplingStats(MultiEnsembleCollection):
         """
         if chi2_val is None:
             chi2_val = self.chi_squared(
-                theory_values, use_corr, resamp_idx,
-                linear_superposition=linear_superposition, whitened=whitened,
+                theory_values,
+                use_corr,
+                resamp_idx,
+                linear_superposition=linear_superposition,
+                whitened=whitened,
             )
 
         if whitened is not None:
@@ -605,8 +613,10 @@ class SamplingStats(MultiEnsembleCollection):
         """
         if chi2_val is None:
             chi2_val = self.chi_squared(
-                theory_values, use_corr=use_corr,
-                linear_superposition=linear_superposition, whitened=whitened,
+                theory_values,
+                use_corr=use_corr,
+                linear_superposition=linear_superposition,
+                whitened=whitened,
             )
         return chi2_val + 2 * nparams
 
@@ -636,8 +646,10 @@ class SamplingStats(MultiEnsembleCollection):
         """
         if chi2_val is None:
             chi2_val = self.chi_squared(
-                theory_values, use_corr=use_corr,
-                linear_superposition=linear_superposition, whitened=whitened,
+                theory_values,
+                use_corr=use_corr,
+                linear_superposition=linear_superposition,
+                whitened=whitened,
             )
         if whitened is not None:
             n_obs = len(whitened)
@@ -675,8 +687,10 @@ class SamplingStats(MultiEnsembleCollection):
         """
         if chi2_val is None:
             chi2_val = self.chi_squared(
-                theory_values, use_corr=use_corr,
-                linear_superposition=linear_superposition, whitened=whitened,
+                theory_values,
+                use_corr=use_corr,
+                linear_superposition=linear_superposition,
+                whitened=whitened,
             )
         if whitened is not None:
             n_obs = len(whitened)
@@ -715,7 +729,9 @@ class SamplingStats(MultiEnsembleCollection):
             chi2_per_dof, Q, AIC.
         """
         r = self.residuals(theory_values, linear_superposition=linear_superposition)
-        w = self.whitened_residuals(use_corr=use_corr, linear_superposition=linear_superposition, residuals=r)
+        w = self.whitened_residuals(
+            use_corr=use_corr, linear_superposition=linear_superposition, residuals=r
+        )
         chi2_val = self.chi_squared(whitened=w)
         dof = len(w) - nparams
 
@@ -758,15 +774,13 @@ class SamplingStats(MultiEnsembleCollection):
             print(f"  Q           : {result['Q']:.4g}")
             print(f"  AIC         : {result['AIC']:.6g}")
             print(f"\n  {'Obs':<5}  {'Residual':>14}  {'Whitened':>14}")
-            print(f"  {'-'*(W-2)}")
-            for i, (r, wh) in enumerate(
-                zip(result["residuals"], result["whitened_residuals"])
-            ):
+            print(f"  {'-' * (W - 2)}")
+            for i, (r, wh) in enumerate(zip(result["residuals"], result["whitened_residuals"])):
                 print(f"  {i:<5}  {r:>14.6g}  {wh:>14.6g}")
             print("=" * W)
 
         return result
-    
+
     @cached_property
     def effective_sample_size(self) -> np.ndarray:
         """
@@ -1028,7 +1042,7 @@ class SamplingStats(MultiEnsembleCollection):
             best_params = result.x
         elif method == "curve_fit":
             y_data = np.array(self.val.mean)
-            sigma = np.sqrt(np.diag(cov_matrix)) if use_covariance else errors
+            sigma = np.sqrt(np.diag(self.cov_matrix)) if use_covariance else errors
 
             best_params, _ = curve_fit(
                 lambda x, *p: model_func(x, np.array(p)),
@@ -1230,7 +1244,7 @@ class SamplingStats(MultiEnsembleCollection):
             print(f"  Ensembles   : {', '.join(result['ensembles'])}")
             print(f"  Method      : {result['sampling_method']}")
             print(f"\n  {'Obs':<5}  {'Mean':>18}  {'Error':>14}  {'Eff. N':>7}")
-            print(f"  {'-'*(W-2)}")
+            print(f"  {'-' * (W - 2)}")
             for i, (m, e, n) in enumerate(
                 zip(result["means"], result["errors"], result["effective_sample_sizes"])
             ):

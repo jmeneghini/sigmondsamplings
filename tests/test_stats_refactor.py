@@ -25,7 +25,9 @@ SINFO = SamplingInfo("bootstrap", N_RESAMP, seed=42)
 SINFO_JK = SamplingInfo("jackknife", N_RESAMP, seed=0)
 
 
-def _make_sampling(name: str, data: np.ndarray, ens: EnsembleInfo, sinfo: SamplingInfo) -> SigmondSampling:
+def _make_sampling(
+    name: str, data: np.ndarray, ens: EnsembleInfo, sinfo: SamplingInfo
+) -> SigmondSampling:
     obs = ObservableInfo(name=name, index=0, op_type="n", re_im="re", ensemble_info=ens)
     return SigmondSampling(data=data, observable_info=obs, sampling_info=sinfo)
 
@@ -39,11 +41,13 @@ def _correlated_samples(means: np.ndarray, cov: np.ndarray, n: int, rng) -> np.n
 
 # Three correlated observables from the same ensemble (bootstrap)
 MEANS_A = np.array([1.0, 2.5, 4.0])
-COV_TRUE = np.array([
-    [0.01,  0.005, 0.002],
-    [0.005, 0.04,  0.008],
-    [0.002, 0.008, 0.09 ],
-])
+COV_TRUE = np.array(
+    [
+        [0.01, 0.005, 0.002],
+        [0.005, 0.04, 0.008],
+        [0.002, 0.008, 0.09],
+    ]
+)
 SAMPLES_A = _correlated_samples(MEANS_A, COV_TRUE, N_RESAMP, RNG)
 
 SAMPLINGS_SAME_ENS = [
@@ -88,6 +92,7 @@ def stats_jk():
 # cov_matrix
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestCovMatrix:
     def test_shape(self, stats_same):
         assert stats_same.cov_matrix.shape == (3, 3)
@@ -103,7 +108,7 @@ class TestCovMatrix:
     def test_diagonal_matches_error_squared(self, stats_same):
         C = stats_same.cov_matrix
         for i, s in enumerate(SAMPLINGS_SAME_ENS):
-            np.testing.assert_allclose(C[i, i], s.error ** 2, rtol=1e-10)
+            np.testing.assert_allclose(C[i, i], s.error**2, rtol=1e-10)
 
     def test_off_diagonal_matches_pairwise_cov(self, stats_same):
         C = stats_same.cov_matrix
@@ -125,7 +130,7 @@ class TestCovMatrix:
     def test_jackknife_diagonal_matches_error_squared(self, stats_jk):
         C = stats_jk.cov_matrix
         for i, s in enumerate(SAMPLINGS_JK):
-            np.testing.assert_allclose(C[i, i], s.error ** 2, rtol=1e-10)
+            np.testing.assert_allclose(C[i, i], s.error**2, rtol=1e-10)
 
     def test_jackknife_off_diagonal_matches_pairwise_cov(self, stats_jk):
         C = stats_jk.cov_matrix
@@ -137,6 +142,7 @@ class TestCovMatrix:
 # ──────────────────────────────────────────────────────────────────────────────
 # corr_matrix
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestCorrMatrix:
     def test_shape(self, stats_same):
@@ -166,11 +172,13 @@ class TestCorrMatrix:
 # inv_cholesky_cov_matrix
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestInvCholesky:
     def test_inv_L_times_L_is_identity(self, stats_same):
         inv_L = stats_same.inv_cholesky_cov_matrix
         C = stats_same.cov_matrix
         import scipy.linalg
+
         L = scipy.linalg.cholesky(C, lower=True)
         product = inv_L @ L
         np.testing.assert_allclose(product, np.eye(3), atol=1e-12)
@@ -188,6 +196,7 @@ class TestInvCholesky:
 # ──────────────────────────────────────────────────────────────────────────────
 # chi_squared / whitened_residuals / residuals
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestChiSquared:
     def test_zero_residuals_give_zero_chi2(self, stats_same):
@@ -212,7 +221,7 @@ class TestChiSquared:
         theory = MEANS_A
         w = stats_same.whitened_residuals(theory)
         chi2_direct = stats_same.chi_squared(theory)
-        np.testing.assert_allclose(np.sum(w ** 2), chi2_direct, rtol=1e-12)
+        np.testing.assert_allclose(np.sum(w**2), chi2_direct, rtol=1e-12)
 
     def test_linear_superposition(self, stats_same):
         theory = MEANS_A
@@ -229,6 +238,7 @@ class TestChiSquared:
 # ──────────────────────────────────────────────────────────────────────────────
 # goodness_of_fit / aic / fit_summary
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestGoodnessOfFit:
     def test_q_in_unit_interval(self, stats_same):
@@ -251,7 +261,15 @@ class TestGoodnessOfFit:
 
     def test_fit_summary_keys(self, stats_same):
         result = stats_same.fit_summary(MEANS_A, nparams=1)
-        expected_keys = {"residuals", "whitened_residuals", "chi2", "dof", "chi2_per_dof", "Q", "AIC"}
+        expected_keys = {
+            "residuals",
+            "whitened_residuals",
+            "chi2",
+            "dof",
+            "chi2_per_dof",
+            "Q",
+            "AIC",
+        }
         assert expected_keys == set(result.keys())
 
     def test_fit_summary_internal_consistency(self, stats_same):
@@ -260,12 +278,15 @@ class TestGoodnessOfFit:
             np.sum(result["whitened_residuals"] ** 2), result["chi2"], rtol=1e-12
         )
         assert result["dof"] == len(result["whitened_residuals"]) - 1
-        np.testing.assert_allclose(result["chi2_per_dof"], result["chi2"] / result["dof"], rtol=1e-12)
+        np.testing.assert_allclose(
+            result["chi2_per_dof"], result["chi2"] / result["dof"], rtol=1e-12
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # effective_sample_size
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestEffectiveSampleSize:
     def test_shape(self, stats_same):
@@ -283,6 +304,7 @@ class TestEffectiveSampleSize:
 # ──────────────────────────────────────────────────────────────────────────────
 # confidence_ellipse_params
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestConfidenceEllipse:
     def test_returns_five_floats(self):
@@ -311,6 +333,7 @@ class TestConfidenceEllipse:
 # inv_cov_matrix (cached property)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestInvCovMatrix:
     def test_inv_times_cov_is_identity(self, stats_same):
         product = stats_same.inv_cov_matrix @ stats_same.cov_matrix
@@ -332,6 +355,7 @@ class TestInvCovMatrix:
 # _fast_load preserves _sampling_info
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestFastLoad:
     def test_filter_preserves_sampling_info(self, stats_same):
         # filter() uses _fast_load; the result must have _sampling_info set
@@ -348,14 +372,13 @@ class TestFastLoad:
         filtered = stats_jk.filter(lambda s: True)
         assert filtered._sampling_info == stats_jk._sampling_info
         # jackknife correction must apply correctly after filter
-        np.testing.assert_allclose(
-            filtered.cov_matrix, stats_jk.cov_matrix, atol=1e-14
-        )
+        np.testing.assert_allclose(filtered.cov_matrix, stats_jk.cov_matrix, atol=1e-14)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # bic / aicc
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestBicAicc:
     def test_bic_formula(self, stats_same):
@@ -363,7 +386,9 @@ class TestBicAicc:
         nparams = 2
         chi2_val = stats_same.chi_squared(theory)
         expected = chi2_val + nparams * np.log(stats_same.num_observables)
-        np.testing.assert_allclose(stats_same.bic(nparams, theory_values=theory), expected, rtol=1e-12)
+        np.testing.assert_allclose(
+            stats_same.bic(nparams, theory_values=theory), expected, rtol=1e-12
+        )
 
     def test_bic_ge_aic_for_large_n(self, stats_same):
         # BIC penalty grows faster than AIC when n_obs > e^2 ≈ 7.4
@@ -406,6 +431,7 @@ class TestBicAicc:
 if __name__ == "__main__":
     # Quick smoke-run without pytest
     import sys
+
     stats = SamplingStats(SAMPLINGS_SAME_ENS)
     print("cov_matrix:\n", stats.cov_matrix)
     print("corr_matrix:\n", np.round(stats.corr_matrix, 4))

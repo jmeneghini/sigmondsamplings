@@ -35,7 +35,9 @@ def _summary_grid(n: int) -> tuple[int, int]:
     return (nrows, ncols)
 
 
-def _summary_figsize(nrows: int, ncols: int, panels: list[str], num_observables: int) -> tuple[float, float]:
+def _summary_figsize(
+    nrows: int, ncols: int, panels: list[str], num_observables: int
+) -> tuple[float, float]:
     w = ncols * _PANEL_W
     h = nrows * _PANEL_H
     if "correlation" in panels:
@@ -665,9 +667,7 @@ class SamplingPlotter:
 
         unknown = [p for p in panels if p not in _VALID_PANELS]
         if unknown:
-            raise ValueError(
-                f"Unknown panel(s): {unknown}. Valid panels: {sorted(_VALID_PANELS)}"
-            )
+            raise ValueError(f"Unknown panel(s): {unknown}. Valid panels: {sorted(_VALID_PANELS)}")
 
         # Expand panels into (panel_name, histogram_idx) slots.
         # "histogram" with obs_index=None becomes one slot per observable;
@@ -823,7 +823,7 @@ class SamplingPlotter:
                 va="top",
                 fontsize=fontsize if fontsize is not None else 10,
             )
-            
+
         # Determin energy-type of spectrum for y-axis label
         energy_types = coll.energy_types
         if energy_type is not None:
@@ -833,16 +833,19 @@ class SamplingPlotter:
                 energy_types = [energy_type]
         if len(energy_types) == 1:
             energy_type_latex = coll[0].observable_info.specify_latex_str(
-                include_irrep = False,
-                include_psq = False,
-                include_particles =  False,
-                include_level_index = False,
+                include_irrep=False,
+                include_psq=False,
+                include_particles=False,
+                include_level_index=False,
             )
             # print(coll[0].observable_info.ref_particle)
             ax.set_ylabel(f"${energy_type_latex}$", fontsize=fontsize)
         else:
             import logging
-            logging.warning(f"Multiple energy types found ({energy_types}), using generic 'Energy' label")
+
+            logging.warning(
+                f"Multiple energy types found ({energy_types}), using generic 'Energy' label"
+            )
             ax.set_ylabel("E", fontsize=fontsize)
 
         ax.set_xlim(-col_spacing, x)

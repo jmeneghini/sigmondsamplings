@@ -176,9 +176,7 @@ class SigmondWriter:
         root = ET.Element("SigmondBinsFile")
         bins_elem = ET.SubElement(root, "MCBinsInfo")
         ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.name
-        ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(
-            ensemble_info.num_measurements
-        )
+        ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(ensemble_info.num_measurements)
         ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
 
         if ensemble_info.tweak_info:
@@ -188,9 +186,7 @@ class SigmondWriter:
 
         return ET.tostring(root, encoding="unicode")
 
-    def _dataset_key_for_observable(
-        self, observable_info: ObservableInfo, re_im: str
-    ) -> str:
+    def _dataset_key_for_observable(self, observable_info: ObservableInfo, re_im: str) -> str:
         """
         Return the HDF5-safe dataset key for an observable's Re/Im component.
 
@@ -433,23 +429,17 @@ class SigmondWriter:
         # Validate consistency
         for i, b in enumerate(bins_list):
             if not isinstance(b, SigmondBins):
-                raise TypeError(
-                    f"Item {i} is a {type(b).__name__}, expected SigmondBins"
-                )
+                raise TypeError(f"Item {i} is a {type(b).__name__}, expected SigmondBins")
             if b.observable_info.ensemble_info != ensemble_info:
                 raise ValueError(f"Bins {i} has incompatible ensemble info")
             if b.num_bins != num_bins:
-                raise ValueError(
-                    f"Bins {i} has {b.num_bins} bins; expected {num_bins}"
-                )
+                raise ValueError(f"Bins {i} has {b.num_bins} bins; expected {num_bins}")
 
         with h5py.File(filename, "w") as hdf5_file:
             # Global Info group — identifies this as a bins file
             info_group = hdf5_file.create_group("Info")
             fid_dtype = h5py.string_dtype(encoding="utf-8", length=18)
-            info_group.create_dataset(
-                "FIdentifier", data="Sigmond--BinsFile", dtype=fid_dtype
-            )
+            info_group.create_dataset("FIdentifier", data="Sigmond--BinsFile", dtype=fid_dtype)
             end_dtype = h5py.string_dtype(encoding="utf-8", length=2)
             info_group.create_dataset("Endianness", data="L", dtype=end_dtype)
 
@@ -475,12 +465,8 @@ class SigmondWriter:
                             f"Could not construct distinct Re/Im dataset keys for "
                             f"observable {b.observable_info}"
                         )
-                    values_group.create_dataset(
-                        re_key, data=np.real(arr).astype(np.float64)
-                    )
-                    values_group.create_dataset(
-                        im_key, data=np.imag(arr).astype(np.float64)
-                    )
+                    values_group.create_dataset(re_key, data=np.real(arr).astype(np.float64))
+                    values_group.create_dataset(im_key, data=np.imag(arr).astype(np.float64))
                 else:
                     key = self._dataset_key_for_observable(
                         b.observable_info, b.observable_info.re_im
@@ -776,18 +762,12 @@ class SigmondWriter:
         if not observables:
             raise ValueError(f"No observables found in {input_filename}")
 
-        if loader.file_kind == "bins" or all(
-            isinstance(obs, SigmondBins) for obs in observables
-        ):
-            self.write_bins_hdf5(
-                str(outpath), observables, hdf5_root_path, overwrite=overwrite
-            )
+        if loader.file_kind == "bins" or all(isinstance(obs, SigmondBins) for obs in observables):
+            self.write_bins_hdf5(str(outpath), observables, hdf5_root_path, overwrite=overwrite)
         elif loader.file_kind == "samplings" or all(
             isinstance(obs, SigmondSampling) for obs in observables
         ):
-            self.write_hdf5(
-                str(outpath), observables, hdf5_root_path, overwrite=overwrite
-            )
+            self.write_hdf5(str(outpath), observables, hdf5_root_path, overwrite=overwrite)
         else:
             raise TypeError(
                 "Loaded observables are a mixed or unsupported set of types and "

@@ -511,7 +511,6 @@ class EnergyLevelMixin:
                 in allowed
             )
         )
-    
 
     @property
     def spec(self) -> list[tuple[int, str, int]]:
@@ -574,7 +573,6 @@ class EnergyLevelMixin:
 
         with open(yml_path, "w") as f:
             yaml.dump({"spec": spec_list}, f, default_flow_style=False)
-
 
     def filter_by_spec_yml(self, yml_path: str):
         """

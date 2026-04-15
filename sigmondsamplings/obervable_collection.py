@@ -1113,13 +1113,9 @@ class ObservableCollection(PandasExportMixin):
 
         writer = SigmondWriter(create_backups=create_backups)
         if all_bins:
-            writer.write_bins_hdf5(
-                filename, self._data, root_path=root_path, overwrite=True
-            )
+            writer.write_bins_hdf5(filename, self._data, root_path=root_path, overwrite=True)
         else:
-            writer.write_hdf5(
-                filename, self._data, root_path=root_path, overwrite=True
-            )
+            writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=True)
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""

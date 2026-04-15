@@ -97,9 +97,7 @@ class SigmondLoader:
         "Sigmond--BinsFile": "bins",
     }
 
-    def _verify_hdf5_sigmond_file(
-        self, filename: str
-    ) -> tuple[bool, str | None, list[str] | None]:
+    def _verify_hdf5_sigmond_file(self, filename: str) -> tuple[bool, str | None, list[str] | None]:
         """
         Verify that an HDF5 file is a valid Sigmond samplings or bins file.
 
@@ -120,8 +118,7 @@ class SigmondLoader:
                     return False, None, None
 
                 available_paths = [
-                    key for key in f.keys()
-                    if key != "Info" and isinstance(f[key], h5py.Group)
+                    key for key in f.keys() if key != "Info" and isinstance(f[key], h5py.Group)
                 ]
                 return True, file_kind, available_paths
         except Exception as e:
@@ -141,9 +138,7 @@ class SigmondLoader:
         """
         ensemble_info, sampling_info, parsed = self._read_hdf5_values(filename, path)
         if sampling_info is None:
-            raise ValueError(
-                f"File {filename} appears to be a bins file, not a samplings file."
-            )
+            raise ValueError(f"File {filename} appears to be a bins file, not a samplings file.")
         samplings_list = self._build_samplings_list(
             [p[0] for p in parsed], [p[1] for p in parsed], sampling_info
         )
@@ -158,9 +153,7 @@ class SigmondLoader:
         """
         ensemble_info, sampling_info, parsed = self._read_hdf5_values(filename, path)
         if sampling_info is not None:
-            raise ValueError(
-                f"File {filename} appears to be a samplings file, not a bins file."
-            )
+            raise ValueError(f"File {filename} appears to be a samplings file, not a bins file.")
         bins_list = self._build_bins_list(
             [p[0] for p in parsed], [p[1] for p in parsed], [p[2] for p in parsed]
         )
@@ -343,9 +336,7 @@ class SigmondLoader:
             self._hdf5_path = hdf5_path
             self._file_kind = file_kind
 
-            logger.info(
-                f"Loading HDF5 {file_kind} file {filename} using path '{hdf5_path}'"
-            )
+            logger.info(f"Loading HDF5 {file_kind} file {filename} using path '{hdf5_path}'")
             if file_kind == "bins":
                 return self._load_bins_from_hdf5(filename, hdf5_path)
             return self._load_from_hdf5(filename, hdf5_path)
@@ -381,9 +372,7 @@ class SigmondLoader:
         samplings_list = self._build_samplings_list(observable_infos, all_data, sampling_info)
         return SingleEnsembleCollection(samplings_list)
 
-    def _parse_header_xml(
-        self, xml_string: str
-    ) -> tuple[EnsembleInfo, SamplingInfo | None]:
+    def _parse_header_xml(self, xml_string: str) -> tuple[EnsembleInfo, SamplingInfo | None]:
         """
         Parse the header XML to extract ensemble (and sampling) info.
 
@@ -514,9 +503,7 @@ class SigmondLoader:
             root.remove(arg_element)
 
         # Serialize remaining children as the observable's identifying name.
-        child_xml_parts = [
-            ET.tostring(child, encoding="unicode").strip() for child in list(root)
-        ]
+        child_xml_parts = [ET.tostring(child, encoding="unicode").strip() for child in list(root)]
         if not child_xml_parts:
             raise ValueError(f"Empty MCObservable element in key: {key_xml!r}")
         name = "".join(child_xml_parts)
@@ -619,9 +606,7 @@ class SigmondLoader:
         regrouped into a single complex ``SigmondBins`` per (name, index).
         """
         if len(all_data) != len(observable_infos):
-            raise ValueError(
-                "Mismatch between number of observables in header and data records."
-            )
+            raise ValueError("Mismatch between number of observables in header and data records.")
 
         # Index observables by (name, index) so Re/Im pairs can be fused.
         grouped: dict[tuple, dict[str, tuple[ObservableInfo, int]]] = {}

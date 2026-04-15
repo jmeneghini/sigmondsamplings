@@ -170,9 +170,7 @@ class SigmondBins:
                 "Install with: pip install uncertainties"
             )
         if self.is_complex:
-            raise ValueError(
-                "Complex bins cannot be converted to ufloat. Use .to_real() first."
-            )
+            raise ValueError("Complex bins cannot be converted to ufloat. Use .to_real() first.")
         return ufloat(self.full_sample_value, self.error)
 
     def pdg_format(self, format_spec: str = ".2uS") -> str:
@@ -207,9 +205,7 @@ class SigmondBins:
             raise ValueError("Lower bound must be less than upper bound")
         arr = self._as_numpy().copy()
         np.clip(arr, lower, upper, out=arr)
-        return SigmondBins(
-            arr, self.observable_info, is_complex=self.is_complex, use_dask=False
-        )
+        return SigmondBins(arr, self.observable_info, is_complex=self.is_complex, use_dask=False)
 
     def unwrap(self, discont=np.pi, axis=-1) -> "SigmondBins":
         """Unwrap phase jumps along the bins axis."""
@@ -371,7 +367,9 @@ class SigmondBins:
             if errors:
                 incompatible[other] = errors
         if incompatible:
-            msgs = [f" - {other!r}: {', '.join(reasons)}" for other, reasons in incompatible.items()]
+            msgs = [
+                f" - {other!r}: {', '.join(reasons)}" for other, reasons in incompatible.items()
+            ]
             raise ValueError("Incompatible bins found:\n" + "\n".join(msgs))
         return True
 
@@ -460,9 +458,7 @@ class SigmondBins:
         other_bins = bins_operands - {self}
         self._check_compatible(other_bins)
 
-        new_inputs = [
-            (arg._as_numpy() if isinstance(arg, SigmondBins) else arg) for arg in inputs
-        ]
+        new_inputs = [(arg._as_numpy() if isinstance(arg, SigmondBins) else arg) for arg in inputs]
 
         result_data = ufunc(*new_inputs)
         if result_data is NotImplemented:
@@ -482,8 +478,7 @@ class SigmondBins:
             if all(b.observable_info == first_info for b in bins_operands):
                 result_observable_info = first_info
             elif all(
-                b.observable_info.ensemble_info == first_info.ensemble_info
-                for b in bins_operands
+                b.observable_info.ensemble_info == first_info.ensemble_info for b in bins_operands
             ):
                 result_observable_info = ObservableInfo(
                     "mixed_operation", 0, "n", "re", first_info.ensemble_info

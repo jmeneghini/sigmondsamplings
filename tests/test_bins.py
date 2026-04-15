@@ -7,7 +7,6 @@ Run with:  python -m pytest tests/test_bins.py -v
 
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -38,9 +37,7 @@ def _make_bins(
     ens: EnsembleInfo = ENS_A,
     is_complex: bool = False,
 ) -> SigmondBins:
-    obs = ObservableInfo(
-        name=name, index=0, op_type="n", re_im="re", ensemble_info=ens
-    )
+    obs = ObservableInfo(name=name, index=0, op_type="n", re_im="re", ensemble_info=ens)
     return SigmondBins(data=data, observable_info=obs, is_complex=is_complex)
 
 
@@ -107,9 +104,7 @@ class TestConstruction:
 
 class TestStats:
     def test_mean_matches_numpy(self, bins_a):
-        np.testing.assert_allclose(
-            bins_a.mean, np.mean(np.asarray(bins_a.data)), rtol=1e-12
-        )
+        np.testing.assert_allclose(bins_a.mean, np.mean(np.asarray(bins_a.data)), rtol=1e-12)
 
     def test_full_sample_value_equals_mean(self, bins_a):
         assert bins_a.full_sample_value == bins_a.mean
@@ -179,9 +174,7 @@ class TestArithmetic:
 
     def test_negation(self, bins_a):
         result = -bins_a
-        np.testing.assert_allclose(
-            np.asarray(result.data), -np.asarray(bins_a.data), rtol=1e-12
-        )
+        np.testing.assert_allclose(np.asarray(result.data), -np.asarray(bins_a.data), rtol=1e-12)
 
     def test_incompatible_num_bins_rejected(self, bins_a, bins_wrong_size):
         with pytest.raises(ValueError, match="different number of bins"):
@@ -291,9 +284,7 @@ class TestRoundTrip:
         out = tmp_path / "converted_bins.hdf5"
 
         writer = SigmondWriter(create_backups=False)
-        writer.write_bins_hdf5(
-            str(src), [bins_a, bins_b], root_path="src_bins", overwrite=True
-        )
+        writer.write_bins_hdf5(str(src), [bins_a, bins_b], root_path="src_bins", overwrite=True)
 
         writer.convert_format(
             str(src),
@@ -334,17 +325,13 @@ class TestRoundTrip:
         # CorrT name must round-trip verbatim so sigmond_query recognizes it
         assert "CorrT" in obs.observable_info.name
         assert "time=26" in obs.observable_info.name
-        np.testing.assert_allclose(
-            np.asarray(obs.data), np.asarray(bins.data), rtol=1e-12
-        )
+        np.testing.assert_allclose(np.asarray(obs.data), np.asarray(bins.data), rtol=1e-12)
 
     def test_mixed_collection_rejected(self, tmp_path, bins_a):
         sinfo = SamplingInfo("bootstrap", 100, seed=1)
         samp = SigmondSampling(
             data=np.ones(101),
-            observable_info=ObservableInfo(
-                "obs_samp", 0, "n", "re", ENS_A
-            ),
+            observable_info=ObservableInfo("obs_samp", 0, "n", "re", ENS_A),
             sampling_info=sinfo,
         )
         coll = ObservableCollection([bins_a, samp])
@@ -401,6 +388,4 @@ class TestFstreamBins:
         orig_by_name = {s.observable_info.name: s for s in original}
         for s in reloaded:
             match = orig_by_name[s.observable_info.name]
-            np.testing.assert_allclose(
-                np.asarray(s.data), np.asarray(match.data), rtol=1e-10
-            )
+            np.testing.assert_allclose(np.asarray(s.data), np.asarray(match.data), rtol=1e-10)
