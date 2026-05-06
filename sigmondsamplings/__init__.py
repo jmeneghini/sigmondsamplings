@@ -34,6 +34,12 @@ from .loader import SigmondLoader
 from .model_func import SigmondModelFunc as SigmondModelFunc
 from .obervable_collection import ObservableCollection
 from .plotter import SamplingPlotter as SamplingPlotter
+from .spectrum_plotter import (
+    HMarker,
+    SectorSpectrumPlotter,
+    SpectrumPlotter,
+    SpectrumStyle,
+)
 from .project_utils import (
     LinuxDistro,
     OSInfo,
@@ -57,6 +63,12 @@ from .pycalq_loader import (
     PyCALQSamplingResultType,
 )
 from .sampling import SigmondSampling
+from .sampling_array import (
+    ArrayElementObsInfo,
+    ArrayObsInfo,
+    AxisMeta,
+    SigmondSamplingArray,
+)
 from .stats import SamplingStats
 from .utils import (
     bootstrap_resample,
@@ -87,6 +99,10 @@ __all__ = [
     "MultiEnsembleEnergyCollection",
     "SigmondWriter",
     "SigmondSampling",
+    "SigmondSamplingArray",
+    "ArrayObsInfo",
+    "ArrayElementObsInfo",
+    "AxisMeta",
     "SigmondBins",
     "KnownEnsembles",
     "SamplingInfo",
@@ -95,6 +111,11 @@ __all__ = [
     "SectorInfo",
     "DEFAULT_ENSEMBLE",
     "SamplingStats",
+    # Spectrum plotting
+    "SpectrumPlotter",
+    "SectorSpectrumPlotter",
+    "SpectrumStyle",
+    "HMarker",
     # Energy level functionality
     "Particle",
     "EnergyObsInfo",

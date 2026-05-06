@@ -430,8 +430,24 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
     # Average over the rebin_size axis
     return np.mean(reshaped, axis=1)
 
+def markersize_to_ydata(ax, ms):
+    """
+    Convert a matplotlib markersize (points) into a vertical size in y-data units.
+    """
+    fig = ax.figure
 
-def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
+    # points -> pixels
+    pixel_dy = ms * fig.dpi / 72.0
+
+    # pixels -> data units
+    p0 = ax.transData.inverted().transform((0, 0))
+    p1 = ax.transData.inverted().transform((0, pixel_dy))
+
+    dy = abs(p1[1] - p0[1])
+    return dy
+
+
+def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, markersize=None, ax=None):
     """Compute jittered x-positions that stack overlapping data points into columns.
 
     Only points whose y-intervals (y ± yerr) overlap with at least one other
@@ -457,6 +473,14 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
     pad : float
         Extra padding added to each side of a y-interval before overlap testing,
         increasing the separation required before two points share a column.
+    markersize : float or None
+        Optional marker size in points. When given together with ``ax``, half
+        the marker's height in y-data units is added to each side of every
+        y-interval, so overlap testing accounts for marker area in addition to
+        ``yerr`` and ``pad``.
+    ax : matplotlib Axes or None
+        Axes used to convert ``markersize`` into y-data units. Required when
+        ``markersize`` is provided; ignored otherwise.
 
     Returns
     -------
@@ -469,6 +493,14 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
     if yerr.ndim == 0:
         yerr = np.full_like(y, yerr)
 
+    # Optional marker-size contribution to the per-point vertical extent
+    if markersize is not None:
+        if ax is None:
+            raise ValueError("ax must be provided when markersize is given")
+        marker_half = markersize_to_ydata(ax, markersize) / 2
+    else:
+        marker_half = 0.0
+
     # 1. Standardize x to an array of group centers
     if x is None:
         x = np.zeros_like(y, dtype=float)
@@ -479,65 +511,70 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0):
 
     offsets = np.zeros_like(y, dtype=float)
 
+    # First pass: per x-group, split into y-overlap components and compute the
+    # minimum column count k for each. Column spacing will be set from the
+    # largest k so all groups share a uniform spacing.
+    plans: list[tuple[np.ndarray, list[list[int]], list[int]]] = []
+    k_max = 1
+
     # 2. Process each x-group independently
     for group_val in np.unique(x):
         # Sorted indices for this group (stable greedy sweep)
         idx = np.where(x == group_val)[0]
         idx = idx[np.argsort(y[idx])]
 
-        ym = y[idx] - yerr[idx] - pad  # interval lower bounds
-        yM = y[idx] + yerr[idx] + pad  # interval upper bounds
+        ym = y[idx] - yerr[idx] - pad - marker_half  # interval lower bounds
+        yM = y[idx] + yerr[idx] + pad + marker_half  # interval upper bounds
         n = len(idx)
 
-        # 3. Find which points overlap with at least one other in the group.
-        #    Non-overlapping points keep offset = 0 and are excluded from stacking.
-        has_overlap = np.zeros(n, dtype=bool)
-        for a in range(n):
-            for b in range(n):
-                if a != b and ym[a] <= yM[b] and yM[a] >= ym[b]:
-                    has_overlap[a] = True
-                    break
+        # 3. Split the group's y-intervals into connected components: walk the
+        #    y-sorted intervals and extend the current component while the next
+        #    interval still overlaps one already inside it.
+        components: list[list[int]] = []
+        if n > 0:
+            cur = [0]
+            cur_max = yM[0]
+            for j in range(1, n):
+                if ym[j] <= cur_max:
+                    cur.append(j)
+                    cur_max = max(cur_max, yM[j])
+                else:
+                    components.append(cur)
+                    cur = [j]
+                    cur_max = yM[j]
+            components.append(cur)
 
-        if not np.any(has_overlap):
-            continue  # all points are isolated — nothing to stack
+        # 4. Per component: compute k via a signed event sweep over the
+        #    component's intervals (chromatic number of the interval graph).
+        ks: list[int] = []
+        for comp in components:
+            if len(comp) < 2:
+                ks.append(1)
+                continue
+            comp_ym = ym[comp]
+            comp_yM = yM[comp]
+            events = np.concatenate(
+                [np.stack([comp_ym, np.ones_like(comp_ym)], axis=1),
+                 np.stack([comp_yM, -np.ones_like(comp_yM)], axis=1)]
+            )
+            events = events[np.lexsort((-events[:, 1], events[:, 0]))]
+            k = int(np.max(np.cumsum(events[:, 1])))
+            ks.append(k)
+            if k > k_max:
+                k_max = k
 
-        # Local indices (within idx) and original indices of overlapping points
-        over_local = np.where(has_overlap)[0]
-        over_idx = idx[over_local]
-        ym_o = ym[over_local]
-        yM_o = yM[over_local]
+        plans.append((idx, components, ks))
 
-        # 4. Greedy interval scheduling: assign each overlapping point to the
-        #    first column it fits in, opening a new column if needed.
-        columns: list[list[tuple[float, float]]] = []
-        col_assign = np.full(len(over_idx), -1, dtype=int)
-
-        for j in range(len(over_idx)):
-            placed = False
-            for col_idx, intervals in enumerate(columns):
-                int_arr = np.array(intervals)
-                if np.any((ym_o[j] <= int_arr[:, 1]) & (yM_o[j] >= int_arr[:, 0])):
-                    continue
-                columns[col_idx].append((ym_o[j], yM_o[j]))
-                col_assign[j] = col_idx
-                placed = True
-                break
-
-            if not placed:
-                columns.append([(ym_o[j], yM_o[j])])
-                col_assign[j] = len(columns) - 1
-
-        # 5. Map k columns to k evenly-spaced positions centered about 0
-        k = len(columns)
-        positions = np.linspace(-width / 2, width / 2, k) if k > 1 else np.array([0.0])
-
-        for j, i in enumerate(over_idx):
-            offsets[i] = positions[col_assign[j]]
-
-    # 6. Scale all offsets globally so the largest reaches exactly ±width/2,
-    #    keeping column spacing consistent across groups.
-    max_abs = np.max(np.abs(offsets))
-    if max_abs > 0:
-        offsets *= (width / 2) / max_abs
+    # 5. With uniform spacing s = width / (k_max - 1) set by the densest
+    #    component, round-robin-assign each component's y-sorted points across
+    #    its own k columns, centered at 0: positions = (i - (k-1)/2) * s.
+    spacing = width / (k_max - 1) if k_max > 1 else 0.0
+    for idx, components, ks in plans:
+        for comp, k in zip(components, ks):
+            if k < 2:
+                continue
+            positions = (np.arange(k) - (k - 1) / 2) * spacing
+            for rank, local_j in enumerate(comp):
+                offsets[idx[local_j]] = positions[rank % k]
 
     return x + offsets

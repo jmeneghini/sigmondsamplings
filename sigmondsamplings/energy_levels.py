@@ -430,7 +430,7 @@ class EnergyObsInfo(ObservableInfo):
             self.irrep = irrep
             self.psq = psq
             self.energy_type = energy_type
-            self.particles = particle_list
+            self.particles = tuple(particle_list)
             self.level_index = level_index
             self.ref_particle = ref_particle
 
@@ -542,7 +542,7 @@ class EnergyObsInfo(ObservableInfo):
                 self.irrep,
                 self.psq,
                 self.energy_type,
-                tuple(self.particles) if self.particles else None,
+                self.particles or None,
                 self.level_index,
                 self.ref_particle,
             )
@@ -620,7 +620,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
     @particle.setter
     def particle(self, value: str):
         """Set the single particle name."""
-        self.particles = [Particle(value, psq=self.psq)] if value else []
+        self.particles = (Particle(value, psq=self.psq),) if value else ()
 
     @property
     def canonical_name(self) -> str:

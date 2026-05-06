@@ -361,11 +361,19 @@ class ObservableInfo:
         latex_str: str = None,
     ):
         self.name = name
-        self.index = index
+        self._index = int(index)
         self.op_type = op_type
         self.re_im = re_im
         self.ensemble_info = ensemble_info
         self._latex_str = latex_str  # used for plotting
+        
+    @property
+    def index(self):
+        return self._index
+    
+    @index.setter
+    def index(self, value):
+        self._index = int(value)
 
     @property
     def latex_str(self) -> str:
@@ -380,6 +388,12 @@ class ObservableInfo:
     def latex_str(self, value: str):
         """Set LaTeX representation for plotting."""
         self._latex_str = value
+
+    def copy(self):
+        """Return a shallow copy, bypassing __init__ validation."""
+        new = self.__class__.__new__(self.__class__)
+        new.__dict__.update(self.__dict__)
+        return new
 
     @classmethod
     def from_string(

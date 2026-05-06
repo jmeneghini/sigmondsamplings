@@ -746,8 +746,6 @@ class SamplingStats(MultiEnsembleCollection):
         }
 
         lines = [
-            "**Fit Summary**",
-            "",
             "| Statistic | Value |",
             "| --- | --- |",
             f"| $\\chi^2$ | {result['chi2']:.6g} |",

@@ -330,9 +330,7 @@ class EnergyLevelMixin:
             >>> # All ref observables now have ref_particle='pi' and new reference samplings created
         """
         new_obs = []
-        import copy
-
-        particle_samp = copy.deepcopy(particle_samp)
+        particle_samp = particle_samp.copy()
         for sampling in self._data:
             obs_info = sampling.observable_info
             if hasattr(obs_info, "is_ref") and not obs_info.is_ref:
@@ -363,7 +361,7 @@ class EnergyLevelMixin:
             if isinstance(obs_info, EnergyObsInfo) and obs_info.is_shift_type:
                 key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
                 if key in irrep_psq_levels_map:
-                    obs_info.particles = irrep_psq_levels_map[key]
+                    obs_info.particles = tuple(irrep_psq_levels_map[key])
 
     def _parse_pycalq_yml(self, yml_path: str) -> dict[tuple[str, int, int], list[Particle]]:
         """

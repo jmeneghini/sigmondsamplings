@@ -143,8 +143,6 @@ class AttributeAccessor:
             # Empty collection - return new empty collection
             return self._collection._fast_load([], self._collection._return_type)
 
-        import copy
-
         # Validate all list lengths upfront
         for attr_name, value in kwargs.items():
             if isinstance(value, (list, tuple)) and len(value) != len(self._collection):
@@ -159,8 +157,7 @@ class AttributeAccessor:
 
             # Optimize for observable_info (most common case)
             if target is sampling.observable_info:
-                # Deep copy observable_info
-                new_obs_info = copy.deepcopy(sampling.observable_info)
+                new_obs_info = sampling.observable_info.copy()
 
                 # Update all requested attributes
                 for attr_name, value in kwargs.items():
@@ -183,8 +180,7 @@ class AttributeAccessor:
                     is_complex=sampling.is_complex,
                 )
             else:
-                # For other targets, deep copy the entire sampling
-                new_sampling = copy.deepcopy(sampling)
+                new_sampling = sampling.copy()
                 target = self._extractor(new_sampling)
 
                 # Update all requested attributes
@@ -294,6 +290,10 @@ class ObservableCollection(PandasExportMixin):
         instance._return_type = return_type
         instance._shared_attr_cache = {}
         return instance
+
+    def copy(self: T) -> T:
+        """Return a copy with each contained SigmondSampling copied independently."""
+        return self._fast_load([s.copy() for s in self._data], self._return_type)
 
     @property
     def return_type(self) -> str:

@@ -359,18 +359,30 @@ class SigmondSampling:
             unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
         )
 
+    def copy(self) -> "SigmondSampling":
+        """Return a copy with an independent data array and observable_info.
+
+        sampling_info is shared (treated as immutable). data is copied so
+        in-place mutations don't bleed across; observable_info goes through
+        its own copy() to preserve subclass type.
+        """
+        new = self.__class__.__new__(self.__class__)
+        new.data = self.data.copy()
+        new.observable_info = self.observable_info.copy()
+        new.sampling_info = self.sampling_info
+        new.is_complex = self.is_complex
+        return new
+
     def create_ref_sampling(self, samp: "SigmondSampling") -> "SigmondSampling":
         """Create a reference sampling for the given particle."""
-        import copy
-
         from .energy_levels import EnergyObsInfo, SHEnergyObsInfo
 
         new_ref = self / samp
-        # Deep copy self.observable_info (not new_ref's) to preserve the subclass type.
+        # Copy self.observable_info (not new_ref's) to preserve the subclass type.
         # __array_ufunc__ replaces observable_info with a plain ObservableInfo when the
         # two operands have different observable_infos, so new_ref.observable_info would
         # lose EnergyObsInfo/SHEnergyObsInfo.
-        new_obs_info = copy.deepcopy(self.observable_info)
+        new_obs_info = self.observable_info.copy()
         if isinstance(new_obs_info, EnergyObsInfo):
             new_obs_info.ref_particle = (
                 samp.observable_info.particle or "ref"
