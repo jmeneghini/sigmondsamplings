@@ -224,16 +224,16 @@ class SpectrumPlotter:
             if isinstance(group_by, tuple) and len(group_by) == 2:
                 outer_key, inner_key = group_by
                 outer_groups = self.collection.group_by(key=outer_key)
-                nested_raw = {
-                    ok: sub.group_by(key=inner_key) for ok, sub in outer_groups.items()
-                }
+                nested_raw = {ok: sub.group_by(key=inner_key) for ok, sub in outer_groups.items()}
             else:
                 nested_raw = {None: self.collection.group_by(key=group_by)}
 
         out: list[tuple[Hashable, list[tuple[Hashable, SingleEnsembleEnergyCollection]]]] = []
         outer_keys = list(nested_raw.keys())
         try:
-            outer_keys = sorted(outer_keys, key=outer_sort_key) if outer_sort_key else sorted(outer_keys)
+            outer_keys = (
+                sorted(outer_keys, key=outer_sort_key) if outer_sort_key else sorted(outer_keys)
+            )
         except TypeError:
             pass
         for ok in outer_keys:
@@ -286,10 +286,12 @@ class SpectrumPlotter:
 
     def _color_cycle(self):
         from itertools import cycle
+
         if self.style.color_cycle is not None:
             return cycle(self.style.color_cycle)
         try:
             from kbfit import COLORS, IndexedCycle
+
             return IndexedCycle(COLORS)
         except ImportError:
             return cycle(plt.rcParams["axes.prop_cycle"].by_key()["color"])
@@ -308,7 +310,9 @@ class SpectrumPlotter:
             ys = np.array([s.mean for s in sub])
             yerrs = np.array([s.error for s in sub])
             xs = stacked_positions(
-                ys, yerrs, x=x_center,
+                ys,
+                yerrs,
+                x=x_center,
                 width=self.style.stack_width,
                 markersize=self.style.markersize,
                 ax=ax,
@@ -366,7 +370,9 @@ class SpectrumPlotter:
                 x_stop = x_end - self.style.col_spacing + pad
 
             ax.hlines(
-                m.y, x_start, x_stop,
+                m.y,
+                x_start,
+                x_stop,
                 colors=m.color,
                 linestyles=m.linestyle,
                 linewidths=m.linewidth,
@@ -404,6 +410,7 @@ class SpectrumPlotter:
             ax.set_ylabel(f"${latex}$", fontsize=self.style.fontsize)
         else:
             import logging
+
             logging.warning(
                 f"Multiple energy types found ({energy_types}), using generic 'E' label"
             )
@@ -452,6 +459,7 @@ class SectorSpectrumPlotter(SpectrumPlotter):
     def _irrep_label(irrep: Hashable) -> str:
         try:
             from kbfit import get_irrep_latex_str
+
             return f"${get_irrep_latex_str(irrep)}$"
         except ImportError:
             return str(irrep)

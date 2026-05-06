@@ -430,6 +430,7 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
     # Average over the rebin_size axis
     return np.mean(reshaped, axis=1)
 
+
 def markersize_to_ydata(ax, ms):
     """
     Convert a matplotlib markersize (points) into a vertical size in y-data units.
@@ -554,8 +555,10 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, markersize=None, ax=
             comp_ym = ym[comp]
             comp_yM = yM[comp]
             events = np.concatenate(
-                [np.stack([comp_ym, np.ones_like(comp_ym)], axis=1),
-                 np.stack([comp_yM, -np.ones_like(comp_yM)], axis=1)]
+                [
+                    np.stack([comp_ym, np.ones_like(comp_ym)], axis=1),
+                    np.stack([comp_yM, -np.ones_like(comp_yM)], axis=1),
+                ]
             )
             events = events[np.lexsort((-events[:, 1], events[:, 0]))]
             k = int(np.max(np.cumsum(events[:, 1])))

@@ -34,12 +34,6 @@ from .loader import SigmondLoader
 from .model_func import SigmondModelFunc as SigmondModelFunc
 from .obervable_collection import ObservableCollection
 from .plotter import SamplingPlotter as SamplingPlotter
-from .spectrum_plotter import (
-    HMarker,
-    SectorSpectrumPlotter,
-    SpectrumPlotter,
-    SpectrumStyle,
-)
 from .project_utils import (
     LinuxDistro,
     OSInfo,
@@ -68,6 +62,12 @@ from .sampling_array import (
     ArrayObsInfo,
     AxisMeta,
     SigmondSamplingArray,
+)
+from .spectrum_plotter import (
+    HMarker,
+    SectorSpectrumPlotter,
+    SpectrumPlotter,
+    SpectrumStyle,
 )
 from .stats import SamplingStats
 from .utils import (

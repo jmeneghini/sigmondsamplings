@@ -120,7 +120,9 @@ class ArrayObsInfo(ObservableInfo):
         super().__init__(name, index, op_type, re_im, ensemble_info, latex_str)
         self.shape = tuple(int(d) for d in shape)
         self.dim_names = (
-            tuple(dim_names) if dim_names is not None else tuple(f"dim_{i}" for i in range(len(self.shape)))
+            tuple(dim_names)
+            if dim_names is not None
+            else tuple(f"dim_{i}" for i in range(len(self.shape)))
         )
         if len(self.dim_names) != len(self.shape):
             raise ValueError(
@@ -282,7 +284,9 @@ class _ArrayAttributeAccessor:
                     new_value = value(new_target)
                 elif isinstance(value, np.ndarray) and value.shape == shape:
                     new_value = value[idx]
-                elif isinstance(value, (list, tuple)) and len(value) == shape[0] and len(shape) == 1:
+                elif (
+                    isinstance(value, (list, tuple)) and len(value) == shape[0] and len(shape) == 1
+                ):
                     new_value = value[idx[0]]
                 else:
                     new_value = value
@@ -384,9 +388,7 @@ class SigmondSamplingArray:
         self._sampling_info = sampling_info
         self._is_complex = is_complex
         self._dim_meta = (
-            dim_meta
-            if dim_meta is not None
-            else tuple(AxisMeta(name=d) for d in data.dims[:-1])
+            dim_meta if dim_meta is not None else tuple(AxisMeta(name=d) for d in data.dims[:-1])
         )
 
     # ------------------------------------------------------------------
@@ -733,9 +735,7 @@ class SigmondSamplingArray:
     def isel(self, **kwargs) -> SigmondSamplingArray | SigmondSampling:
         """Integer-based selection, delegating to xarray."""
         new_data = self._data.isel(**kwargs)
-        idx = tuple(
-            kwargs[d] if d in kwargs else slice(None) for d in self._data.dims[:-1]
-        )
+        idx = tuple(kwargs[d] if d in kwargs else slice(None) for d in self._data.dims[:-1])
         new_infos = self._element_infos[idx]
         return self._from_selected(new_data, new_infos)
 
@@ -800,9 +800,7 @@ class SigmondSamplingArray:
                 is_complex=self._is_complex,
             )
 
-        new_xdata = xr.DataArray(
-            new_data, dims=tuple(remaining_dims) + (RESAMPLING_DIM,)
-        )
+        new_xdata = xr.DataArray(new_data, dims=tuple(remaining_dims) + (RESAMPLING_DIM,))
         return self._from_selected(new_xdata, np.asarray(new_infos, dtype=object))
 
     # ------------------------------------------------------------------
@@ -873,10 +871,7 @@ class SigmondSamplingArray:
         if result is NotImplemented:
             return NotImplemented
 
-        is_complex = (
-            any(a._is_complex for a in arrays)
-            or np.iscomplexobj(np.asarray(result))
-        )
+        is_complex = any(a._is_complex for a in arrays) or np.iscomplexobj(np.asarray(result))
 
         if not isinstance(result, xr.DataArray):
             result = xr.DataArray(result, dims=ref._data.dims, coords=ref._data.coords)

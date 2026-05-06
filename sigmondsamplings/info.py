@@ -366,11 +366,11 @@ class ObservableInfo:
         self.re_im = re_im
         self.ensemble_info = ensemble_info
         self._latex_str = latex_str  # used for plotting
-        
+
     @property
     def index(self):
         return self._index
-    
+
     @index.setter
     def index(self, value):
         self._index = int(value)
