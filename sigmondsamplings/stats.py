@@ -597,7 +597,7 @@ class SamplingStats(MultiEnsembleCollection):
         chi2_val: float | None = None,
     ) -> float:
         """
-        Akaike Information Criterion: AIC = chi2 + 2 * nparams.
+        Akaike Information Criterion: AIC = chi2 - 2 * nparams.
 
         Args:
             nparams: Number of fitted parameters.
@@ -618,7 +618,7 @@ class SamplingStats(MultiEnsembleCollection):
                 linear_superposition=linear_superposition,
                 whitened=whitened,
             )
-        return chi2_val + 2 * nparams
+        return chi2_val - 2 * nparams
 
     def bic(
         self,

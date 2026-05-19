@@ -22,6 +22,13 @@ from .ensemble_collection import (
     SingleEnsembleCollection,
     group_by_ensemble_and_sampling,
 )
+from .fit import (
+    SamplingFit,
+    SamplingFitResult,
+    default_num_workers,
+    make_process_pool,
+    set_thread_counts,
+)
 from .info import (
     DEFAULT_ENSEMBLE,
     EnsembleInfo,
@@ -111,6 +118,11 @@ __all__ = [
     "SectorInfo",
     "DEFAULT_ENSEMBLE",
     "SamplingStats",
+    "SamplingFit",
+    "SamplingFitResult",
+    "set_thread_counts",
+    "default_num_workers",
+    "make_process_pool",
     # Spectrum plotting
     "SpectrumPlotter",
     "SectorSpectrumPlotter",

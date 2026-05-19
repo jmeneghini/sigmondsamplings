@@ -358,7 +358,7 @@ class EnergyLevelMixin:
         """
         for sampling in self._data:
             obs_info = sampling.observable_info
-            if isinstance(obs_info, EnergyObsInfo) and obs_info.is_shift_type:
+            if isinstance(obs_info, EnergyObsInfo) and obs_info.needs_ni_pair:
                 key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
                 if key in irrep_psq_levels_map:
                     obs_info.particles = tuple(irrep_psq_levels_map[key])

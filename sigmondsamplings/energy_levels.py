@@ -185,8 +185,8 @@ class _BoundaryPatterns:
 
 
 def _parse_energy_type(name: str, bounds: _BoundaryPatterns) -> str | None:
-    """Extract energy type (elab, ecm, delab, decm) from name."""
-    pattern = bounds.wrap("(elab|ecm|delab|decm)")
+    """Extract energy type (elab, ecm, delab, decm, qcmsq) from name."""
+    pattern = bounds.wrap("(elab|ecm|delab|decm|qcmsq)")
     match = re.search(pattern, name, re.IGNORECASE)
     return match.group(1).lower() if match else None
 
@@ -404,7 +404,7 @@ class EnergyObsInfo(ObservableInfo):
     ):
         try:
             # Validate inputs
-            if energy_type and energy_type not in ["elab", "ecm", "delab", "decm"]:
+            if energy_type and energy_type not in ["elab", "ecm", "delab", "decm", "qcmsq"]:
                 raise ValueError(f"Invalid energy_type: {energy_type}")
             if psq is not None and psq < 0:
                 raise ValueError(f"PSQ must be non-negative: {psq}")
@@ -502,6 +502,11 @@ class EnergyObsInfo(ObservableInfo):
     def is_shift_type(self) -> bool:
         """Check if this energy level is a shift energy type."""
         return self.energy_type in ["delab", "decm"] if self.energy_type else False
+    
+    @property
+    def needs_ni_pair(self) -> bool:
+        """Determine if this energy level requires non-interacting pair specification. For qcmsq, only the decay channel is relevant."""
+        return self.is_shift_type or self.energy_type == "qcmsq"
 
     @property
     def canonical_name(self) -> str:
@@ -580,7 +585,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
         ref_particle: str = None,
     ):
         # Single hadron constraints
-        if energy_type in ["delab", "decm"]:
+        if energy_type in ["delab", "decm", "qcmsq"]:
             raise ValueError(f"Single hadron cannot use energy type '{energy_type}'")
 
         # Convert particle string to Particle object with momentum
