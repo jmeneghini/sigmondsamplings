@@ -618,7 +618,16 @@ class SamplingStats(MultiEnsembleCollection):
                 linear_superposition=linear_superposition,
                 whitened=whitened,
             )
-        return chi2_val - 2 * nparams
+            
+        if whitened is not None:
+            n_obs = len(whitened)
+        elif linear_superposition is not None:
+            n_obs = self.get_transformation_matrix(linear_superposition).shape[0]
+        else:
+            n_obs = self.num_observables
+
+        dof = n_obs - nparams
+        return chi2_val - 2 * dof
 
     def bic(
         self,
