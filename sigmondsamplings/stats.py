@@ -618,7 +618,7 @@ class SamplingStats(MultiEnsembleCollection):
                 linear_superposition=linear_superposition,
                 whitened=whitened,
             )
-            
+
         if whitened is not None:
             n_obs = len(whitened)
         elif linear_superposition is not None:

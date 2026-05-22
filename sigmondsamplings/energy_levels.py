@@ -502,7 +502,7 @@ class EnergyObsInfo(ObservableInfo):
     def is_shift_type(self) -> bool:
         """Check if this energy level is a shift energy type."""
         return self.energy_type in ["delab", "decm"] if self.energy_type else False
-    
+
     @property
     def needs_ni_pair(self) -> bool:
         """Determine if this energy level requires non-interacting pair specification. For qcmsq, only the decay channel is relevant."""

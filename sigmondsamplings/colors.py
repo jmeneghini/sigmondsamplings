@@ -39,11 +39,29 @@ COLORS += COLORS  # double up so simple sequential plots don't wrap visibly
 
 
 MARKERS: list[str] = [
-    "o", "s", "D", "v", "^", "<", ">",
-    "o", "s", "D", "v", "^",
-    "*", "x", "+",
-    "o", "s", "D", "v", "^",
-    "*", "x", "+",
+    "o",
+    "s",
+    "D",
+    "v",
+    "^",
+    "<",
+    ">",
+    "o",
+    "s",
+    "D",
+    "v",
+    "^",
+    "*",
+    "x",
+    "+",
+    "o",
+    "s",
+    "D",
+    "v",
+    "^",
+    "*",
+    "x",
+    "+",
 ]
 MARKERS += MARKERS
 
@@ -69,7 +87,7 @@ class IndexedCycle(Iterator[T]):
         self.index = (self.index + 1) % len(self.items)
         return value
 
-    def __iter__(self) -> "IndexedCycle[T]":
+    def __iter__(self) -> IndexedCycle[T]:
         return self
 
     def get_current(self) -> T:

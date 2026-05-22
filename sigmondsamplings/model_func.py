@@ -114,12 +114,13 @@ class SigmondModelFunc:
         required_keyword_only = [
             p
             for p in model_params
-            if p.kind == inspect.Parameter.KEYWORD_ONLY
-            and p.default is inspect.Signature.empty
+            if p.kind == inspect.Parameter.KEYWORD_ONLY and p.default is inspect.Signature.empty
         ]
         if required_keyword_only:
             names = ", ".join(p.name for p in required_keyword_only)
-            raise ValueError(f"Model function has unsupported required keyword-only parameters: {names}")
+            raise ValueError(
+                f"Model function has unsupported required keyword-only parameters: {names}"
+            )
 
         if len(positional) != n_params:
             raise ValueError(
@@ -238,10 +239,7 @@ class SigmondModelFunc:
                 "Model has no fitted params; build it via fit_result.model_func() first"
             )
         x_arr = np.asarray(
-            [
-                x.full_sample_value if isinstance(x, SigmondSampling) else float(x)
-                for x in x_data
-            ]
+            [x.full_sample_value if isinstance(x, SigmondSampling) else float(x) for x in x_data]
         )
         theory_full = self._evaluate_full_sample_values(x_arr)
         nparams = len(self.params)
@@ -355,7 +353,9 @@ class SigmondModelFunc:
             return results
         if sequence_values is not None:
             if any(isinstance(x, SigmondSampling) for x in sequence_values):
-                raise TypeError("x_values must be all numeric values or all SigmondSampling objects")
+                raise TypeError(
+                    "x_values must be all numeric values or all SigmondSampling objects"
+                )
             x_values = sequence_values
 
         # Fixed x values - convert to numpy array and evaluate point by point

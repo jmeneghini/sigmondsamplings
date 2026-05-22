@@ -648,4 +648,3 @@ class SamplingPlotter:
         ax.grid(True, alpha=0.3)
 
         return ax
-

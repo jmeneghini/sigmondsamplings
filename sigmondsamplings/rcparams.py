@@ -85,7 +85,7 @@ VALID_ERROR_METRICS: frozenset[str] = frozenset({"error", "confidence_interval"}
 
 _DEFAULTS: dict[str, Any] = {
     # ── Palette ───────────────────────────────────────────────────────────
-    "plot.colors": None,   # None → colors.COLORS
+    "plot.colors": None,  # None → colors.COLORS
     "plot.markers": None,  # None → colors.MARKERS
     # ── Central value / error semantics ───────────────────────────────────
     "plot.central_metric": "full_sample_value",
@@ -176,8 +176,7 @@ def _flatten_toml(data: dict[str, Any]) -> dict[str, Any]:
     for section, entries in data.items():
         if not isinstance(entries, dict):
             raise ValueError(
-                f"Expected a TOML table for section [{section!r}], "
-                f"got {type(entries).__name__}"
+                f"Expected a TOML table for section [{section!r}], got {type(entries).__name__}"
             )
         for key, value in entries.items():
             dotted = f"{section}.{key}"
