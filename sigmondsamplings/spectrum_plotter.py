@@ -13,6 +13,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+from slatmeta import COLORS, IndexedCycle, get_irrep_latex_str
 
 from .energy_level_collection import SingleEnsembleEnergyCollection
 from .sampling import SigmondSampling
@@ -289,12 +290,7 @@ class SpectrumPlotter:
 
         if self.style.color_cycle is not None:
             return cycle(self.style.color_cycle)
-        try:
-            from kbfit import COLORS, IndexedCycle
-
-            return IndexedCycle(COLORS)
-        except ImportError:
-            return cycle(plt.rcParams["axes.prop_cycle"].by_key()["color"])
+        return IndexedCycle(COLORS)
 
     def _draw_columns(self, ax, columns) -> None:
         eb_kwargs = {
@@ -457,9 +453,4 @@ class SectorSpectrumPlotter(SpectrumPlotter):
 
     @staticmethod
     def _irrep_label(irrep: Hashable) -> str:
-        try:
-            from kbfit import get_irrep_latex_str
-
-            return f"${get_irrep_latex_str(irrep)}$"
-        except ImportError:
-            return str(irrep)
+        return f"${get_irrep_latex_str(irrep)}$"

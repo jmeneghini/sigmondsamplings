@@ -50,7 +50,7 @@ sigmond-combine = "sigmondsamplings.scripts.sigmond_combine:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sigmondsamplings*"]
+include = ["sigmondsamplings*", "slatmeta*"]
 
 [tool.ruff]
 line-length = 100

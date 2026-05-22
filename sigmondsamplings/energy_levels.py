@@ -1,29 +1,17 @@
-"""
-Energy level specializations for ObservableInfo and SigmondSampling.
-"""
+"""Energy level specializations for ObservableInfo and SigmondSampling."""
 
-import logging
 import re
 from typing import Any
 
-from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo
+from slatmeta import (
+    IRREP_LATEX_MAP,
+    PARTICLE_LATEX_MAP,
+    get_energy_type_latex_str,
+    get_irrep_latex_str,
+    get_particle_latex_str,
+)
 
-# Import KBfit constants (required)
-try:
-    from kbfit import (
-        IRREP_LATEX_MAP,
-        PARTICLE_LATEX_MAP,
-        get_energy_type_latex_str,
-        get_irrep_latex_str,
-        get_particle_latex_str,
-    )
-except ImportError as e:
-    # warning only; KBfit not strictly required for this module
-    PARTICLE_LATEX_MAP = {}
-    IRREP_LATEX_MAP = {}
-    logging.warning(
-        f"KBfit import failed: {e}. Particle and irrep LaTeX mappings will be unavailable."
-    )
+from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo
 
 
 class Particle:
@@ -226,7 +214,7 @@ def _parse_reference_mode(name: str, bounds: _BoundaryPatterns) -> str | None:
 
 
 def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> str | None:
-    """Extract irrep, preserving exact case from KBfit constants."""
+    """Extract irrep, preserving exact case from shared label constants."""
     if not IRREP_LATEX_MAP:
         return None
 
@@ -237,7 +225,7 @@ def _parse_irrep(name: str, bounds: _BoundaryPatterns) -> str | None:
     if not match:
         return None
 
-    # Find exact case match from KBfit constants
+    # Find exact case match from shared label constants.
     matched_irrep = match.group(1)
     for irrep_key in irrep_names:
         if irrep_key.lower() == matched_irrep.lower():
