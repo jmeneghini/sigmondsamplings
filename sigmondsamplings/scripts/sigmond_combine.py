@@ -7,11 +7,14 @@ them into a single HDF5 output file.
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 try:
-    from ..loader import SigmondLoader
+    from ..loader import DEFAULT_ROOT_PATH, SigmondLoader
     from ..sampling import SigmondSampling
     from ..writer import SigmondWriter
 except ImportError:
@@ -19,7 +22,7 @@ except ImportError:
     import os
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from loader import SigmondLoader
+    from loader import DEFAULT_ROOT_PATH, SigmondLoader
     from sampling import SigmondSampling
     from writer import SigmondWriter
 
@@ -71,7 +74,7 @@ def load_all_samplings(input_files: list[str], verbose: bool = False) -> dict[st
 
     for i, input_file in enumerate(input_files, 1):
         if verbose:
-            print(f"Loading file {i}/{len(input_files)}: {Path(input_file).name}")
+            logger.info(f"Loading file {i}/{len(input_files)}: {Path(input_file).name}")
 
         try:
             # Load file (loader auto-detects format and path)
@@ -80,23 +83,26 @@ def load_all_samplings(input_files: list[str], verbose: bool = False) -> dict[st
             samplings_collection = loader.observables
 
             if verbose:
-                print(f"  Loaded {len(samplings_collection)} observables")
+                logger.info(f"  Loaded {len(samplings_collection)} observables")
 
             # Convert collection to dict with string keys "name index"
-            samplings = {f"{s.name} {s.index}": s for s in samplings_collection}
+            samplings = {
+                f"{s.observable_info.name} {s.observable_info.index}": s
+                for s in samplings_collection
+            }
 
             # Check for conflicts with existing observables
             conflicts = set(all_samplings.keys()) & set(samplings.keys())
             if conflicts:
-                print(f"Warning: Observable conflicts detected in {Path(input_file).name}:")
+                logger.warning(f"Observable conflicts detected in {Path(input_file).name}:")
                 for conflict in sorted(conflicts):
-                    print(f"  - {conflict} (overwriting previous)")
+                    logger.warning(f"  - {conflict} (overwriting previous)")
 
             # Add samplings to combined collection
             all_samplings.update(samplings)
 
         except Exception as e:
-            print(f"Error loading {input_file}: {e}")
+            logger.error(f"Error loading {input_file}: {e}")
             raise
 
     return all_samplings
@@ -123,10 +129,10 @@ def validate_compatibility(samplings: dict[str, SigmondSampling], verbose: bool 
     ref_ensemble_info = reference_sampling.observable_info.ensemble_info
 
     if verbose:
-        print(
+        logger.info(
             f"Reference sampling info: {ref_sampling_info.method}, {ref_sampling_info.num_resamplings} resamplings"
         )
-        print(f"Reference ensemble: {ref_ensemble_info.name}")
+        logger.info(f"Reference ensemble: {ref_ensemble_info.name}")
 
     incompatible_samplings = []
     incompatible_ensembles = []
@@ -143,26 +149,26 @@ def validate_compatibility(samplings: dict[str, SigmondSampling], verbose: bool 
                 incompatible_ensembles.append(ensemble_name)
 
     if incompatible_samplings:
-        print(
-            f"Error: Found {len(incompatible_samplings)} samplings with incompatible sampling info:"
+        logger.error(
+            f"Found {len(incompatible_samplings)} samplings with incompatible sampling info:"
         )
         for key in incompatible_samplings[:5]:  # Show first 5
-            print(f"  - {key}")
+            logger.error(f"  - {key}")
         if len(incompatible_samplings) > 5:
-            print(f"  ... and {len(incompatible_samplings) - 5} more")
+            logger.error(f"  ... and {len(incompatible_samplings) - 5} more")
         raise ValueError("Incompatible sampling information detected")
 
     if verbose and incompatible_ensembles:
-        print("Note: Found multiple ensembles (this is allowed):")
-        print(f"  - {ref_ensemble_info.name} (reference)")
+        logger.info("Note: Found multiple ensembles (this is allowed):")
+        logger.info(f"  - {ref_ensemble_info.name} (reference)")
         for ensemble in incompatible_ensembles:
-            print(f"  - {ensemble}")
+            logger.info(f"  - {ensemble}")
 
 
 def combine_files(
     input_files: list[str],
     output_file: str,
-    hdf5_root_path: str = "/data/",
+    hdf5_root_path: str = DEFAULT_ROOT_PATH,
     base_path: str | None = None,
     verbose: bool = False,
     overwrite: bool = False,
@@ -183,30 +189,30 @@ def combine_files(
     """
     # Resolve input file paths
     if verbose:
-        print(f"Resolving {len(input_files)} input file paths...")
+        logger.info(f"Resolving {len(input_files)} input file paths...")
     resolved_files = resolve_paths(input_files, base_path)
 
     if verbose:
-        print("Resolved input files:")
+        logger.info("Resolved input files:")
         for f in resolved_files:
-            print(f"  - {f}")
+            logger.info(f"  - {f}")
 
     # Load all samplings
-    print(f"Loading samplings from {len(resolved_files)} files...")
+    logger.info(f"Loading samplings from {len(resolved_files)} files...")
     all_samplings = load_all_samplings(resolved_files, verbose)
 
-    print(f"Loaded {len(all_samplings)} total observables")
+    logger.info(f"Loaded {len(all_samplings)} total observables")
 
     # Validate compatibility
     if verbose:
-        print("Validating sampling compatibility...")
+        logger.info("Validating sampling compatibility...")
     validate_compatibility(all_samplings, verbose)
-    print("All samplings are compatible")
+    logger.info("All samplings are compatible")
 
     # Ensure output is HDF5 format
     if not output_file.lower().endswith(".hdf5"):
         output_file = output_file.rsplit(".", 1)[0] + ".hdf5"
-        print(f"Output file adjusted to HDF5 format: {output_file}")
+        logger.info(f"Output file adjusted to HDF5 format: {output_file}")
 
     # Check if output file exists
     output_path = Path(output_file)
@@ -216,7 +222,7 @@ def combine_files(
         )
 
     # Write combined file using SigmondWriter
-    print(f"Writing combined file to {output_file}...")
+    logger.info(f"Writing combined file to {output_file}...")
     writer = SigmondWriter(create_backups=True)
 
     # Convert dict to list for SigmondWriter
@@ -229,8 +235,8 @@ def combine_files(
         overwrite=overwrite,
     )
 
-    print(f"Successfully combined {len(input_files)} files into {final_output}")
-    print(f"Combined file contains {len(all_samplings)} observables")
+    logger.info(f"Successfully combined {len(input_files)} files into {final_output}")
+    logger.info(f"Combined file contains {len(all_samplings)} observables")
 
     return final_output
 
@@ -265,8 +271,8 @@ parameters) but can come from different ensembles.
     parser.add_argument("-o", "--output", required=True, help="Output HDF5 file path")
     parser.add_argument(
         "--hdf5-root-path",
-        default="/data/",
-        help="Root path for output HDF5 file (default: /data/)",
+        default=DEFAULT_ROOT_PATH,
+        help=f"Root path for output HDF5 file (default: {DEFAULT_ROOT_PATH})",
     )
     parser.add_argument(
         "--base-path",
@@ -287,6 +293,10 @@ parameters) but can come from different ensembles.
 
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO, format="%(message)s"
+    )
+
     try:
         combine_files(
             input_files=args.input_files,
@@ -297,7 +307,7 @@ parameters) but can come from different ensembles.
             overwrite=args.overwrite,
         )
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         sys.exit(1)
 
 

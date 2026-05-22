@@ -18,6 +18,72 @@ from .sampling import SigmondSampling
 logger = logging.getLogger(__name__)
 SIGMOND_QUERY_CMD = "sigmond_query"
 
+# Canonical default HDF5 root-group path, shared by the loader and writer so a
+# single convention is used everywhere a path is not given explicitly.
+DEFAULT_ROOT_PATH = "data"
+
+# Maps the global /Info/FIdentifier string to the kind of file it denotes.
+_HDF5_FIDENTIFIERS = {
+    "Sigmond--SamplingsFile": "samplings",
+    "Sigmond--BinsFile": "bins",
+}
+
+
+def clean_hdf5_path(path: str) -> str:
+    """Normalize an HDF5 root-group path by stripping leading/trailing slashes."""
+    return path.strip("/")
+
+
+def is_hdf5_file(filename: str) -> bool:
+    """Return True if ``filename`` can be opened as an HDF5 file."""
+    try:
+        with h5py.File(filename, "r"):
+            return True
+    except OSError:
+        return False
+
+
+def discover_root_groups(h5: h5py.File) -> list[str]:
+    """
+    Full paths of every Sigmond root group in an open HDF5 file.
+
+    A root group is any group containing a ``Values`` subgroup, found at *any*
+    depth, so nested paths such as ``isotriplet/P0A1g`` (the form used in the
+    Sigmond HDF5 spec) are discovered. The global ``Info`` group is excluded
+    automatically since it has no ``Values`` child.
+    """
+    found: list[str] = []
+
+    def visit(name: str, obj: object) -> None:
+        if isinstance(obj, h5py.Group) and isinstance(obj.get("Values"), h5py.Group):
+            found.append(name)
+
+    h5.visititems(visit)
+    return found
+
+
+def verify_sigmond_hdf5(filename: str) -> tuple[bool, str | None, list[str] | None]:
+    """
+    Verify an HDF5 file is a valid Sigmond samplings or bins file.
+
+    Returns ``(is_valid, file_kind, available_paths)`` where ``file_kind`` is
+    ``'samplings'`` or ``'bins'`` and ``available_paths`` are the full root-group
+    paths (see :func:`discover_root_groups`). Returns ``(False, None, None)`` if
+    the file is not a recognized Sigmond HDF5 file.
+    """
+    try:
+        with h5py.File(filename, "r") as f:
+            if "Info" not in f or "FIdentifier" not in f["Info"]:
+                return False, None, None
+            fid = f["Info"]["FIdentifier"][()].decode("utf-8")
+            file_kind = _HDF5_FIDENTIFIERS.get(fid)
+            if file_kind is None:
+                return False, None, None
+            return True, file_kind, discover_root_groups(f)
+    except Exception as e:
+        logger.debug(f"HDF5 verification failed: {e}")
+        return False, None, None
+
 
 class SigmondLoader:
     """
@@ -40,7 +106,6 @@ class SigmondLoader:
         loader.observables.find(lambda obs: re.search(r'PSQ.*', obs.name))
     """
 
-    # TODO: some major issues with appending. Creates a 'working' file, still uses sigmond_query, and doesn't replace the original file with the working file.
     def __init__(
         self,
         filename: str = None,
@@ -80,50 +145,11 @@ class SigmondLoader:
         """Return 'samplings' or 'bins' for the most recently loaded file."""
         return self._file_kind
 
-    def _clean_hdf5_path(self, path: str) -> str:
-        """Clean HDF5 path by removing leading/trailing slashes."""
-        return path.strip("/")
-
-    def _is_hdf5_file(self, filename: str) -> bool:
-        """Check if a file is an HDF5 file."""
-        try:
-            with h5py.File(filename, "r"):
-                return True
-        except OSError:
-            return False
-
-    _HDF5_FIDENTIFIERS = {
-        "Sigmond--SamplingsFile": "samplings",
-        "Sigmond--BinsFile": "bins",
-    }
-
-    def _verify_hdf5_sigmond_file(self, filename: str) -> tuple[bool, str | None, list[str] | None]:
-        """
-        Verify that an HDF5 file is a valid Sigmond samplings or bins file.
-
-        Returns:
-            (is_valid, file_kind, available_paths)
-            - is_valid: True if file has correct Sigmond structure
-            - file_kind: 'samplings' or 'bins' (None on failure)
-            - available_paths: List of available data paths at root (excluding "Info")
-        """
-        try:
-            with h5py.File(filename, "r") as f:
-                if "Info" not in f or "FIdentifier" not in f["Info"]:
-                    return False, None, None
-
-                fid = f["Info"]["FIdentifier"][()].decode("utf-8")
-                file_kind = self._HDF5_FIDENTIFIERS.get(fid)
-                if file_kind is None:
-                    return False, None, None
-
-                available_paths = [
-                    key for key in f.keys() if key != "Info" and isinstance(f[key], h5py.Group)
-                ]
-                return True, file_kind, available_paths
-        except Exception as e:
-            logger.debug(f"HDF5 verification failed: {e}")
-            return False, None, None
+    # Thin instance wrappers around the module-level path helpers, kept for
+    # backward compatibility with existing callers.
+    _clean_hdf5_path = staticmethod(clean_hdf5_path)
+    _is_hdf5_file = staticmethod(is_hdf5_file)
+    _verify_hdf5_sigmond_file = staticmethod(verify_sigmond_hdf5)
 
     def _load_from_hdf5(self, filename: str, path: str = "samplings") -> SingleEnsembleCollection:
         """
@@ -154,19 +180,17 @@ class SigmondLoader:
         ensemble_info, sampling_info, parsed = self._read_hdf5_values(filename, path)
         if sampling_info is not None:
             raise ValueError(f"File {filename} appears to be a samplings file, not a bins file.")
-        bins_list = self._build_bins_list(
-            [p[0] for p in parsed], [p[1] for p in parsed], [p[2] for p in parsed]
-        )
+        bins_list = self._build_bins_list([p[0] for p in parsed], [p[1] for p in parsed])
         return SingleEnsembleCollection(bins_list)
 
     def _read_hdf5_values(
         self, filename: str, path: str
-    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, np.ndarray, str]]]:
+    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, np.ndarray]]]:
         """
         Shared helper to read a Sigmond HDF5 file (samplings or bins).
 
         Returns:
-            (ensemble_info, sampling_info_or_None, [(obs_info, data, raw_key), ...])
+            (ensemble_info, sampling_info_or_None, [(obs_info, data), ...])
         """
         with h5py.File(filename, "r") as f:
             if path not in f:
@@ -187,12 +211,12 @@ class SigmondLoader:
 
             values_group = group["Values"]
 
-            parsed: list[tuple[ObservableInfo, np.ndarray, str]] = []
+            parsed: list[tuple[ObservableInfo, np.ndarray]] = []
             for dataset_name in values_group.keys():
                 try:
                     obs_info = self._parse_observable_key(dataset_name, ensemble_info)
                     data = values_group[dataset_name][:]
-                    parsed.append((obs_info, data, dataset_name))
+                    parsed.append((obs_info, data))
                 except (ValueError, NotImplementedError) as e:
                     logger.debug(f"Skipping dataset {dataset_name}: {e}")
                     continue
@@ -366,7 +390,7 @@ class SigmondLoader:
 
         if sampling_info is None:
             # Bins file: no resampling metadata, raw bins per record
-            bins_list = self._build_bins_list(observable_infos, all_data, raw_keys=None)
+            bins_list = self._build_bins_list(observable_infos, all_data)
             return SingleEnsembleCollection(bins_list)
 
         samplings_list = self._build_samplings_list(observable_infos, all_data, sampling_info)
@@ -470,13 +494,15 @@ class SigmondLoader:
            other non-Info child) — typical of correlator-matrix observables in bins files.
            In this case the inner XML (with the ``<Arg>`` element removed) is stored
            verbatim as the ``ObservableInfo.name`` so the observable can be round-tripped
-           without collapsing the CorrT metadata into a flat form.
-
-        The HDF5-safe dataset key is stored on the returned ObservableInfo as ``_raw_key``
-        so the writer can re-emit the exact same dataset name on export.
+           without collapsing the CorrT metadata into a flat form. On export the
+           writer regenerates the dataset key from this name.
         """
+        # Reverse the HDF5-safe encoding applied by the writer's _make_hdf5_safe_key:
+        #   "</" -> "<|"  (closing tags)   and   "/" -> "|"  (slashes in names)
+        # First restore closing tags, then any remaining "|" are escaped slashes.
+        # fstream keys are never escaped, so these replacements are no-ops there.
         try:
-            standard_xml = key_xml.replace("<|", "</")
+            standard_xml = key_xml.replace("<|", "</").replace("|", "/")
             root = ET.fromstring(standard_xml.strip())
         except ET.ParseError as e:
             raise ValueError(f"Could not parse key XML: {e}")
@@ -486,9 +512,7 @@ class SigmondLoader:
         if info_element is not None and info_element.text is not None:
             info_text = info_element.text.strip()
             try:
-                obs_info = ObservableInfo.from_string(info_text, ensemble_info)
-                obs_info._raw_key = key_xml
-                return obs_info
+                return ObservableInfo.from_string(info_text, ensemble_info)
             except ValueError:
                 pass  # fall through to generic parsing
 
@@ -515,7 +539,6 @@ class SigmondLoader:
             re_im=re_im,
             ensemble_info=ensemble_info,
         )
-        obs_info._raw_key = key_xml
         return obs_info
 
     def _parse_keys_from_output(
@@ -593,54 +616,53 @@ class SigmondLoader:
 
         return all_records_values
 
-    def _build_bins_list(
+    def _fuse_re_im(
         self,
         observable_infos: list[ObservableInfo],
         all_data: list[np.ndarray],
-        raw_keys: list[str] | None = None,
-    ) -> list[SigmondBins]:
+        factory,
+    ) -> list:
         """
-        Build a list of ``SigmondBins`` from parsed ObservableInfos and raw bin arrays.
+        Group parsed records by (name, index) and build one observable per group.
 
-        Complex observables (split into Re/Im parts across datasets / records) are
-        regrouped into a single complex ``SigmondBins`` per (name, index).
+        Records split into separate Re/Im parts are fused into a single complex
+        observable; a lone part stays as-is. ``factory(data, obs_info, is_complex)``
+        constructs the concrete object (SigmondSampling or SigmondBins).
         """
         if len(all_data) != len(observable_infos):
             raise ValueError("Mismatch between number of observables in header and data records.")
 
-        # Index observables by (name, index) so Re/Im pairs can be fused.
         grouped: dict[tuple, dict[str, tuple[ObservableInfo, int]]] = {}
         for i, obs_info in enumerate(observable_infos):
-            key = (obs_info.name, obs_info.index)
-            grouped.setdefault(key, {})[obs_info.re_im] = (obs_info, i)
+            grouped.setdefault((obs_info.name, obs_info.index), {})[obs_info.re_im] = (obs_info, i)
 
-        result: list[SigmondBins] = []
-        for key, parts in grouped.items():
+        result = []
+        for parts in grouped.values():
             if "re" in parts and "im" in parts:
-                re_info, re_idx = parts["re"]
+                obs_info, re_idx = parts["re"]
                 _, im_idx = parts["im"]
-                combined = np.asarray(all_data[re_idx]) + 1j * np.asarray(all_data[im_idx])
-                bins = SigmondBins(combined, re_info, is_complex=True)
-                # Preserve the real part's raw key so round-tripping produces matching keys.
-                if raw_keys is not None:
-                    re_info._raw_key = raw_keys[re_idx]
-                result.append(bins)
-            elif "re" in parts:
-                re_info, re_idx = parts["re"]
-                data = np.asarray(all_data[re_idx])
-                bins = SigmondBins(data, re_info, is_complex=np.iscomplexobj(data))
-                if raw_keys is not None:
-                    re_info._raw_key = raw_keys[re_idx]
-                result.append(bins)
-            elif "im" in parts:
-                im_info, im_idx = parts["im"]
-                data = np.asarray(all_data[im_idx])
-                bins = SigmondBins(data, im_info, is_complex=np.iscomplexobj(data))
-                if raw_keys is not None:
-                    im_info._raw_key = raw_keys[im_idx]
-                result.append(bins)
+                data = np.asarray(all_data[re_idx]) + 1j * np.asarray(all_data[im_idx])
+                is_complex = True
+            else:
+                obs_info, idx = parts.get("re") or parts["im"]
+                data = np.asarray(all_data[idx])
+                is_complex = np.iscomplexobj(data)
+
+            result.append(factory(data, obs_info, is_complex))
 
         return result
+
+    def _build_bins_list(
+        self,
+        observable_infos: list[ObservableInfo],
+        all_data: list[np.ndarray],
+    ) -> list[SigmondBins]:
+        """Build ``SigmondBins`` from parsed records, fusing Re/Im pairs into complex bins."""
+        return self._fuse_re_im(
+            observable_infos,
+            all_data,
+            lambda data, info, is_complex: SigmondBins(data, info, is_complex=is_complex),
+        )
 
     def _build_samplings_list(
         self,
@@ -648,56 +670,37 @@ class SigmondLoader:
         all_data: list[np.ndarray],
         sampling_info: SamplingInfo,
     ) -> list[SigmondSampling]:
-        """Build the samplings list from parsed data."""
-        if len(all_data) != len(observable_infos):
-            raise ValueError("Mismatch between number of observables in header and data records.")
-
-        # Group observables by name and index to find complex pairs
-        grouped_observables = {}
-        for i, obs_info in enumerate(observable_infos):
-            key = (obs_info.name, obs_info.index)
-            if key not in grouped_observables:
-                grouped_observables[key] = {}
-            grouped_observables[key][obs_info.re_im] = (obs_info, i)
-
-        result = []
-        for key, parts in grouped_observables.items():
-            if "re" in parts and "im" in parts:
-                re_info, re_idx = parts["re"]
-                im_info, im_idx = parts["im"]
-                re_data = all_data[re_idx]
-                im_data = all_data[im_idx]
-                complex_data = re_data + 1j * im_data
-                sampling = SigmondSampling(complex_data, re_info, sampling_info, is_complex=True)
-                result.append(sampling)
-            elif "re" in parts:
-                re_info, re_idx = parts["re"]
-                re_data = all_data[re_idx]
-                sampling = SigmondSampling(
-                    re_data, re_info, sampling_info, is_complex=np.iscomplexobj(re_data)
-                )
-                result.append(sampling)
-            elif "im" in parts:
-                im_info, im_idx = parts["im"]
-                im_data = all_data[im_idx]
-                sampling = SigmondSampling(
-                    im_data, im_info, sampling_info, is_complex=np.iscomplexobj(im_data)
-                )
-                result.append(sampling)
-
-        return result
+        """Build ``SigmondSampling`` from parsed records, fusing Re/Im pairs into complex samplings."""
+        return self._fuse_re_im(
+            observable_infos,
+            all_data,
+            lambda data, info, is_complex: SigmondSampling(
+                data, info, sampling_info, is_complex=is_complex
+            ),
+        )
 
     # Utility methods for backward compatibility
     def get_file_info(
         self, filename: str = None
-    ) -> tuple[EnsembleInfo, SamplingInfo, list[ObservableInfo]]:
-        """Get header info and list of observable keys from a file."""
+    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[ObservableInfo]]:
+        """
+        Get header info and list of observable keys from a file.
+
+        Returns ``(ensemble_info, sampling_info, observable_infos)`` derived from
+        the loaded collection. ``sampling_info`` is ``None`` for bins files.
+        """
         if filename is not None:
             self.load_file(filename)
         elif self._filename is None:
             raise ValueError("No file loaded. Please provide a filename or call load_file() first.")
 
-        return self._ensemble_info, self._sampling_info, self._observable_infos
+        if not self._all_samplings:
+            raise ValueError("No observables loaded.")
+
+        ensemble_info = self._all_samplings.ensemble_info
+        sampling_info = self._all_samplings.sampling_info if self._file_kind == "samplings" else None
+        observable_infos = [obs.observable_info for obs in self._all_samplings]
+        return ensemble_info, sampling_info, observable_infos
 
     @staticmethod
     def get_name_and_index_from_dict_key(key: str) -> tuple[str, int]:

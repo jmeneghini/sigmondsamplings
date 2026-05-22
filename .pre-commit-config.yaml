@@ -10,7 +10,7 @@ repos:
 
   # Python Linter and Import Sorter: Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.6  # Use the latest Ruff version
+    rev: v0.15.6
     hooks:
       - id: ruff-check
         types_or: [ python ]
