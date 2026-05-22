@@ -416,10 +416,12 @@ class ObservableCollection(PandasExportMixin):
                 if isinstance(result, dict):
                     # Dict return type - extract values in data order
                     return list(result.values())
-                if isinstance(result, np.ndarray) and force_list:
-                    # NumPy return type - convert to list
-                    return result.tolist()
-
+                if isinstance(result, np.ndarray):
+                    # NumPy return type - convert to list when requested
+                    return result.tolist() if force_list else result
+                if isinstance(result, list):
+                    # Plain list (non-numeric AttributeAccessor return)
+                    return result
             except AttributeError:
                 # Attribute not found in this namespace, try next
                 continue

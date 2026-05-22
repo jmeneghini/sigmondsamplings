@@ -2,14 +2,38 @@
 Model function wrapper for SigmondSamplings with automatic parameter handling.
 """
 
+from __future__ import annotations
+
 import inspect
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .obervable_collection import ObservableCollection
 from .sampling import DEFAULT_ENSEMBLE, ObservableInfo, SamplingInfo, SigmondSampling
+
+if TYPE_CHECKING:
+    from .stats import SamplingStats
+
+
+METRIC_LATEX: dict[str, str] = {
+    "chi_squared": r"\chi^2",
+    "chi2_per_dof": r"\chi^2/\mathrm{dof}",
+    "dof": r"\mathrm{dof}",
+    "aic": r"\mathrm{AIC}",
+    "bic": r"\mathrm{BIC}",
+    "aicc": r"\mathrm{AICc}",
+    "goodness_of_fit": "Q",
+}
+
+
+def _format_metric(label: str, value: float | int, *, integer: bool = False) -> str:
+    label = label.strip("$")
+    if integer:
+        return rf"${label} = {int(value):d}$"
+    return rf"${label} = {float(value):.4g}$"
 
 
 class SigmondModelFunc:
@@ -31,8 +55,8 @@ class SigmondModelFunc:
     def __init__(
         self,
         func: Callable,
-        parameter_infos: list[ObservableInfo],
-        sampling_info: SamplingInfo,
+        parameter_infos: list[ObservableInfo] | ObservableCollection,
+        sampling_info: SamplingInfo | None = None,
         latex_str: str | None = None,
         independent_var_latex: str | None = None,
     ):
@@ -41,23 +65,65 @@ class SigmondModelFunc:
 
         Args:
             func: Model function f(x, param1, param2, ...)
-            parameter_infos: List of ObservableInfo for each parameter
-            sampling_info: SamplingInfo describing the resampling method
+            parameter_infos: List of ObservableInfo for each parameter, or an
+                ObservableCollection containing fitted parameter samplings.
+            sampling_info: SamplingInfo describing the resampling method. Required
+                when parameter_infos is a list; inferred when an ObservableCollection
+                is provided.
             latex_str: Optional LaTeX string for the function (e.g., r"A e^{-m{VAR}}" where {VAR} gets replaced)
             independent_var_latex: Optional LaTeX string for independent variable (e.g., r"t" for time)
         """
+        parameter_collection = None
+        if isinstance(parameter_infos, ObservableCollection):
+            parameter_collection = parameter_infos
+            sampling_info = parameter_collection.shared_attr("sampling_info", strict=True)
+            parameter_infos = [s.observable_info for s in parameter_collection]
+        elif sampling_info is None:
+            raise ValueError("sampling_info is required when parameter_infos is not a collection")
+
         self.func = func
-        self._initial_parameter_infos = parameter_infos
+        self._initial_parameter_infos = list(parameter_infos)
         self.sampling_info = sampling_info
         self.latex_str = latex_str
         self.independent_var_latex = independent_var_latex
 
-        # Validate function signature matches parameter count
-        sig = inspect.signature(func)
-        n_params = len(sig.parameters) - 1  # Subtract x parameter
-        if n_params != len(parameter_infos):
+        self._validate_function_signature(len(self._initial_parameter_infos))
+        if parameter_collection is not None:
+            self.params = parameter_collection
+
+    def _validate_function_signature(self, n_params: int) -> None:
+        """Validate fixed-arity model functions while allowing ``*params`` models."""
+        sig = inspect.signature(self.func)
+        parameters = list(sig.parameters.values())
+        if not parameters:
+            raise ValueError("Model function must accept an independent variable argument")
+
+        model_params = parameters[1:]
+        if any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in model_params):
+            return
+
+        positional = [
+            p
+            for p in model_params
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        required_keyword_only = [
+            p
+            for p in model_params
+            if p.kind == inspect.Parameter.KEYWORD_ONLY
+            and p.default is inspect.Signature.empty
+        ]
+        if required_keyword_only:
+            names = ", ".join(p.name for p in required_keyword_only)
+            raise ValueError(f"Model function has unsupported required keyword-only parameters: {names}")
+
+        if len(positional) != n_params:
             raise ValueError(
-                f"Function expects {n_params} parameters but got {len(parameter_infos)} parameter infos"
+                f"Function expects {len(positional)} parameters but got {n_params} parameter infos"
             )
 
     @property
@@ -74,7 +140,7 @@ class SigmondModelFunc:
         parameter_collection: ObservableCollection,
         latex_str: str | None = None,
         independent_var_latex: str | None = None,
-    ) -> "SigmondModelFunc":
+    ) -> SigmondModelFunc:
         """
         Alternative constructor using an ObservableCollection for parameters.
 
@@ -87,17 +153,7 @@ class SigmondModelFunc:
         Returns:
             SigmondModelFunc instance with parameters already set
         """
-        # Extract sampling info from the collection
-        sampling_info = parameter_collection.shared_attr("sampling_info", strict=True)
-        parameter_infos = [s.observable_info for s in parameter_collection]
-
-        # Create the model instance
-        model = cls(func, parameter_infos, sampling_info, latex_str, independent_var_latex)
-
-        # Set the parameters directly using the collection
-        model.params = parameter_collection
-
-        return model
+        return cls(func, parameter_collection, None, latex_str, independent_var_latex)
 
     def set_parameters(
         self,
@@ -127,6 +183,8 @@ class SigmondModelFunc:
             raise ValueError(
                 "Number of parameter data entries must match number of parameter infos"
             )
+        if not param_data:
+            raise ValueError("Parameter data cannot be empty")
 
         samplings = []
         if isinstance(param_data[0], np.ndarray):
@@ -147,6 +205,84 @@ class SigmondModelFunc:
                 f"{self.sampling_info} -> {first_sampling.sampling_info}"
             )
             self.sampling_info = first_sampling.sampling_info
+
+    def format_params(self) -> list[str]:
+        """Format fitted parameters using each sampling's canonical LaTeX string."""
+        if not hasattr(self, "params"):
+            raise AttributeError(
+                "Model has no fitted params; build it via fit_result.model_func() first"
+            )
+        return [s.latex_str for s in self.params]
+
+    def format_metrics(
+        self,
+        stats: SamplingStats,
+        x_data: Iterable[float] | np.ndarray,
+        names: Iterable[str],
+    ) -> list[str]:
+        """Compute and format goodness-of-fit metrics from the stats module.
+
+        Dispatches each ``name`` to the matching :class:`SamplingStats` method
+        (``chi_squared``, ``aic``, ``bic``, ``aicc``, ``goodness_of_fit``);
+        also accepts the derived names ``dof`` and ``chi2_per_dof``. nparams
+        is taken from ``len(self.params)`` and theory values are computed from
+        full-sample model values at ``x_data``. chi-squared is cached so
+        multiple chi2-derived metrics share one evaluation.
+
+        Display labels come from :data:`METRIC_LATEX`; unknown names fall
+        through to ``getattr(stats, name)(theory_values)`` with the raw name
+        as the label. Formatting is intentionally fixed for plot annotations.
+        """
+        if not hasattr(self, "params"):
+            raise AttributeError(
+                "Model has no fitted params; build it via fit_result.model_func() first"
+            )
+        x_arr = np.asarray(
+            [
+                x.full_sample_value if isinstance(x, SigmondSampling) else float(x)
+                for x in x_data
+            ]
+        )
+        theory_full = self._evaluate_full_sample_values(x_arr)
+        nparams = len(self.params)
+        n_obs = stats.num_observables
+        dof = n_obs - nparams
+
+        chi2_cache: list[float] = []
+
+        def chi2() -> float:
+            if not chi2_cache:
+                chi2_cache.append(float(stats.chi_squared(theory_full)))
+            return chi2_cache[0]
+
+        entries: list[str] = []
+        for name in names:
+            if name == "dof":
+                entries.append(_format_metric(METRIC_LATEX["dof"], dof, integer=True))
+                continue
+            if name == "chi2_per_dof":
+                value = chi2() / dof if dof > 0 else float("nan")
+                label = METRIC_LATEX["chi2_per_dof"]
+            elif name == "chi_squared":
+                value = chi2()
+                label = METRIC_LATEX["chi_squared"]
+            elif name in ("aic", "bic", "aicc"):
+                value = float(getattr(stats, name)(nparams=nparams, chi2_val=chi2()))
+                label = METRIC_LATEX[name]
+            elif name == "goodness_of_fit":
+                value = float(stats.goodness_of_fit(nparams=nparams, chi2_val=chi2()))
+                label = METRIC_LATEX[name]
+            else:
+                method = getattr(stats, name, None)
+                if not callable(method):
+                    raise ValueError(
+                        f"Unknown metric {name!r}; expected a SamplingStats method "
+                        f"or one of {sorted(METRIC_LATEX)}"
+                    )
+                value = float(method(theory_full))
+                label = name
+            entries.append(_format_metric(label, value))
+        return entries
 
     def get_latex_str_with_var(self, var_latex: str | None = None, index: int | None = None) -> str:
         """
@@ -203,95 +339,105 @@ class SigmondModelFunc:
         params = list(self.params)
 
         if isinstance(x_values, SigmondSampling):
-            # Single x with uncertainty - use ufunc operations directly
             result = self.func(x_values, *params)
-
-            # Update observable info if provided
-            if output_info is not None:
-                result.observable_info = output_info
-            else:
-                # Use x_values' observable info to create meaningful result info
-                x_info = x_values.observable_info
-                result.observable_info = ObservableInfo(
-                    f"{self.func.__name__}({x_info.name})",
-                    x_info.index,
-                    "n",
-                    "re",
-                    x_info.ensemble_info,
-                    latex_str=self.get_latex_str_with_var(x_info.latex_str),
-                )
-
+            result.observable_info = self._result_info_for_x(x_values, None, output_info)
             return result
 
-        elif isinstance(x_values, list) and all(isinstance(x, SigmondSampling) for x in x_values):
-            # Multiple x values with uncertainties
-            results = []
-            for i, x_val in enumerate(x_values):
+        sequence_values = self._coerce_sequence(x_values)
+        if sequence_values is not None and all(
+            isinstance(x, SigmondSampling) for x in sequence_values
+        ):
+            results: list[SigmondSampling] = []
+            for i, x_val in enumerate(sequence_values):
                 result = self.func(x_val, *params)
-
-                # Update observable info - use x_val's observable info when appropriate
-                if output_info is not None:
-                    info = ObservableInfo(
-                        output_info.name,
-                        i,
-                        output_info.op_type,
-                        output_info.re_im,
-                        output_info.ensemble_info,
-                        output_info.latex_str,
-                    )
-                else:
-                    # Use x_val's observable info to create meaningful result info
-                    x_info = x_val.observable_info
-                    info = ObservableInfo(
-                        f"{self.func.__name__}({x_info.name})",
-                        x_info.index,
-                        "n",
-                        "re",
-                        x_info.ensemble_info,
-                        latex_str=self.get_latex_str_with_var(x_info.latex_str),
-                    )
-                result.observable_info = info
+                result.observable_info = self._result_info_for_x(x_val, i, output_info)
                 results.append(result)
-
             return results
+        if sequence_values is not None:
+            if any(isinstance(x, SigmondSampling) for x in sequence_values):
+                raise TypeError("x_values must be all numeric values or all SigmondSampling objects")
+            x_values = sequence_values
 
+        # Fixed x values - convert to numpy array and evaluate point by point
+        x_values = np.asarray(x_values)
+        if x_values.ndim == 0:
+            x_values = np.array([x_values])
+            return_single = True
         else:
-            # Fixed x values - convert to numpy array and evaluate point by point
-            x_values = np.asarray(x_values)
-            if x_values.ndim == 0:
-                x_values = np.array([x_values])
-                return_single = True
-            else:
-                return_single = False
+            return_single = False
 
-            results = []
-            for i, x_val in enumerate(x_values):
-                # Evaluate at fixed x value using parameter uncertainties
-                result = self.func(x_val, *params)
+        results = []
+        for i, x_val in enumerate(x_values):
+            result = self.func(x_val, *params)
+            result.observable_info = self._result_info_for_fixed_x(i, output_info)
+            results.append(result)
 
-                # Update observable info
-                if output_info is not None:
-                    info = ObservableInfo(
-                        output_info.name,
-                        i,
-                        output_info.op_type,
-                        output_info.re_im,
-                        output_info.ensemble_info,
-                        output_info.latex_str,
-                    )
-                else:
-                    info = ObservableInfo(
-                        f"{self.func.__name__}_result",
-                        i,
-                        "n",
-                        "re",
-                        next(iter(self.params)).observable_info.ensemble_info,
-                        latex_str=self.get_latex_str_with_var(index=i),
-                    )
-                result.observable_info = info
-                results.append(result)
+        return results[0] if return_single else results
 
-            return results[0] if return_single else results
+    def _coerce_sequence(self, x_values) -> list | None:
+        if isinstance(x_values, np.ndarray):
+            return list(np.asarray(x_values, dtype=object).reshape(-1))
+        if isinstance(x_values, Iterable) and not isinstance(x_values, (str, bytes)):
+            return list(x_values)
+        return None
+
+    def _result_info_for_x(
+        self,
+        x_value: SigmondSampling,
+        index: int | None,
+        output_info: ObservableInfo | None,
+    ) -> ObservableInfo:
+        if output_info is not None:
+            if index is None:
+                return output_info
+            return ObservableInfo(
+                output_info.name,
+                index,
+                output_info.op_type,
+                output_info.re_im,
+                output_info.ensemble_info,
+                output_info.latex_str,
+            )
+
+        x_info = x_value.observable_info
+        return ObservableInfo(
+            f"{self.func.__name__}({x_info.name})",
+            x_info.index,
+            "n",
+            "re",
+            x_info.ensemble_info,
+            latex_str=self.get_latex_str_with_var(x_info.latex_str),
+        )
+
+    def _result_info_for_fixed_x(
+        self,
+        index: int,
+        output_info: ObservableInfo | None,
+    ) -> ObservableInfo:
+        if output_info is not None:
+            return ObservableInfo(
+                output_info.name,
+                index,
+                output_info.op_type,
+                output_info.re_im,
+                output_info.ensemble_info,
+                output_info.latex_str,
+            )
+
+        return ObservableInfo(
+            f"{self.func.__name__}_result",
+            index,
+            "n",
+            "re",
+            next(iter(self.params)).observable_info.ensemble_info,
+            latex_str=self.get_latex_str_with_var(index=index),
+        )
+
+    @staticmethod
+    def _as_result_list(results: SigmondSampling | list[SigmondSampling]):
+        if isinstance(results, SigmondSampling):
+            return [results], True
+        return results, False
 
     def evaluate_with_uncertainty(
         self,
@@ -308,57 +454,49 @@ class SigmondModelFunc:
         Returns:
             Tuple of (mean_values, lower_bounds, upper_bounds)
         """
-        # Get all evaluations using the main __call__ method
-        results = self(x_values)
+        means, lowers, uppers, _ = self.evaluate_summary(x_values, confidence_level)
+        return means, lowers, uppers
 
-        # Handle single result vs list of results
-        if isinstance(results, SigmondSampling):
-            mean_val = results.mean
+    def evaluate_summary(
+        self,
+        x_values: np.ndarray | list[SigmondSampling] | SigmondSampling,
+        confidence_level: float = 0.68,
+    ) -> tuple:
+        """Evaluate mean, interval bounds, and full-sample values in one pass."""
+        result_list, return_single = self._as_result_list(self(x_values))
+        if not result_list:
+            raise ValueError("x_values must contain at least one value")
+        means = np.array([r.mean for r in result_list])
+        fulls = np.array([r.full_sample_value for r in result_list])
 
-            if results.sampling_info.method == "bootstrap":
-                lower, upper = results.confidence_interval(confidence_level)
-            else:
-                error = results.error
-                lower = mean_val - error
-                upper = mean_val + error
-
-            return mean_val, lower, upper
-
+        if result_list and result_list[0].sampling_info.method == "bootstrap":
+            intervals = [r.confidence_interval(confidence_level) for r in result_list]
+            lowers = np.array([interval[0] for interval in intervals])
+            uppers = np.array([interval[1] for interval in intervals])
         else:
-            # List of results
-            means = np.array([r.mean for r in results])
+            errors = np.array([r.error for r in result_list])
+            lowers = means - errors
+            uppers = means + errors
 
-            if results[0].sampling_info.method == "bootstrap":
-                intervals = [r.confidence_interval(confidence_level) for r in results]
-                lowers = np.array([interval[0] for interval in intervals])
-                uppers = np.array([interval[1] for interval in intervals])
-            else:
-                errors = np.array([r.error for r in results])
-                lowers = means - errors
-                uppers = means + errors
+        if return_single:
+            return means.item(), lowers.item(), uppers.item(), fulls.item()
+        return means, lowers, uppers, fulls
 
-            return means, lowers, uppers
+    def _evaluate_full_sample_values(
+        self,
+        x_values: np.ndarray | list[SigmondSampling] | SigmondSampling,
+    ) -> float | np.ndarray:
+        result_list, return_single = self._as_result_list(self(x_values))
+        if not result_list:
+            raise ValueError("x_values must contain at least one value")
+        fulls = np.array([r.full_sample_value for r in result_list])
+        return fulls.item() if return_single else fulls
 
     def evaluate_full_sample(
         self, x_values: np.ndarray | list[SigmondSampling] | SigmondSampling
     ) -> float | np.ndarray:
-        """
-        Evaluate model using full sample values.
-
-        Args:
-            x_values: Input values where to evaluate the model
-
-        Returns:
-            Full sample value(s) - single float or array of floats
-        """
-        results = self(x_values)
-
-        # Handle single result vs list of results
-        if isinstance(results, SigmondSampling):
-            return results.full_sample_value
-        else:
-            # Multiple x values - return array of full sample values
-            return np.array([r.full_sample_value for r in results])
+        """Evaluate model using full-sample values."""
+        return self._evaluate_full_sample_values(x_values)
 
     def evaluate_samples(
         self, x_values: np.ndarray | list[SigmondSampling] | SigmondSampling
@@ -373,15 +511,12 @@ class SigmondModelFunc:
             Array of shape (n_samples, len(x_values)) containing all evaluations
         """
         # Get all evaluations using the main __call__ method
-        results = self(x_values)
-
-        # Handle single result vs list of results
-        if isinstance(results, SigmondSampling):
+        result_list, return_single = self._as_result_list(self(x_values))
+        if return_single:
             # Single x value - return column vector
-            return results.data.reshape(-1, 1)  # Shape: (n_samples, 1)
-        else:
-            # Multiple x values - stack the data arrays
-            return np.column_stack([r.data for r in results])  # Shape: (n_samples, len(x_values))
+            return result_list[0].data.reshape(-1, 1)  # Shape: (n_samples, 1)
+        # Multiple x values - stack the data arrays
+        return np.column_stack([r.data for r in result_list])  # Shape: (n_samples, len(x_values))
 
     def __repr__(self):
         if hasattr(self, "params"):

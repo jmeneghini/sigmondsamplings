@@ -5,7 +5,11 @@ This package provides tools to load, manipulate, and analyze Sigmond samplings f
 in both fstream and HDF5 formats using the sigmond_query tool.
 """
 
+# Load rc first so any sub-module that reads from `rc` at import time sees the
+# user's persisted settings (e.g. KnownEnsembles' ensembles.xml_file).
+from . import rcparams as rcparams
 from .bins import SigmondBins
+from .colors import COLORS, MARKERS, IndexedCycle
 from .energy_level_collection import (
     EnergyLevelMixin,
     MultiEnsembleEnergyCollection,
@@ -23,11 +27,25 @@ from .ensemble_collection import (
     group_by_ensemble_and_sampling,
 )
 from .fit import (
+    ErrorPolicy,
+    FitBackend,
+    FitExecutionConfig,
     SamplingFit,
     SamplingFitResult,
     default_num_workers,
+    evaluate_chi2_function_scan,
+    evaluate_chi2_scan,
     make_process_pool,
     set_thread_counts,
+)
+from .fit_plotter import (
+    Chi2PlotStyle,
+    FitPlotStyle,
+    plot_chi2_1d,
+    plot_chi2_2d,
+    plot_chi2_function_1d,
+    plot_chi2_function_2d,
+    plot_fit_result,
 )
 from .info import (
     DEFAULT_ENSEMBLE,
@@ -63,6 +81,7 @@ from .pycalq_loader import (
     PyCALQRotateInfo,
     PyCALQSamplingResultType,
 )
+from .rcparams import rc, rc_context, rc_defaults, rc_file, rc_save
 from .sampling import SigmondSampling
 from .sampling_array import (
     ArrayElementObsInfo,
@@ -94,6 +113,16 @@ from .writer import SigmondWriter
 
 __version__ = "0.1.0"
 __all__ = [
+    # Runtime configuration
+    "rcparams",
+    "rc",
+    "rc_context",
+    "rc_defaults",
+    "rc_file",
+    "rc_save",
+    "COLORS",
+    "MARKERS",
+    "IndexedCycle",
     # Core SigmondSamplings functionality
     "SigmondLoader",
     "ObservableCollection",
@@ -120,9 +149,21 @@ __all__ = [
     "SamplingStats",
     "SamplingFit",
     "SamplingFitResult",
+    "FitExecutionConfig",
+    "FitBackend",
+    "ErrorPolicy",
     "set_thread_counts",
     "default_num_workers",
     "make_process_pool",
+    "evaluate_chi2_scan",
+    "evaluate_chi2_function_scan",
+    "plot_fit_result",
+    "FitPlotStyle",
+    "plot_chi2_1d",
+    "plot_chi2_2d",
+    "plot_chi2_function_1d",
+    "plot_chi2_function_2d",
+    "Chi2PlotStyle",
     # Spectrum plotting
     "SpectrumPlotter",
     "SectorSpectrumPlotter",

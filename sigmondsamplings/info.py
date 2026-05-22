@@ -19,8 +19,12 @@ class KnownEnsembles:
     This class manages a database of known ensembles, allowing users to create
     EnsembleInfo objects by name without specifying all parameters manually.
 
-    The XML file path is stored persistently in ~/.sigmondsamplings/config
-    so users don't need to respecify it on each import.
+    The XML file path is stored in :mod:`sigmondsamplings.rcparams` under the
+    ``ensembles.xml_file`` key. When you construct a ``KnownEnsembles`` with
+    an explicit ``xml_file``, that path is written back to the rc system and
+    persisted via :func:`sigmondsamplings.rc_save` so later sessions pick it up
+    automatically (the same role the old ``~/.sigmondsamplings/config`` file
+    played, but now through a single TOML config).
 
     Example:
         # First time setup
@@ -31,56 +35,35 @@ class KnownEnsembles:
         >>> ensemble = known.get('cls21_n203')
     """
 
-    _config_dir = Path.home() / ".sigmondsamplings"
-    _config_file = _config_dir / "config"
-
     def __init__(self, xml_file: str | None = None):
         """
         Initialize KnownEnsembles.
 
         Args:
-            xml_file: Path to ensembles.xml file. If not provided, will try to
-                     load from saved config. If provided, will save to config
-                     for future use.
+            xml_file: Path to ensembles.xml file. If not provided, falls back
+                to ``rc["ensembles.xml_file"]``. If provided, sets that rc key
+                and persists the config so future sessions reuse it.
         """
+        # Imported here to avoid a circular import at module load.
+        from . import rcparams as _rc
+
         self._ensembles: dict[str, dict[str, Any]] = {}
 
-        # Determine which file to use
         if xml_file is not None:
-            self._xml_file = Path(xml_file)
-            self._save_config()
+            self._xml_file = Path(xml_file).expanduser()
+            _rc.rc["ensembles.xml_file"] = str(self._xml_file.absolute())
+            _rc.rc_save()
         else:
-            self._xml_file = self._load_config()
+            configured = _rc.rc.get("ensembles.xml_file")
+            self._xml_file = Path(configured).expanduser() if configured else None
+            if self._xml_file is not None and not self._xml_file.exists():
+                raise FileNotFoundError(
+                    f"Previously configured ensemble file not found: {self._xml_file}\n"
+                    f"Please provide a new path when initializing KnownEnsembles."
+                )
 
-        # Load ensembles if file is available
         if self._xml_file is not None:
             self._load_ensembles()
-
-    def _save_config(self):
-        """Save the XML file path to config file."""
-        self._config_dir.mkdir(parents=True, exist_ok=True)
-        with open(self._config_file, "w") as f:
-            f.write(str(self._xml_file.absolute()))
-
-    def _load_config(self) -> Path | None:
-        """Load the XML file path from config file."""
-        if not self._config_file.exists():
-            return None
-
-        with open(self._config_file) as f:
-            path_str = f.read().strip()
-
-        if not path_str:
-            return None
-
-        path = Path(path_str)
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Previously configured ensemble file not found: {path}\n"
-                f"Please provide a new path when initializing KnownEnsembles."
-            )
-
-        return path
 
     def _load_ensembles(self):
         """Parse the XML file and load ensemble information."""
