@@ -1,24 +1,31 @@
 # sigmondsamplings
 
-A Python package for handling Sigmond samplings files with comprehensive statistical analysis capabilities for lattice QCD research.
+`sigmondsamplings` is a python package for manipulating and analyzing lattice QCD Monte-Carlo data in `sigmond` format. The package provides python-native plotting, statistical analysis, and data management features not present in the [C++ `sigmond` software suite](https://github.com/jmeneghini/sigmond)..  This package is also useful for those who wish to work with or convert `sigmond` files without the overhead of the full C++ `sigmond` library.
 
-## Overview
+# Features
 
-SigmondSamplings provides a high-level Python interface to load, manipulate, and analyze Sigmond samplings files. It supports both bootstrap and jackknife resampling methods with robust error propagation and multi-ensemble analysis capabilities.
+- **File Loading/Writing**: View and manipulate `sigmond` binary fstream (`.smp`) and HDF5 (`.hdf5`) file formats. Both Monte Carlo *bins* and *samplings* file types are supported. Note: only HDF5 files can be written to, and reading fstream files requires `sigmond_query`, which is packaged with `sigmond` (this is the only use of `sigmond` in this package).
 
-## Key Features
+- **NumPy-Style Arithmetic Ops**: Sampling/bin data is stored in `SigmondSampling`/`SigmondBins` objects, which wrap `np.ndarray` while preserving convenient `ufunc` arithmetic and enforcing observable/resampling compatibility checks. Complex observables are stored in `sigmond` files as separate real and imaginary parts, but are merged into a single NumPy array when loaded.
 
-- **File Format Support**: Load both fstream and HDF5 (`.hdf5`) Sigmond files
-- **Statistical Operations**: Bootstrap and jackknife error analysis with proper error propagation
-- **Multi-Ensemble Support**: Handle samplings from different ensembles with automatic covariance treatment
-- **Arithmetic Operations**: Fast and full support for sampling arithmetic via numpy, with observable compatibility checking
-- **Complex Numbers**: Native support for complex-valued observables
-- **Correlation Analysis**: Covariance and correlation matrix calculations
-- **Synthetic Data**: Generate synthetic samplings for testing and validation
+- **Statistical Ops**: Core `SigmondSampling`/`SigmondBins` objects provide basic statistical information such as resampling means, confidence intervals, and standard errors. Metrics involving multiple observables are computed with `SamplingStats` (e.g. covariance and $\chi^2$). Multi-ensemble analysis is also supported, with covariance between different ensembles automatically set to zero.
+
+- **Convenient Many-Observable Data Structures**: In-memory `ObservableCollection` objects act as queryable containers, providing batched accessors along with `filter`, `find`, `group_by`, and `sort` methods. `EnergyObsInfo` can be constructed by flexibly parsing observable names and extracting level info, which can then be stored in specialized `Single/MultiEnsembleEnergyCollection` objects with accessors like `irreps`, `psq_values`, and `group_by_irrep()`.
+
+- **Plotting**: General observable plots, such as histograms and corner plots, are provided by `SamplingPlotter`. Spectrum plotting of energy levels is provided by `SpectrumPlotter`, and a WIP fit-result plotter lives in `fit_plotter.py`.
+
+- **Runtime Configuration**: Global `rcparams` support package-level defaults for plotting behavior, metric selection, confidence levels, color/marker palettes, and the `KnownEnsembles` XML database path. Settings can be temporarily overridden or saved/loaded from TOML config files.
+
+- **CLI Utilities**: The package installs `sigmond-convert` and `sigmond-combine` for converting fstream files to HDF5 and combining multiple sampling files.
+
 
 ## Installation
 
-### From Source
+`sigmondsamplings` is currently intended to be installed from source.
+
+### Using `pip`
+
+For a normal editable install:
 
 ```bash
 git clone <repository-url>
@@ -26,111 +33,202 @@ cd sigmondsamplings
 pip install -e .
 ```
 
-### Development Installation
+For development, install the optional developer tools as well:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-### Requirements
+### Using `conda`
 
-- Python 3.8+
-- NumPy ≥ 1.20.0
-- SciPy ≥ 1.7.0
-- `sigmond_query` command-line tool (see [Sigmond](https://github.com/jmeneghini/sigmond/tree/pip))
+If you prefer to manage the Python environment with `conda`, create and activate
+an environment first, then install the package with `pip` inside that environment:
+
+```bash
+conda create -n sigmondsamplings python=3.11
+conda activate sigmondsamplings
+
+git clone <repository-url>
+cd sigmondsamplings
+pip install -e .
+```
+
+For development:
+
+```bash
+conda create -n sigmondsamplings-dev python=3.11
+conda activate sigmondsamplings-dev
+
+git clone <repository-url>
+cd sigmondsamplings
+pip install -e ".[dev]"
+```
+
+The core Python dependencies are installed automatically by `pip` from
+`pyproject.toml`:
+
+- `numpy`
+- `scipy`
+- `uncertainties`
+- `h5py`
+- `xarray`
+
+### `sigmond_query`
+
+HDF5 workflows are pure Python. Reading binary fstream (`.smp`) files
+requires the `sigmond_query` executable, which is packaged with
+[`sigmond`](https://github.com/jmeneghini/sigmond/tree/pip). Make sure
+`sigmond_query` is on your `PATH` before loading `.smp` files:
+
+```bash
+which sigmond_query
+```
+
+`sigmond_query` is only needed for reading fstream files; it is not required for
+writing or manipulating HDF5 files.
 
 ## Quick Start
 
+The examples below use the small HDF5 fixtures committed under `tests/data/`.
+Replace the path with your own `.hdf5` file in normal use.
+
+### Load and Inspect Data
+
 ```python
-from SigmondSamplings import SigmondLoader, SamplingStats
+from pathlib import Path
+
+from sigmondsamplings import SigmondLoader
+
+filename = Path("tests/data/energy_levels_samplings.hdf5")
+
+loader = SigmondLoader(str(filename))
+observables = loader.observables
+
+print(loader.file_kind)        # "samplings"
+print(loader.hdf5_path)        # auto-detected HDF5 root path, if unique
+print(len(observables))
+
+ensemble_info, sampling_info, observable_infos = loader.get_file_info()
+print(ensemble_info)
+print(sampling_info)
+print(observable_infos[0])
+```
+
+`loader.observables` is an `ObservableCollection`, so it can be queried without
+re-reading the file:
+
+```python
+energy = observables.find(name="K(0)_elab")
+kaons = observables.filter(lambda obs: obs.name.startswith("K"))
+
+print(len(kaons))
+print(energy.pdg_format())
+```
+
+### Work with Individual Observables
+
+Each element is a `SigmondSampling` or `SigmondBins` object, depending on the
+file type. These objects wrap the underlying NumPy data while keeping the
+observable and resampling metadata attached.
+
+```python
+sampling = observables[0]
+
+print(sampling.observable_info.name)
+print(sampling.full_sample_value)
+print(sampling.mean)
+print(sampling.error)
+print(sampling.confidence_interval(0.68))
+
+shifted = sampling - sampling.mean # creates a new observable
+scaled = 2.0 * sampling
+```
+
+Arithmetic between observables checks that the resampling data are compatible.
+For example, two samplings from the same file can be combined directly:
+
+```python
+ratio = observables[0] / observables[2]
+print(ratio.mean, ratio.error)
+```
+
+### Compute Multi-Observable Statistics
+
+Use `SamplingStats` for quantities that involve more than one observable, such
+as covariance matrices, correlation matrices, residuals, and $\chi^2$ values.
+
+```python
 import numpy as np
 
-# Load Sigmond files
-loader = SigmondLoader()
-file_name = 'data.smp' # fstream format
-file_name = 'data.hdf5[\path\to\samplings]' # HDF5 format (tag must be specified in filename)
-ensemble_info, sampling_info, observables = loader.get_file_info('data.smp')
+from sigmondsamplings import SamplingStats
 
-# Load specific observable
-pion_mass = loader.load_observable('data.smp', 'pion_mass')
-print(f"Pion mass: {pion_mass.mean:.6f} ± {pion_mass.error:.6f}")
+subset = [observables[i] for i in [0, 2, 3, 4, 5]] # any iterable, including collections
+stats = SamplingStats(subset)
 
-# Multi-observable analysis
-kaon_mass = loader.load_observable('data.smp', 'kaon_mass')
-stats = SamplingStats([pion_mass, kaon_mass])
+print(stats.cov_matrix)
+print(stats.corr_matrix)
 
-# Calculate correlations
-corr_matrix = stats.correlation_matrix()
-print("Correlation matrix:", corr_matrix)
+theory_values = np.array(stats.val.mean)
+chi2 = stats.chi_squared(theory_values)
+print(chi2)
 ```
 
-## Core Classes
+Covariances between observables from different ensembles are automatically set
+to zero, while same-ensemble observables use the usual resampling covariance.
 
-### SigmondSampling
+### Use Energy-Level Metadata
 
-Main class for individual observables with statistical methods:
+Energy-level observables can be parsed into `EnergyObsInfo` and stored in
+specialized energy collections:
 
 ```python
-# Access properties
-print(f"Full sample: {sampling.full_sample_value}")
-print(f"Mean: {sampling.mean:.6f}")
-print(f"Error: {sampling.error:.6f}")
+from sigmondsamplings import SingleEnsembleEnergyCollection
 
-# Arithmetic operations
-mass_ratio = kaon_mass / pion_mass
-mass_difference = kaon_mass - pion_mass
+energy_levels = SingleEnsembleEnergyCollection.from_collection(observables)
+
+print(energy_levels.irreps)
+print(energy_levels.psqs)
+print(energy_levels.group_by_irrep().keys())
+print(energy_levels.filter(irrep = 'A1g', psq = 0))
+print(energy_levels.filter(irrep = ['A1', 'A2'], psq = 1)) # returns collections
+
 ```
 
-### SamplingStats
+### Write HDF5 Output
 
-Multi-observable statistical analysis:
+Only HDF5 output is written by this package. Use `SigmondWriter` to write a
+subset, round-trip converted data, or newly constructed observables:
 
 ```python
-stats = SamplingStats([pion_mass, kaon_mass, mass_ratio])
+from sigmondsamplings import SigmondWriter
 
-# Statistical analysis
-means = stats.sample_means()
-errors = stats.sample_errors()
-cov_matrix = stats.covariance_matrix()
-
-# Chi-squared analysis
-chi_sq, dof = stats.chi_squared(theory_values)
+writer = SigmondWriter(create_backups=False)
+writer.write_hdf5("subset.hdf5", observables[:5], root_path="samplings", overwrite=True)
 ```
 
-### SigmondLoader
+### Create Synthetic Data
 
-Main interface for loading Sigmond files:
+Synthetic samplings are useful for tests, examples, and checking analysis code
+without touching file IO:
 
 ```python
-loader = SigmondLoader()
+from sigmondsamplings import ObservableInfo, SamplingInfo, create_gaussian_sampling
 
-# Check file validity
-is_valid, file_type, paths = loader.check_file_validity('data.hdf5')
+sampling_info = SamplingInfo("bootstrap", 1000, seed=1234)
+observable_info = ObservableInfo("synthetic", index=0, op_type="n", re_im="re")
 
-# Load all observables
-all_samplings = loader.load_all_observables('data.smp')
+synthetic = create_gaussian_sampling(
+    mean=1.0,
+    std=0.1,
+    sampling_info=sampling_info,
+    observable_info=observable_info,
+)
 
-# Find observables by pattern
-pion_observables = loader.find_observables('data.smp', '*pion*')
+print(synthetic.pdg_format())
 ```
 
-## File Format Support
-
-### Fstream Files (`.smp`)
-Traditional Sigmond binary format - loaded directly.
-
-### HDF5 Files (`.hdf5`)
-Modern hierarchical format - requires path specification:
-
-```python
-# Auto-detect available paths
-is_valid, file_type, paths = loader.check_file_validity('data.hdf5')
-print(f"Available paths: {paths}")
-
-# Load with specific path
-file_with_path = f'data.hdf5[{paths[0]}]'
-sampling = loader.load_observable(file_with_path, 'observable_name')
-```
+See the `examples/` directory for complete scripts using the committed test
+fixtures.
 
 ## Sampling Compatibility
 
@@ -139,17 +237,16 @@ Samplings are compatible for arithmetic operations if they have:
 2. **Same data length**
 3. **Different `ensemble_info` is allowed** (enables multi-ensemble analysis)
 
+### Outputs
+
+- Arithmetic operations will create names for the output observables, then the user can edit these if desired
+
 ```python
-# Compatible despite different ensembles
-ensemble1 = EnsembleInfo("ensemble_a", 1000, 100)
-ensemble2 = EnsembleInfo("ensemble_b", 2000, 100)
-sampling_info = SamplingInfo("bootstrap", 100, 1234)
-
-sampling1 = SigmondSampling(data1, ensemble1, sampling_info)
-sampling2 = SigmondSampling(data2, ensemble2, sampling_info)
-
-result = sampling1 + sampling2  # This works!
+result = observables[0] + observables[1]
+result.observable_info.name = 'some_new_samp'
 ```
+
+- To copy an observable such that its state isn't tied to the original, use `.copy()`
 
 ## Multi-Ensemble Analysis
 
@@ -158,24 +255,16 @@ SigmondSamplings automatically handles covariance between different ensembles:
 - **Different ensembles**: Covariance = 0.0 (automatic)
 - **Diagonal elements**: Always return variance (error²)
 
-## Utility Functions
 
-Generate synthetic data for testing:
+## Work in Progress
 
-```python
-from SigmondSamplings import (
-    create_gaussian_sampling, create_uniform_sampling,
-    create_complex_gaussian_sampling
-)
+The project is still a work in progress, and will not support all sigmond observables. However, the hope
+is the code is structured such that adding new observables is not too painful. Nonetheless, for analyzing spectrum data,
+it is unlikely you'll run into any hurdles.
 
-# Create synthetic sampling
-sampling_info = SamplingInfo("bootstrap", 1000, 1234)
-synthetic = create_gaussian_sampling(
-    mean=1.0, std=0.1,
-    sampling_info=sampling_info,
-    observable_name="test_observable"
-)
-```
+Some features exist as code but not have been fully tested/used. I would not waste your time. These include
+- `fit.py`
+- `fit_plotter.py`
 
 ## Testing
 
@@ -184,10 +273,10 @@ synthetic = create_gaussian_sampling(
 python -m pytest tests/
 
 # Run specific test module
-python -m pytest tests/test_sampling.py -v
+python -m pytest tests/test_loader_writer.py -v
 
 # Run with coverage
-python -m pytest tests/ --cov=SigmondSamplings --cov-report=html
+python -m pytest tests/ --cov=sigmondsamplings --cov-report=html
 ```
 
 ## License
