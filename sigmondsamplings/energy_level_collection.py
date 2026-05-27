@@ -511,28 +511,22 @@ class EnergyLevelMixin:
         )
 
     @property
-    def spec(self) -> list[tuple[int, str, int]]:
+    def spec(self) -> list[tuple[int, str, list[int]]]:
         """
-        List the (psq, irrep, level_index) spec of the current collection.
+        List the (psq, irrep, [level_indices]) spec of the current collection.
 
         Returns:
-            List[Tuple[int, str, int]]: List of (psq, irrep, level_index) tuples for all observables
+            List[Tuple[int, str, List[int]]]: List of sectors with their embedded level indices.
 
         Example:
             >>> spec = coll.spec
             >>> print(spec)
-            [(0, 'A1g', 0), (0, 'A1g', 1), (1, 'E', 0)]
+            [(0, 'A1g', [0, 1]), (1, 'E', [0])]
         """
-        return sorted(
-            set(
-                (
-                    obs.observable_info.psq,
-                    obs.observable_info.irrep,
-                    obs.observable_info.level_index,
-                )
-                for obs in self._data
-            )
-        )
+        return [
+            (psq, irrep, sorted(set(obs.observable_info.level_index for obs in sub_coll)))
+            for (psq, irrep), sub_coll in sorted(self.group_by_sector().items())
+        ]
 
     def save_spec(self, yml_path: str) -> None:
         """

@@ -73,7 +73,6 @@ class Particle:
         """Check if momentum is specified"""
         return self.psq is not None
 
-    # TODO: should be a property!
     def latex_str(self) -> str:
         """Get LaTeX representation of particle"""
         if not PARTICLE_LATEX_MAP:

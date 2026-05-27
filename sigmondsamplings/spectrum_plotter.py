@@ -126,10 +126,18 @@ class SpectrumPlotter:
             return lambda _s: False
         if callable(excluded_levels):
             return excluded_levels
+            
         spec_set = set()
         for entry in excluded_levels:
-            psq, irrep, level = entry
-            spec_set.add((psq, irrep, level))
+            psq, irrep, level_or_levels = entry
+            
+            # Check if the third element is a collection of levels (like a list)
+            if isinstance(level_or_levels, (list, tuple, set)):
+                for level in level_or_levels:
+                    spec_set.add((psq, irrep, level))
+            else:
+                # Fallback for a single integer level index
+                spec_set.add((psq, irrep, level_or_levels))
 
         def _match(sampling: SigmondSampling) -> bool:
             obs = sampling.observable_info
