@@ -70,6 +70,7 @@ class SamplingStats(MultiEnsembleCollection):
         instance._data = tuple(data)  # Immutable tuple
         instance._return_type = "numpy"  # Always numpy for SamplingStats
         instance._shared_attr_cache = {}
+        instance.use_gvar = False
         instance._numpy_data = instance.to_numpy()
         instance._sampling_info = instance.sampling_info
         return instance
@@ -597,7 +598,8 @@ class SamplingStats(MultiEnsembleCollection):
         chi2_val: float | None = None,
     ) -> float:
         """
-        Akaike Information Criterion: AIC = chi2 - 2 * nparams.
+        Akaike Information Criterion: AIC = chi2 - 2 * dof, where
+        dof = n_obs - nparams.
 
         Args:
             nparams: Number of fitted parameters.
@@ -735,7 +737,7 @@ class SamplingStats(MultiEnsembleCollection):
 
         Returns:
             Dictionary with keys: residuals, whitened_residuals, chi2, dof,
-            chi2_per_dof, Q, AIC.
+            chi2_per_dof, Q, AIC, markdown.
         """
         r = self.residuals(theory_values, linear_superposition=linear_superposition)
         w = self.whitened_residuals(

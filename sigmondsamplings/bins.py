@@ -199,6 +199,21 @@ class SigmondBins:
             complex_data, self.observable_info, is_complex=True, use_dask=self.use_dask
         )
 
+    def with_observable_info(self, observable_info: ObservableInfo) -> "SigmondBins":
+        """
+        Return a metadata-only view with replaced observable info.
+
+        The bin array/backend is shared with the original object. Lazy subclasses
+        can override this to preserve deferred reads.
+        """
+        new = self.__class__.__new__(self.__class__)
+        new.data = self.data
+        new.observable_info = observable_info
+        new.is_complex = self.is_complex
+        new.use_dask = self.use_dask
+        new.xp = self.xp
+        return new
+
     def bounded(self, lower: float, upper: float) -> "SigmondBins":
         """Clip bins into [lower, upper]."""
         if lower >= upper:

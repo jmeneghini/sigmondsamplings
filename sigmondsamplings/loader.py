@@ -3,6 +3,7 @@ Loader module for Sigmond samplings files.
 """
 
 import logging
+import os
 import re
 import subprocess
 import xml.etree.ElementTree as ET
@@ -13,6 +14,12 @@ import numpy as np
 from .bins import SigmondBins
 from .ensemble_collection import SingleEnsembleCollection
 from .info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
+from .lazy import (
+    HDF5ObservableRecord,
+    LazySigmondBins,
+    LazySigmondSampling,
+    _FileRef,
+)
 from .sampling import SigmondSampling
 
 logger = logging.getLogger(__name__)
@@ -110,6 +117,7 @@ class SigmondLoader:
         self,
         filename: str = None,
         hdf5_path: str = None,
+        lazy: bool = False,
     ):
         """
         Initialize the loader.
@@ -119,21 +127,42 @@ class SigmondLoader:
             hdf5_path: For HDF5 files, the root path to use (default: None = auto-detect)
                       If None and file has a single path, it will be used automatically.
                       If None and file has multiple paths, an error will be raised.
+            lazy: If True, only read header + dataset names up front and defer reading
+                  each observable's sample array until its data is first accessed.
+                  Supported for HDF5 files only; fstream files raise NotImplementedError.
         """
         # Single source of truth for data
         self._filename = None
         self._hdf5_path = hdf5_path
+        self._lazy = lazy
         self._file_kind: str | None = None  # "samplings" or "bins"
         self._all_samplings = SingleEnsembleCollection([])
 
         # Load file if provided
         if filename:
-            self.load_file(filename, self._hdf5_path)
+            self.load_file(filename, self._hdf5_path, lazy=lazy)
 
     @property
     def observables(self) -> SingleEnsembleCollection:
         """Access the loaded samplings collection."""
         return self._all_samplings
+
+    def energy_observables(
+        self,
+        *,
+        skip_missing_particles: bool = True,
+        return_type: str | None = None,
+    ):
+        """
+        Return loaded observables as an energy-level collection.
+
+        This is an explicit semantic view over ``observables``; raw loader output
+        remains unchanged.
+        """
+        return self.observables.as_energy_levels(
+            skip_missing_particles=skip_missing_particles,
+            return_type=return_type,
+        )
 
     @property
     def hdf5_path(self) -> str | None:
@@ -163,8 +192,7 @@ class SigmondLoader:
             SingleEnsembleCollection of loaded samplings
         """
         ensemble_info, sampling_info, parsed = self._read_hdf5_values(filename, path)
-        if sampling_info is None:
-            raise ValueError(f"File {filename} appears to be a bins file, not a samplings file.")
+        self._check_file_kind(filename, "samplings", sampling_info)
         samplings_list = self._build_samplings_list(
             [p[0] for p in parsed], [p[1] for p in parsed], sampling_info
         )
@@ -178,19 +206,39 @@ class SigmondLoader:
             SingleEnsembleCollection of SigmondBins objects.
         """
         ensemble_info, sampling_info, parsed = self._read_hdf5_values(filename, path)
-        if sampling_info is not None:
-            raise ValueError(f"File {filename} appears to be a samplings file, not a bins file.")
+        self._check_file_kind(filename, "bins", sampling_info)
         bins_list = self._build_bins_list([p[0] for p in parsed], [p[1] for p in parsed])
         return SingleEnsembleCollection(bins_list)
 
-    def _read_hdf5_values(
-        self, filename: str, path: str
-    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, np.ndarray]]]:
+    @staticmethod
+    def _check_file_kind(
+        filename: str, expected_kind: str, sampling_info: SamplingInfo | None
+    ) -> None:
         """
-        Shared helper to read a Sigmond HDF5 file (samplings or bins).
+        Reject a file whose contents disagree with its declared kind.
+
+        A samplings file must carry sampling info; a bins file must not. Shared by
+        the eager and lazy HDF5 loaders so the diagnostic is worded identically.
+        """
+        if expected_kind == "samplings" and sampling_info is None:
+            raise ValueError(f"File {filename} appears to be a bins file, not a samplings file.")
+        if expected_kind == "bins" and sampling_info is not None:
+            raise ValueError(f"File {filename} appears to be a samplings file, not a bins file.")
+
+    def _iter_hdf5_values(
+        self, filename: str, path: str, extract
+    ) -> tuple[EnsembleInfo, SamplingInfo | None, list]:
+        """
+        Open a Sigmond HDF5 file, validate its structure, and map ``extract`` over each
+        observable dataset in the ``Values`` group.
+
+        ``extract(obs_info, dataset_name, dataset)`` is invoked once per parseable
+        dataset and its return value collected. Datasets whose key cannot be parsed
+        are skipped. This is the single read/validate path shared by the eager
+        (full-array) and lazy (name+shape) loaders.
 
         Returns:
-            (ensemble_info, sampling_info_or_None, [(obs_info, data), ...])
+            (ensemble_info, sampling_info_or_None, [extract(...), ...])
         """
         with h5py.File(filename, "r") as f:
             if path not in f:
@@ -211,20 +259,108 @@ class SigmondLoader:
 
             values_group = group["Values"]
 
-            parsed: list[tuple[ObservableInfo, np.ndarray]] = []
+            results: list = []
             for dataset_name in values_group.keys():
                 try:
                     obs_info = self._parse_observable_key(dataset_name, ensemble_info)
-                    data = values_group[dataset_name][:]
-                    parsed.append((obs_info, data))
                 except (ValueError, NotImplementedError) as e:
                     logger.debug(f"Skipping dataset {dataset_name}: {e}")
                     continue
+                results.append(extract(obs_info, dataset_name, values_group[dataset_name]))
 
-            if not parsed:
+            if not results:
                 raise ValueError("No valid observable data found in file")
 
-            return ensemble_info, sampling_info, parsed
+        return ensemble_info, sampling_info, results
+
+    def _read_hdf5_values(
+        self, filename: str, path: str
+    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, np.ndarray]]]:
+        """
+        Eager read of a Sigmond HDF5 file (samplings or bins): full sample arrays.
+
+        Returns:
+            (ensemble_info, sampling_info_or_None, [(obs_info, data), ...])
+        """
+        return self._iter_hdf5_values(
+            filename, path, lambda obs_info, name, ds: (obs_info, ds[:])
+        )
+
+    def _read_hdf5_index(
+        self, filename: str, path: str
+    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, str, tuple[int, ...]]]]:
+        """
+        Index phase for lazy loading: read header + ``Values`` dataset names and shapes only.
+
+        No sample arrays are read. Shapes come from the HDF5 dataset headers (cheap)
+        so lazy bins can report ``num_bins`` without materializing.
+
+        Returns:
+            (ensemble_info, sampling_info_or_None, [(obs_info, dataset_name, shape), ...])
+        """
+        return self._iter_hdf5_values(
+            filename, path, lambda obs_info, name, ds: (obs_info, name, tuple(ds.shape))
+        )
+
+    def _group_records(
+        self,
+        file_ref: _FileRef,
+        named_infos: list[tuple[ObservableInfo, str, tuple[int, ...]]],
+        sampling_info: SamplingInfo | None,
+        file_kind: str,
+    ) -> list[HDF5ObservableRecord]:
+        """
+        Group indexed datasets by (name, index), fusing Re/Im parts into one record.
+
+        Mirrors :meth:`_fuse_re_im`'s grouping but operates purely on dataset names
+        and shapes (no array reads). A group with both a Re and an Im part becomes a
+        single complex record; a lone part stays real.
+        """
+        grouped: dict[tuple, dict[str, tuple[ObservableInfo, str, tuple[int, ...]]]] = {}
+        for obs_info, dataset_name, shape in named_infos:
+            grouped.setdefault((obs_info.name, obs_info.index), {})[obs_info.re_im] = (
+                obs_info,
+                dataset_name,
+                shape,
+            )
+
+        records: list[HDF5ObservableRecord] = []
+        for parts in grouped.values():
+            re_info, re_name, re_shape = parts.get("re", (None, None, None))
+            im_info, im_name, im_shape = parts.get("im", (None, None, None))
+            obs_info = re_info or im_info
+            records.append(
+                HDF5ObservableRecord(
+                    file=file_ref,
+                    observable_info=obs_info,
+                    sampling_info=sampling_info,
+                    file_kind=file_kind,
+                    real_name=re_name,
+                    imag_name=im_name,
+                    real_shape=re_shape,
+                    imag_shape=im_shape,
+                )
+            )
+        return records
+
+    def _load_lazy_from_hdf5(
+        self, filename: str, path: str, file_kind: str
+    ) -> SingleEnsembleCollection:
+        """
+        Build a collection of lazy observables from an HDF5 file's index.
+
+        ``file_kind`` is the canonical kind from the file's FIdentifier; it is
+        cross-checked against the header so a mismatched file is rejected up front,
+        mirroring the eager loaders.
+        """
+        ensemble_info, sampling_info, named_infos = self._read_hdf5_index(filename, path)
+        self._check_file_kind(filename, file_kind, sampling_info)
+
+        file_ref = _FileRef(os.path.abspath(filename), f"{path}/Values")
+        records = self._group_records(file_ref, named_infos, sampling_info, file_kind)
+
+        factory = LazySigmondBins if file_kind == "bins" else LazySigmondSampling
+        return SingleEnsembleCollection([factory(r) for r in records])
 
     def _check_sigmond_query(self):
         """Check if sigmond_query is available."""
@@ -296,7 +432,7 @@ class SigmondLoader:
                 return False, None, None
             return False, None, None
 
-    def load_file(self, filename: str, hdf5_path: str = None) -> None:
+    def load_file(self, filename: str, hdf5_path: str = None, lazy: bool = False) -> None:
         """
         Load all data from a file.
 
@@ -305,19 +441,22 @@ class SigmondLoader:
             hdf5_path: For HDF5 files, the root path to use (default: None = auto-detect)
                       If None and file has a single path, it will be used automatically.
                       If None and file has multiple paths, an error will be raised.
+            lazy: If True, defer reading each observable's sample array until first
+                  accessed (HDF5 only). See :meth:`__init__`.
         """
         # Load samplings
         try:
-            self._all_samplings = self._load_samplings_impl(filename, hdf5_path)
+            self._all_samplings = self._load_samplings_impl(filename, hdf5_path, lazy=lazy)
             logger.info(f"Successfully loaded {len(self._all_samplings)} samplings from {filename}")
         except Exception as e:
             logger.error(f"Failed to load file: {e}")
             raise
 
         self._filename = filename
+        self._lazy = lazy
 
     def _load_samplings_impl(
-        self, filename: str, hdf5_path: str = None
+        self, filename: str, hdf5_path: str = None, lazy: bool = False
     ) -> SingleEnsembleCollection:
         """
         Load all samplings from a file.
@@ -325,6 +464,7 @@ class SigmondLoader:
         Args:
             filename: Path to the file
             hdf5_path: For HDF5 files, the root path to use (None = auto-detect)
+            lazy: If True, defer reading sample arrays (HDF5 only).
 
         Returns:
             SingleEnsembleCollection of loaded samplings
@@ -360,11 +500,22 @@ class SigmondLoader:
             self._hdf5_path = hdf5_path
             self._file_kind = file_kind
 
+            if lazy:
+                logger.info(
+                    f"Lazily loading HDF5 {file_kind} file {filename} using path '{hdf5_path}'"
+                )
+                return self._load_lazy_from_hdf5(filename, hdf5_path, file_kind)
+
             logger.info(f"Loading HDF5 {file_kind} file {filename} using path '{hdf5_path}'")
             if file_kind == "bins":
                 return self._load_bins_from_hdf5(filename, hdf5_path)
             return self._load_from_hdf5(filename, hdf5_path)
         else:
+            if lazy:
+                raise NotImplementedError(
+                    "lazy=True is supported for HDF5 files only; fstream files load "
+                    "eagerly via sigmond_query."
+                )
             # Use sigmond_query for fstream files
             logger.info(f"Loading fstream file {filename} using sigmond_query")
             return self._load_from_sigmond_query(filename)

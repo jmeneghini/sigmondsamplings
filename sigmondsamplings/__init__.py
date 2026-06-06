@@ -55,6 +55,7 @@ from .info import (
     SamplingInfo,
     SectorInfo,
 )
+from .lazy import HDF5ObservableRecord, LazySigmondBins, LazySigmondSampling
 from .loader import SigmondLoader
 from .model_func import SigmondModelFunc as SigmondModelFunc
 from .obervable_collection import ObservableCollection
@@ -135,6 +136,9 @@ __all__ = [
     "MultiEnsembleEnergyCollection",
     "SigmondWriter",
     "SigmondSampling",
+    "LazySigmondSampling",
+    "LazySigmondBins",
+    "HDF5ObservableRecord",
     "SigmondSamplingArray",
     "ArrayObsInfo",
     "ArrayElementObsInfo",

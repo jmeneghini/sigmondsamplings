@@ -278,6 +278,20 @@ class SigmondSampling:
             complex_data, self.observable_info, self.sampling_info, is_complex=True
         )
 
+    def with_observable_info(self, observable_info: ObservableInfo) -> "SigmondSampling":
+        """
+        Return a metadata-only view with replaced observable info.
+
+        The sample array is shared with the original object. Lazy subclasses can
+        override this to preserve deferred reads.
+        """
+        new = self.__class__.__new__(self.__class__)
+        new.data = self.data
+        new.observable_info = observable_info
+        new.sampling_info = self.sampling_info
+        new.is_complex = self.is_complex
+        return new
+
     def as_energy_level(self, force_type: str = "auto", **manual_overrides):
         """
         Convert this sampling to an energy level with enhanced ObservableInfo.
@@ -303,8 +317,7 @@ class SigmondSampling:
                 f"force_type: {force_type}, overrides: {manual_overrides}"
             ) from e
 
-        # Return new sampling with energy level observable info
-        return SigmondSampling(self.data, new_obs_info, self.sampling_info, self.is_complex)
+        return self.with_observable_info(new_obs_info)
 
     def _check_compatible(self, others: set["SigmondSampling"]):
         """

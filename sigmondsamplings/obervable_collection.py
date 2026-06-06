@@ -172,13 +172,8 @@ class AttributeAccessor:
                     # Set the attribute
                     setattr(new_obs_info, attr_name, new_value)
 
-                # Create new sampling with updated observable_info
-                new_sampling = SigmondSampling(
-                    data=sampling.data,  # Share array (immutable usage)
-                    observable_info=new_obs_info,
-                    sampling_info=sampling.sampling_info,  # Share
-                    is_complex=sampling.is_complex,
-                )
+                # Create a metadata-only view, preserving concrete/lazy type.
+                new_sampling = sampling.with_observable_info(new_obs_info)
             else:
                 new_sampling = sampling.copy()
                 target = self._extractor(new_sampling)
@@ -294,6 +289,48 @@ class ObservableCollection(PandasExportMixin):
     def copy(self: T) -> T:
         """Return a copy with each contained SigmondSampling copied independently."""
         return self._fast_load([s.copy() for s in self._data], self._return_type)
+
+    def materialize(self: T) -> T:
+        """
+        Materialize any lazy observables in place and return this collection.
+
+        Eager observables are left unchanged.
+        """
+        for sampling in self._data:
+            materialize = getattr(sampling, "materialize", None)
+            if materialize is not None:
+                materialize()
+        return self
+
+    def as_energy_levels(
+        self,
+        *,
+        skip_missing_particles: bool = True,
+        return_type: str | None = None,
+    ):
+        """
+        Return this collection as an energy-level collection.
+
+        Conversion delegates to each observable's ``as_energy_level`` method and
+        therefore remains metadata-only for lazy samplings.
+        """
+        from .energy_level_collection import (
+            MultiEnsembleEnergyCollection,
+            SingleEnsembleEnergyCollection,
+        )
+        from .ensemble_collection import MultiEnsembleCollection
+
+        out_return_type = self._return_type if return_type is None else return_type
+        collection_cls = (
+            MultiEnsembleEnergyCollection
+            if isinstance(self, MultiEnsembleCollection)
+            else SingleEnsembleEnergyCollection
+        )
+        return collection_cls.from_collection(
+            self,
+            skip_missing_particles=skip_missing_particles,
+            return_type=out_return_type,
+        )
 
     @property
     def return_type(self) -> str:

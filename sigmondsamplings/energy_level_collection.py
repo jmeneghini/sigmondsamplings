@@ -525,7 +525,9 @@ class EnergyLevelMixin:
         """
         return [
             (psq, irrep, sorted(set(obs.observable_info.level_index for obs in sub_coll)))
-            for (psq, irrep), sub_coll in sorted(self.group_by_sector().items())
+            for (psq, irrep), sub_coll in sorted(
+                item for item in self.group_by_sector().items() if None not in item[0]
+            )
         ]
 
     def save_spec(self, yml_path: str) -> None:
@@ -560,7 +562,9 @@ class EnergyLevelMixin:
 
         spec_list = [
             {"psq": psq, "irrep": irrep, "levels": sorted(levels)}
-            for (psq, irrep), levels in sorted(sectors.items())
+            for (psq, irrep), levels in sorted(
+                item for item in sectors.items() if None not in item[0]
+            )
         ]
 
         with open(yml_path, "w") as f:

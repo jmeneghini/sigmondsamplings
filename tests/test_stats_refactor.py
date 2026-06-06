@@ -252,12 +252,13 @@ class TestGoodnessOfFit:
         Q = stats_same.goodness_of_fit(theory, nparams=0)
         assert Q > 0.99
 
-    def test_aic_equals_chi2_plus_2k(self, stats_same):
+    def test_aic_equals_chi2_minus_2dof(self, stats_same):
         theory = MEANS_A
         nparams = 2
         chi2_val = stats_same.chi_squared(theory)
+        dof = stats_same.num_observables - nparams
         aic = stats_same.aic(nparams, theory_values=theory)
-        np.testing.assert_allclose(aic, chi2_val + 2 * nparams, rtol=1e-12)
+        np.testing.assert_allclose(aic, chi2_val - 2 * dof, rtol=1e-12)
 
     def test_fit_summary_keys(self, stats_same):
         result = stats_same.fit_summary(MEANS_A, nparams=1)
@@ -269,6 +270,7 @@ class TestGoodnessOfFit:
             "chi2_per_dof",
             "Q",
             "AIC",
+            "markdown",
         }
         assert expected_keys == set(result.keys())
 
