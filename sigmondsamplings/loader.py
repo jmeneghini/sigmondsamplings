@@ -261,17 +261,35 @@ class SigmondLoader:
 
             results: list = []
             for dataset_name in values_group.keys():
+                dataset = values_group[dataset_name]
                 try:
                     obs_info = self._parse_observable_key(dataset_name, ensemble_info)
                 except (ValueError, NotImplementedError) as e:
                     logger.debug(f"Skipping dataset {dataset_name}: {e}")
                     continue
-                results.append(extract(obs_info, dataset_name, values_group[dataset_name]))
+                obs_info = self._apply_obs_attrs(obs_info, dataset.attrs)
+                results.append(extract(obs_info, dataset_name, dataset))
 
             if not results:
                 raise ValueError("No valid observable data found in file")
 
         return ensemble_info, sampling_info, results
+
+    @staticmethod
+    def _apply_obs_attrs(obs_info: ObservableInfo, attrs) -> ObservableInfo:
+        """
+        Upgrade a name-parsed ObservableInfo using its dataset attrs, if present.
+
+        Datasets the writer tagged with an energy ``obs_kind`` are rebuilt as the
+        concrete energy type (including non-interacting pairs) so reads are
+        deterministic rather than relying on name heuristics. Untagged datasets
+        (old files, real Sigmond files, fstream) pass through unchanged.
+        """
+        if str(attrs.get("obs_kind", "")).startswith("energy"):
+            from .energy_levels import energy_obs_from_attrs
+
+            return energy_obs_from_attrs(obs_info, attrs)
+        return obs_info
 
     def _read_hdf5_values(
         self, filename: str, path: str

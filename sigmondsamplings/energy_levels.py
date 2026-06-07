@@ -83,8 +83,9 @@ class Particle:
         return base_latex
 
     def __str__(self) -> str:
+        """Round-trippable form (inverse of :meth:`from_string`): ``'pi'`` or ``'pi(1)'``."""
         if self.has_momentum:
-            return f"{self.name}(d^2={self.psq})"
+            return f"{self.name}({self.psq})"
         return self.name
 
     def __repr__(self) -> str:
@@ -496,6 +497,27 @@ class EnergyObsInfo(ObservableInfo):
         return self.is_shift_type or self.energy_type == "qcmsq"
 
     @property
+    def obs_kind(self) -> str:
+        """Discriminator written to HDF5 attrs so the loader can rebuild this type."""
+        return "energy"
+
+    def to_attrs(self) -> dict[str, Any]:
+        """
+        Flatten energy metadata into HDF5-friendly dataset attrs (``None``/empty omitted).
+
+        Inverse of :func:`energy_obs_from_attrs`. The non-interacting pair particles
+        (unrecoverable from the canonical name) are serialized as ``ni_pairs``.
+        """
+        attrs: dict[str, Any] = {"obs_kind": self.obs_kind}
+        for key in ("irrep", "psq", "energy_type", "level_index", "ref_particle"):
+            value = getattr(self, key)
+            if value is not None:
+                attrs[key] = value
+        if self.particles:
+            attrs["ni_pairs"] = [str(p) for p in self.particles]
+        return attrs
+
+    @property
     def canonical_name(self) -> str:
         """Generate canonical form: PSQ{psq}_{irrep}_{energy_type}_{level_idx} + _ref (if true)."""
         if not (self.irrep and self.psq is not None and self.energy_type):
@@ -605,6 +627,11 @@ class SHEnergyObsInfo(EnergyObsInfo):
         }
 
     @property
+    def obs_kind(self) -> str:
+        """Discriminator written to HDF5 attrs so the loader can rebuild this type."""
+        return "energy_single_hadron"
+
+    @property
     def particle(self) -> str | None:
         """Get the single particle name."""
         return self.particles[0].name if self.particles else None
@@ -637,6 +664,36 @@ class SHEnergyObsInfo(EnergyObsInfo):
         if self.ref_particle:
             parts.append(f"ref_particle='{self.ref_particle}'")
         return f"SHEnergyObsInfo({', '.join(parts)})"
+
+
+def energy_obs_from_attrs(base: ObservableInfo, attrs) -> EnergyObsInfo:
+    """
+    Rebuild an energy observable from HDF5 dataset attrs (inverse of
+    :meth:`EnergyObsInfo.to_attrs`).
+
+    ``base`` supplies the identifying ``name``/``index``/``ensemble_info`` so the
+    result round-trips and stays groupable with its Re/Im partner; everything else
+    comes from ``attrs``. ``attrs`` is any mapping (e.g. an ``h5py`` attrs view).
+    """
+    common = dict(
+        name=base.name,
+        index=base.index,
+        ensemble_info=base.ensemble_info,
+        irrep=attrs.get("irrep"),
+        psq=int(attrs["psq"]) if "psq" in attrs else None,
+        energy_type=attrs.get("energy_type"),
+        ref_particle=attrs.get("ref_particle"),
+    )
+    ni_pairs = [Particle.from_string(str(s)) for s in attrs.get("ni_pairs", [])]
+
+    if attrs.get("obs_kind") == "energy_single_hadron":
+        return SHEnergyObsInfo(**common, particle=ni_pairs[0].name if ni_pairs else None)
+
+    return EnergyObsInfo(
+        **common,
+        level_index=int(attrs["level_index"]) if "level_index" in attrs else None,
+        particles=ni_pairs,
+    )
 
 
 def detect_energy_level_type(parsed_attributes: dict) -> str:

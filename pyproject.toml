@@ -47,6 +47,7 @@ Issues = "https://github.com/jmeneghini/sigmondsamplings/issues"
 [project.scripts]
 sigmond-convert = "sigmondsamplings.scripts.sigmond_convert:main"
 sigmond-combine = "sigmondsamplings.scripts.sigmond_combine:main"
+ss-energy-obs = "sigmondsamplings.scripts.sigmond_energy_attrs:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

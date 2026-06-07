@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""
+Script to add self-describing energy attributes to a Sigmond samplings file.
+
+Loads a Sigmond samplings (or bins) file, converts each observable to its energy
+level type where possible, optionally applies non-interacting (NI) pair
+assignments from a PyCalQ YAML file, and writes a new HDF5 file. The written
+datasets carry the energy metadata (irrep, psq, energy_type, level_index,
+ref_particle) and NI pairs as attrs, so the result reads back deterministically
+without relying on name-parsing heuristics.
+
+Observables that cannot be interpreted as energy levels are copied through
+unchanged (no attrs).
+
+Uses SigmondLoader, the energy-level collection helpers, and SigmondWriter.
+"""
+
+import argparse
+import logging
+import sys
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+try:
+    from ..energy_level_collection import SingleEnsembleEnergyCollection
+    from ..loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from ..writer import SigmondWriter
+except ImportError:
+    # Handle direct execution
+    import os
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from energy_level_collection import SingleEnsembleEnergyCollection
+    from loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from writer import SigmondWriter
+
+
+def add_energy_attrs(
+    input_file: str,
+    output_file: str,
+    ni_yml: str | None = None,
+    hdf5_path: str | None = None,
+    hdf5_root_path: str | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """
+    Re-pack a Sigmond file with energy (and NI-pair) attrs where possible.
+
+    Args:
+        input_file: Input Sigmond file (.smp or .hdf5).
+        output_file: Output path (``.hdf5`` enforced).
+        ni_yml: Optional PyCalQ YAML with non-interacting pair assignments.
+        hdf5_path: Path within a multi-path HDF5 input (None = auto-detect).
+        hdf5_root_path: Root path for the output (default: input path or DEFAULT_ROOT_PATH).
+        overwrite: Overwrite (and back up) an existing output file.
+
+    Returns:
+        Path to the written HDF5 file.
+    """
+    loader = SigmondLoader(filename=input_file, hdf5_path=hdf5_path)
+    observables = list(loader.observables)
+    if not observables:
+        raise ValueError(f"No observables found in {input_file}")
+
+    # Convert each observable to its energy type where possible; keep the
+    # original (attr-less) object when it is not an energy level.
+    converted, energy_samps = [], []
+    for samp in observables:
+        try:
+            energy = samp.as_energy_level()
+        except (ValueError, AttributeError) as e:
+            logger.debug(f"Keeping {samp.observable_info.name} as-is: {e}")
+            converted.append(samp)
+            continue
+        converted.append(energy)
+        energy_samps.append(energy)
+
+    # Apply NI pairs from the PyCalQ YAML. The collection wraps the same energy
+    # samplings, so this mutates the obs_info that will be written.
+    if ni_yml:
+        if energy_samps:
+            SingleEnsembleEnergyCollection(energy_samps).set_shift_particles_from_pycalq_yml(ni_yml)
+        else:
+            logger.warning("NI YAML provided but no energy levels were found; ignoring it.")
+
+    root_path = hdf5_root_path or loader.hdf5_path or DEFAULT_ROOT_PATH
+    out_path = Path(output_file).with_suffix(".hdf5")
+    writer = SigmondWriter()
+    if loader.file_kind == "bins":
+        writer.write_bins_hdf5(str(out_path), converted, root_path, overwrite=overwrite)
+    else:
+        writer.write_hdf5(str(out_path), converted, root_path, overwrite=overwrite)
+
+    logger.info(
+        f"Wrote {len(converted)} observables "
+        f"({len(energy_samps)} with energy attrs) to {out_path}"
+    )
+    return out_path
+
+
+def main():
+    """Main entry point for the energy-attr tagging script."""
+    parser = argparse.ArgumentParser(
+        description="Add energy and non-interacting-pair attributes to a Sigmond samplings file",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Tag energy observables with self-describing attrs
+  ss-energy-obs input.hdf5 output.hdf5
+
+  # Also attach non-interacting pairs from a PyCalQ YAML
+  ss-energy-obs input.hdf5 output.hdf5 --ni-yml non_interacting.yml
+
+  # Tag an fstream samplings file, writing HDF5
+  ss-energy-obs input.smp output.hdf5
+
+  # Select a specific input path and output root for a multi-path HDF5 file
+  ss-energy-obs in.hdf5 out.hdf5 --hdf5-path /path/in/file --hdf5-root-path samplings
+        """,
+    )
+
+    parser.add_argument("input_file", help="Input Sigmond samplings file (.smp or .hdf5)")
+    parser.add_argument("output_file", help="Output HDF5 file")
+    parser.add_argument(
+        "--ni-yml",
+        help="Optional PyCalQ YAML with non-interacting pair assignments",
+    )
+    parser.add_argument(
+        "--hdf5-path",
+        help="Path within input HDF5 file (required for HDF5 inputs with multiple paths)",
+    )
+    parser.add_argument(
+        "--hdf5-root-path",
+        help=f"Root path for output HDF5 file (default: input path or {DEFAULT_ROOT_PATH})",
+    )
+    parser.add_argument(
+        "--force", "-f", action="store_true", help="Overwrite output file if it exists"
+    )
+
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    if not Path(args.input_file).exists():
+        logger.error(f"Input file {args.input_file} does not exist")
+        sys.exit(1)
+
+    if args.ni_yml and not Path(args.ni_yml).exists():
+        logger.error(f"NI YAML file {args.ni_yml} does not exist")
+        sys.exit(1)
+
+    if Path(args.output_file).with_suffix(".hdf5").exists() and not args.force:
+        logger.error(f"Output file {args.output_file} already exists. Use --force to overwrite.")
+        sys.exit(1)
+
+    try:
+        add_energy_attrs(
+            args.input_file,
+            args.output_file,
+            ni_yml=args.ni_yml,
+            hdf5_path=args.hdf5_path,
+            hdf5_root_path=args.hdf5_root_path,
+            overwrite=True,
+        )
+    except Exception as e:
+        logger.error(f"Failed to add energy attrs: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

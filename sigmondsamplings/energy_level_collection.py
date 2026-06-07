@@ -451,7 +451,7 @@ class EnergyLevelMixin:
                 if sector_key not in sectors:
                     sectors[sector_key] = {}
                 sectors[sector_key][obs_info.level_index] = [
-                    f"{p.name}({p.psq})" if p.has_momentum else p.name for p in obs_info.particles
+                    str(p) for p in obs_info.particles
                 ]
 
         # Convert to sorted lists indexed by level (matching parser's enumerate expectation)

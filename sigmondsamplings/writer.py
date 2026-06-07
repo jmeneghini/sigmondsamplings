@@ -270,15 +270,40 @@ class SigmondWriter:
         """
         return xml_key.replace("</", "<|").replace("/", "|")
 
+    @staticmethod
+    def _obs_attrs(observable_info: ObservableInfo) -> dict | None:
+        """
+        Self-describing dataset attrs for an observable, or None for plain ones.
+
+        Duck-typed: any ObservableInfo exposing ``to_attrs`` (currently the energy
+        types) gets its metadata persisted; the loader reverses this on read.
+        """
+        to_attrs = getattr(observable_info, "to_attrs", None)
+        return to_attrs() if to_attrs else None
+
+    @staticmethod
+    def _write_attrs(dataset: h5py.Dataset, attrs: dict | None) -> None:
+        """Attach ``attrs`` to ``dataset`` (list values become vlen UTF-8 arrays)."""
+        if not attrs:
+            return
+        for key, value in attrs.items():
+            if isinstance(value, list):
+                dataset.attrs.create(key, value, dtype=h5py.string_dtype("utf-8"))
+            else:
+                dataset.attrs[key] = value
+
     def _observable_datasets(
         self, observable_info: ObservableInfo, data: np.ndarray, is_complex: bool
-    ) -> Iterator[tuple[str, np.ndarray]]:
+    ) -> Iterator[tuple[str, np.ndarray, dict | None]]:
         """
-        Yield ``(hdf5_safe_key, float64_array)`` for each component of an observable.
+        Yield ``(hdf5_safe_key, float64_array, attrs_or_None)`` for each component.
 
         Complex observables yield two datasets (Re then Im); real observables one.
+        Self-describing attrs are attached to the Re/sole component only — the
+        loader fuses Re/Im onto the Re part, so a single annotation suffices.
         """
         arr = np.asarray(data)
+        attrs = self._obs_attrs(observable_info)
         if is_complex:
             re_key = self._dataset_key_for_observable(observable_info, "re")
             im_key = self._dataset_key_for_observable(observable_info, "im")
@@ -287,11 +312,11 @@ class SigmondWriter:
                     f"Could not construct distinct Re/Im dataset keys for "
                     f"observable {observable_info}"
                 )
-            yield re_key, np.real(arr).astype(np.float64)
-            yield im_key, np.imag(arr).astype(np.float64)
+            yield re_key, np.real(arr).astype(np.float64), attrs
+            yield im_key, np.imag(arr).astype(np.float64), None
         else:
             key = self._dataset_key_for_observable(observable_info, observable_info.re_im)
-            yield key, arr.astype(np.float64)
+            yield key, arr.astype(np.float64), attrs
 
     def _fixed_str_dataset(self, group: h5py.Group, name: str, value: str) -> None:
         """Create a fixed-length, null-terminated UTF-8 string dataset (matches real files)."""
@@ -382,10 +407,10 @@ class SigmondWriter:
                 hdf5_file, group_name, "Sigmond--SamplingsFile", header_xml
             )
             for sampling in samplings:
-                for key, arr in self._observable_datasets(
+                for key, arr, attrs in self._observable_datasets(
                     sampling.observable_info, sampling.data, sampling.is_complex
                 ):
-                    values_group.create_dataset(key, data=arr)
+                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
 
         logger.info(f"Wrote {len(samplings)} samplings to {filename} at path '/{group_name}/'")
 
@@ -427,10 +452,10 @@ class SigmondWriter:
                 hdf5_file, group_name, "Sigmond--BinsFile", header_xml
             )
             for b in bins_list:
-                for key, arr in self._observable_datasets(
+                for key, arr, attrs in self._observable_datasets(
                     b.observable_info, b._as_numpy(), b.is_complex
                 ):
-                    values_group.create_dataset(key, data=arr)
+                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
 
         logger.info(
             f"Wrote {len(bins_list)} bins observables to {filename} at path '/{group_name}/'"
@@ -501,7 +526,9 @@ class SigmondWriter:
             values_group = f[root_path]["Values"]
             for sampling in new_samplings:
                 oi = sampling.observable_info
-                for key, arr in self._observable_datasets(oi, sampling.data, sampling.is_complex):
+                for key, arr, attrs in self._observable_datasets(
+                    oi, sampling.data, sampling.is_complex
+                ):
                     if key in values_group:
                         if not overwrite:
                             raise FileExistsError(
@@ -509,7 +536,7 @@ class SigmondWriter:
                                 f"Use overwrite=True to replace it."
                             )
                         del values_group[key]
-                    values_group.create_dataset(key, data=arr)
+                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
 
     def _validate_samplings_compatibility(
         self, filename: str, new_samplings: list[SigmondSampling], root_path: str | None = None

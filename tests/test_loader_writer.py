@@ -213,6 +213,73 @@ class TestSamplingsRoundTrip:
         _assert_samplings_roundtrip(original, reloaded)
 
 
+class TestEnergyAttrsRoundTrip:
+    """Energy metadata (incl. non-interacting pairs) persists via dataset attrs."""
+
+    @staticmethod
+    def _write(tmp_path):
+        from sigmondsamplings.energy_levels import (
+            EnergyObsInfo,
+            Particle,
+            SHEnergyObsInfo,
+        )
+        from sigmondsamplings.sampling import SamplingInfo
+
+        si = SamplingInfo("jackknife", 10)
+        data = np.arange(11, dtype=float)
+        mh = EnergyObsInfo(
+            irrep="A1g",
+            psq=0,
+            energy_type="delab",
+            level_index=0,
+            particles=[Particle("pi", psq=0), Particle("pi", psq=1)],
+        )
+        sh = SHEnergyObsInfo(irrep="A1g", psq=0, energy_type="elab", particle="pi")
+        samps = [
+            SigmondSampling(data.copy(), mh, si, False),
+            SigmondSampling(data.copy(), sh, si, False),
+        ]
+        out = tmp_path / "energy_attrs_rt.hdf5"
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(out), samps, root_path="samplings", overwrite=True
+        )
+        return out
+
+    @pytest.mark.parametrize("lazy", [False, True])
+    def test_energy_types_and_ni_pairs_survive(self, tmp_path, lazy):
+        from sigmondsamplings.energy_levels import (
+            EnergyObsInfo,
+            Particle,
+            SHEnergyObsInfo,
+        )
+
+        out = self._write(tmp_path)
+        by_name = _by_name(SigmondLoader(str(out), lazy=lazy).observables)
+
+        mh = by_name["PSQ0_A1g_delab_0"].observable_info
+        assert isinstance(mh, EnergyObsInfo) and not isinstance(mh, SHEnergyObsInfo)
+        assert (mh.irrep, mh.psq, mh.energy_type, mh.level_index) == ("A1g", 0, "delab", 0)
+        assert mh.particles == (Particle("pi", psq=0), Particle("pi", psq=1))
+
+        sh = by_name["PSQ0_pi"].observable_info
+        assert isinstance(sh, SHEnergyObsInfo)
+        assert sh.particle == "pi" and sh.psq == 0
+
+    def test_plain_observable_passes_through(self, tmp_path):
+        # Untagged datasets must not be promoted to energy types.
+        from sigmondsamplings.sampling import ObservableInfo, SamplingInfo
+
+        si = SamplingInfo("jackknife", 10)
+        plain = ObservableInfo("myop", 0, "n", "re")
+        out = tmp_path / "plain_rt.hdf5"
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(out), [SigmondSampling(np.arange(11.0), plain, si, False)],
+            root_path="samplings", overwrite=True,
+        )
+        oi = list(SigmondLoader(str(out)).observables)[0].observable_info
+        assert type(oi) is ObservableInfo
+
+
 class TestBinsRoundTrip:
     def test_corrt_bins_roundtrip(self, tmp_path):
         original = list(SigmondLoader(str(BINS_HDF5)).observables)
