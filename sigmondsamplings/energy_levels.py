@@ -487,6 +487,13 @@ class EnergyObsInfo(ObservableInfo):
         return self.ref_particle is not None
 
     @property
+    def sector(self) -> tuple[int, str] | None:
+        """Momentum-irrep sector as ``(psq, irrep)``."""
+        if self.psq is None or self.irrep is None:
+            return None
+        return (self.psq, self.irrep)
+
+    @property
     def is_shift_type(self) -> bool:
         """Check if this energy level is a shift energy type."""
         return self.energy_type in ["delab", "decm"] if self.energy_type else False

@@ -37,6 +37,12 @@ class SingleEnsembleCollection(ObservableCollection):
 
     __slots__ = ("_data", "_return_type", "_ensemble_info", "_sampling_info")
 
+    dataframe_excluded_attrs = (
+        *ObservableCollection.dataframe_excluded_attrs,
+        "ensemble_info",
+        "sampling_info",
+    )
+
     def __init__(self, data: Iterable[SigmondSampling], return_type: str = "numpy"):
         """
         Initialize SingleEnsembleCollection with validation.

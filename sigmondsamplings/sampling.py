@@ -2,6 +2,7 @@
 Core sampling classes for handling Sigmond samplings data.
 """
 
+import warnings
 from typing import Any, Union
 
 import numpy as np
@@ -166,7 +167,13 @@ class SigmondSampling:
                 "Complex samplings cannot be converted to ufloat. Use .to_real() first."
             )
 
-        return ufloat(self.data[resamp_idx], self.error)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="Using UFloat objects with std_dev==0 may give unexpected results.",
+                category=UserWarning,
+            )
+            return ufloat(self.data[resamp_idx], self.error)
 
     def pdg_format(self, format_spec: str = ".2uS", resamp_idx=0) -> str:
         """

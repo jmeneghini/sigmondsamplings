@@ -23,15 +23,33 @@ except ImportError:
 T = TypeVar("T", bound="ObservableCollection")
 
 
+def _is_membership_filter_value(value: Any, target_value: Any) -> bool:
+    """Return whether ``value`` should be interpreted as a membership filter."""
+    if isinstance(value, (list, set, frozenset)):
+        return True
+    return isinstance(value, tuple) and not isinstance(target_value, tuple)
+
+
 class PandasExportMixin:
     """
     Mixin for exporting collection data to Pandas DataFrames.
     Separates I/O logic from the main collection.
     """
 
-    def to_dataframe(self) -> "pd.DataFrame":
+    dataframe_excluded_attrs: tuple[str, ...] = (
+        "_latex_str",
+        "op_type",
+        "_index",
+    )
+
+    def to_dataframe(self, excluded_attrs: Iterable[str] | None = None) -> "pd.DataFrame":
         """
         Convert to pandas DataFrame dynamically.
+
+        Args:
+            excluded_attrs: Additional ObservableInfo attribute names to omit
+                from the exported rows. These are merged with
+                ``dataframe_excluded_attrs``.
 
         Returns:
             DataFrame with columns for ObsInfo attributes and data
@@ -47,6 +65,8 @@ class PandasExportMixin:
         if not data_source:
             return pd.DataFrame()
 
+        excluded = set(self.dataframe_excluded_attrs)
+        excluded.update(excluded_attrs or ())
         samp_val_attrs = ["full_sample_value", "mean", "error"]
         samp_val_methods = []
 
@@ -83,6 +103,7 @@ class PandasExportMixin:
                 else:
                     attrs = {}
 
+            attrs = {key: value for key, value in attrs.items() if key not in excluded}
             row.update(attrs)
             rows.append(row)
 
@@ -823,11 +844,10 @@ class ObservableCollection(PandasExportMixin):
         first_item = self._data[0]
 
         for k, v in kwargs.items():
-            # Check if value is a list/sequence (but not string) -> membership test
-            is_sequence = isinstance(v, (list, tuple, set, frozenset))
-
             # Determine which object has this attribute
             if hasattr(first_item.observable_info, k):
+                target_value = self._first_non_none_attr_value(k, namespace="obs")
+                is_sequence = _is_membership_filter_value(v, target_value)
                 if is_sequence:
                     val_set = set(v)
                     direct_checks.append(
@@ -838,6 +858,8 @@ class ObservableCollection(PandasExportMixin):
                 else:
                     obs_filters.append((k, v))
             elif hasattr(first_item.sampling_info, k):
+                target_value = self._first_non_none_attr_value(k, namespace="samp")
+                is_sequence = _is_membership_filter_value(v, target_value)
                 if is_sequence:
                     val_set = set(v)
                     direct_checks.append(
@@ -847,6 +869,7 @@ class ObservableCollection(PandasExportMixin):
                     samp_filters.append((k, v))
             else:
                 # Fallback: Assume it's an ObsInfo attribute
+                is_sequence = isinstance(v, (list, set, frozenset))
                 if is_sequence:
                     val_set = set(v)
                     direct_checks.append(
@@ -858,6 +881,26 @@ class ObservableCollection(PandasExportMixin):
                     obs_filters.append((k, v))
 
         return direct_checks, obs_filters, samp_filters
+
+    def _first_non_none_attr_value(self, attr: str, *, namespace: str) -> Any:
+        """Return the first non-None metadata attr value for type-sensitive filtering."""
+        if namespace == "obs":
+            def getter(sampling):
+                return getattr(sampling.observable_info, attr, None)
+        elif namespace == "samp":
+            def getter(sampling):
+                return getattr(sampling.sampling_info, attr, None)
+        else:
+            raise ValueError(f"Unknown namespace: {namespace}")
+
+        first_value = None
+        for sampling in self._data:
+            value = getter(sampling)
+            if first_value is None:
+                first_value = value
+            if value is not None:
+                return value
+        return first_value
 
     def _build_composite_sort_key(self, by, nulls_last: bool = False) -> Callable:
         """

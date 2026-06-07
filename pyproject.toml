@@ -29,6 +29,8 @@ dependencies = [
     'uncertainties>=3.0',
     'h5py>=3.0.0',
     'xarray>=2023.1.0',
+    'typer>=0.12',
+    'rich>=13',
 ]
 
 [project.optional-dependencies]
@@ -45,6 +47,7 @@ Repository = "https://github.com/jmeneghini/sigmondsamplings"
 Issues = "https://github.com/jmeneghini/sigmondsamplings/issues"
 
 [project.scripts]
+ss-query = "sigmondsamplings.cli.main:main"
 sigmond-convert = "sigmondsamplings.scripts.sigmond_convert:main"
 sigmond-combine = "sigmondsamplings.scripts.sigmond_combine:main"
 ss-energy-obs = "sigmondsamplings.scripts.sigmond_energy_attrs:main"

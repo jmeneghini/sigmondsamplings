@@ -107,6 +107,16 @@ class EnergyLevelMixin:
         return self.single_hadron_spectra.unique("particle")
 
     @property
+    def sectors(self) -> list[tuple[int, str]]:
+        """
+        All unique momentum-irrep sectors in the collection.
+
+        Returns:
+            List[Tuple[int, str]]: Sorted list of ``(psq, irrep)`` pairs.
+        """
+        return self.unique("sector")
+
+    @property
     def psq_irrep_pairs(self) -> list[tuple[int, str]]:
         """
         Get all unique (PSQ, irrep) combinations in the collection.
@@ -114,7 +124,7 @@ class EnergyLevelMixin:
         Returns:
             List[Tuple[int, str]]: Sorted list of (psq, irrep) pairs
         """
-        return self.unique(lambda s: (s.observable_info.psq, s.observable_info.irrep))
+        return self.sectors
 
     def group_by_energy_type(self) -> dict[str, "EnergyLevelMixin"]:
         """
@@ -169,7 +179,7 @@ class EnergyLevelMixin:
         Returns:
             Dict[Tuple[int, str], Collection]: Dictionary mapping (psq, irrep) to collection
         """
-        return self.group_by(key=lambda s: (s.observable_info.psq, s.observable_info.irrep))
+        return self.group_by(key="sector")
 
     # -------------------------------------------------------------------------
     # Organize Spectra - Filtering by Type
