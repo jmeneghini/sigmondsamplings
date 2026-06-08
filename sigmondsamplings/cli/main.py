@@ -19,6 +19,7 @@ from .query import (
     select_columns,
     unique_records,
 )
+from .plot import GENERIC_PLOT_METHODS, render_generic_plot, render_spectrum_plot
 from .render import render_dataframe, render_records
 
 
@@ -57,6 +58,11 @@ def obs(
     unique: str | None = typer.Option(None, "--unique", help="Show unique values for attr or attr,attr."),
     group: str | None = typer.Option(None, "--group", help="Group by attr or attr,attr and show counts."),
     list_columns: bool = typer.Option(False, "--list-columns", help="List available dataframe columns after filtering."),
+    plot: str | None = typer.Option(None, "--plot", help=f"Render plot method: {', '.join(GENERIC_PLOT_METHODS)}."),
+    plot_output: Path | None = typer.Option(None, "--plot-output", help="Write plot to this path."),
+    no_gui: bool = typer.Option(False, "--no-gui", help="Do not display the plot GUI."),
+    plot_obs_index: int | None = typer.Option(None, "--plot-obs-index", min=0, help="Observable index for histogram/summary plots."),
+    plot_panels: str | None = typer.Option(None, "--plot-panels", help="Comma-separated summary panels."),
     columns: str | None = typer.Option(None, "--columns", help="Comma-separated display columns."),
     exclude: str | None = typer.Option(None, "--exclude", help="Comma-separated ObservableInfo attrs to omit from automatic columns."),
     contains: str | None = typer.Option(None, "--contains", help="Keep observables whose name contains text."),
@@ -76,6 +82,12 @@ def obs(
         unique=unique,
         group=group,
         list_columns=list_columns,
+        plot=plot,
+        plot_spectrum=False,
+        plot_output=plot_output,
+        no_gui=no_gui,
+        plot_obs_index=plot_obs_index,
+        plot_panels=plot_panels,
         columns=columns,
         exclude=exclude,
         contains=contains,
@@ -94,6 +106,12 @@ def energy(
     unique: str | None = typer.Option(None, "--unique", help="Show unique values for attr or attr,attr."),
     group: str | None = typer.Option(None, "--group", help="Group by attr or attr,attr and show counts."),
     list_columns: bool = typer.Option(False, "--list-columns", help="List available dataframe columns after filtering."),
+    plot: str | None = typer.Option(None, "--plot", help=f"Render plot method: {', '.join(GENERIC_PLOT_METHODS)}."),
+    plot_spectrum: bool = typer.Option(False, "--plot-spectrum", help="Render the queried energy collection with SectorSpectrumPlotter."),
+    plot_output: Path | None = typer.Option(None, "--plot-output", help="Write plot to this path."),
+    no_gui: bool = typer.Option(False, "--no-gui", help="Do not display the plot GUI."),
+    plot_obs_index: int | None = typer.Option(None, "--plot-obs-index", min=0, help="Observable index for histogram/summary plots."),
+    plot_panels: str | None = typer.Option(None, "--plot-panels", help="Comma-separated summary panels."),
     columns: str | None = typer.Option(None, "--columns", help="Comma-separated display columns."),
     exclude: str | None = typer.Option(None, "--exclude", help="Comma-separated ObservableInfo attrs to omit from automatic columns."),
     contains: str | None = typer.Option(None, "--contains", help="Keep observables whose name contains text."),
@@ -113,6 +131,12 @@ def energy(
         unique=unique,
         group=group,
         list_columns=list_columns,
+        plot=plot,
+        plot_spectrum=plot_spectrum,
+        plot_output=plot_output,
+        no_gui=no_gui,
+        plot_obs_index=plot_obs_index,
+        plot_panels=plot_panels,
         columns=columns,
         exclude=exclude,
         contains=contains,
@@ -133,6 +157,12 @@ def _query_view(
     unique: str | None,
     group: str | None,
     list_columns: bool,
+    plot: str | None,
+    plot_spectrum: bool,
+    plot_output: Path | None,
+    no_gui: bool,
+    plot_obs_index: int | None,
+    plot_panels: str | None,
     columns: str | None,
     exclude: str | None,
     contains: str | None,
@@ -144,21 +174,45 @@ def _query_view(
 ) -> None:
     _check_format(fmt)
     collection = load_collection(file, hdf5_path=hdf5_path, energy=energy)
-    collection = apply_query(
-        collection,
-        QuerySpec(
-            where=tuple(where or ()),
-            contains=contains,
-            regex=regex,
-            sort=sort,
-            reverse=reverse,
-            limit=limit,
-        ),
-    )
+    try:
+        collection = apply_query(
+            collection,
+            QuerySpec(
+                where=tuple(where or ()),
+                contains=contains,
+                regex=regex,
+                sort=sort,
+                reverse=reverse,
+                limit=limit,
+            ),
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
-    mode_count = sum(bool(value) for value in (unique, group, list_columns))
+    if plot_spectrum and not energy:
+        raise typer.BadParameter("--plot-spectrum is only available for energy queries.")
+    if plot and plot_spectrum:
+        raise typer.BadParameter("Use either --plot or --plot-spectrum, not both.")
+    plot_options_used = (
+        plot_output is not None
+        or no_gui
+        or plot_obs_index is not None
+        or plot_panels is not None
+    )
+    if plot_options_used and not (plot or plot_spectrum):
+        raise typer.BadParameter(
+            "Plot options require --plot or --plot-spectrum."
+        )
+    if plot_spectrum and (plot_obs_index is not None or plot_panels is not None):
+        raise typer.BadParameter(
+            "--plot-obs-index and --plot-panels are only valid with --plot."
+        )
+
+    mode_count = sum(bool(value) for value in (unique, group, list_columns, plot, plot_spectrum))
     if mode_count > 1:
-        raise typer.BadParameter("Use only one of --unique, --group, or --list-columns.")
+        raise typer.BadParameter(
+            "Use only one of --unique, --group, --list-columns, --plot, or --plot-spectrum."
+        )
 
     if unique:
         render_records(unique_records(collection, unique), fmt=fmt)
@@ -178,6 +232,29 @@ def _query_view(
         )
         return
 
+    if plot:
+        _require_nonempty_collection(collection)
+        try:
+            render_generic_plot(
+                collection,
+                method=plot,
+                output=plot_output,
+                show=not no_gui,
+                obs_index=plot_obs_index,
+                panels=plot_panels,
+            )
+        except (TypeError, ValueError) as exc:
+            raise typer.BadParameter(f"Could not render plot: {exc}") from exc
+        return
+
+    if plot_spectrum:
+        _require_nonempty_collection(collection)
+        try:
+            render_spectrum_plot(collection, output=plot_output, show=not no_gui)
+        except (TypeError, ValueError) as exc:
+            raise typer.BadParameter(f"Could not render spectrum plot: {exc}") from exc
+        return
+
     df = collection_dataframe(
         collection,
         selected_columns or preferred_front,
@@ -190,6 +267,14 @@ def _query_view(
 def _check_format(fmt: str) -> None:
     if fmt not in FORMATS:
         raise typer.BadParameter(f"--format must be one of: {', '.join(FORMATS)}")
+
+
+def _require_nonempty_collection(collection) -> None:
+    if len(collection) == 0:
+        raise typer.BadParameter(
+            "Query matched no observables; cannot plot. "
+            "Check --where, --contains, and --regex filters."
+        )
 
 
 def main() -> None:

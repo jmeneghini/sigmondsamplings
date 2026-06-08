@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from difflib import get_close_matches
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +89,8 @@ def parse_where_specs(specs: Iterable[str] | None, collection=None) -> dict[str,
         attr = attr.strip()
         if not attr:
             raise ValueError(f"Invalid --where {spec!r}; attribute is empty")
+        if collection is not None and not _attr_exists(collection, attr):
+            raise ValueError(_unknown_attr_message(collection, attr))
         value = _parse_where_value(raw_value.strip())
         if collection is not None:
             value = _normalize_filter_value(collection, attr, value)
@@ -237,9 +240,21 @@ def _merge_filter(filters: dict[str, Any], attr: str, value: Any) -> None:
 
 def _normalize_filter_value(collection, attr: str, value: Any) -> Any:
     sample = _first_non_none_attr(collection, attr)
-    if isinstance(sample, tuple) and isinstance(value, list):
-        return tuple(value)
+    if isinstance(sample, tuple):
+        if isinstance(value, str) and ":" in value:
+            return _parse_tuple_value(value)
+        if isinstance(value, list):
+            if all(isinstance(item, str) and ":" in item for item in value):
+                return [_parse_tuple_value(item) for item in value]
+            raise ValueError(
+                f"Tuple-valued filter '{attr}' must use ':' between tuple fields "
+                "and ',' between values, e.g. sector=0:A1g,1:T1u"
+            )
     return value
+
+
+def _parse_tuple_value(value: str) -> tuple[Any, ...]:
+    return tuple(_parse_scalar(part.strip()) for part in value.split(":"))
 
 
 def _first_non_none_attr(collection, attr: str) -> Any:
@@ -248,6 +263,32 @@ def _first_non_none_attr(collection, attr: str) -> Any:
         if value is not None:
             return value
     return None
+
+
+def _attr_exists(collection, attr: str) -> bool:
+    return attr in _available_attrs(collection)
+
+
+def _available_attrs(collection) -> set[str]:
+    attrs: set[str] = set()
+    for sampling in collection:
+        for target in (sampling, sampling.observable_info, sampling.sampling_info):
+            attrs.update(name for name in dir(target) if not name.startswith("_"))
+            if hasattr(target, "__dict__"):
+                attrs.update(name for name in vars(target) if not name.startswith("_"))
+    return attrs
+
+
+def _unknown_attr_message(collection, attr: str) -> str:
+    available = sorted(_available_attrs(collection))
+    aliases = {"obs_type": "obs_kind"}
+    alias = aliases.get(attr)
+    matches = [alias] if alias in available else get_close_matches(attr, available, n=1)
+    suffix = f" Did you mean {matches[0]!r}?" if matches else ""
+    sample = ", ".join(available[:12])
+    if len(available) > 12:
+        sample += ", ..."
+    return f"Unknown --where attribute {attr!r}.{suffix} Available attributes include: {sample}"
 
 
 def _composite_getter(attrs: Sequence[str]):

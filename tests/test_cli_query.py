@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from typer.testing import CliRunner
+
+from sigmondsamplings.cli.main import app
 from sigmondsamplings.cli.query import (
     QuerySpec,
     apply_query,
@@ -15,6 +18,7 @@ from sigmondsamplings.loader import SigmondLoader
 
 DATA_DIR = Path(__file__).parent / "data"
 ENERGY_HDF5 = DATA_DIR / "energy_levels_samplings.hdf5"
+runner = CliRunner()
 
 
 def _energy_levels():
@@ -44,13 +48,36 @@ def test_collection_filter_accepts_sector_tuple_as_scalar():
 def test_cli_where_normalizes_tuple_valued_attrs_from_collection():
     levels = _energy_levels()
     sector = next(sector for sector in levels.sectors if sector is not None)
-    spec = f"sector={sector[0]},{sector[1]}"
+    spec = f"sector={sector[0]}:{sector[1]}"
 
     filters = parse_where_specs([spec], levels)
     filtered = apply_query(levels, QuerySpec(where=(spec,)))
 
     assert filters == {"sector": sector}
     assert len(filtered) == len(levels.filter(sector=sector))
+
+
+def test_cli_where_parses_comma_separated_tuple_values():
+    levels = _energy_levels()
+    sector = next(sector for sector in levels.sectors if sector is not None)
+    spec = f"sector={sector[0]}:{sector[1]},999:Nope"
+
+    filters = parse_where_specs([spec], levels)
+    filtered = apply_query(levels, QuerySpec(where=(spec,)))
+
+    assert filters == {"sector": [sector, (999, "Nope")]}
+    assert len(filtered) == len(levels.filter(sector=sector))
+
+
+def test_cli_where_rejects_comma_as_tuple_separator():
+    levels = _energy_levels()
+
+    try:
+        parse_where_specs(["sector=0,A1gm"], levels)
+    except ValueError as exc:
+        assert "must use ':'" in str(exc)
+    else:
+        raise AssertionError("Expected comma tuple syntax to be rejected")
 
 
 def test_to_dataframe_excludes_default_observable_attrs():
@@ -104,3 +131,119 @@ def test_unique_records_handles_numeric_unique_values_as_lists():
 
     assert records
     assert all(set(record) == {"value"} for record in records)
+
+
+def test_cli_generic_plot_writes_queried_collection(tmp_path):
+    out = tmp_path / "errorbar.png"
+
+    result = runner.invoke(
+        app,
+        [
+            "obs",
+            str(ENERGY_HDF5),
+            "--where",
+            "index=0",
+            "--limit",
+            "2",
+            "--plot",
+            "errorbar",
+            "--plot-output",
+            str(out),
+            "--no-gui",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+    assert out.stat().st_size > 0
+
+
+def test_cli_energy_spectrum_plot_writes_queried_collection(tmp_path):
+    out = tmp_path / "spectrum.png"
+
+    result = runner.invoke(
+        app,
+        [
+            "energy",
+            str(ENERGY_HDF5),
+            "--where",
+            "sector=0:A1gm",
+            "--plot-spectrum",
+            "--plot-output",
+            str(out),
+            "--no-gui",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert out.exists()
+    assert out.stat().st_size > 0
+
+
+def test_cli_rejects_plot_with_non_collection_output_mode():
+    result = runner.invoke(
+        app,
+        [
+            "energy",
+            str(ENERGY_HDF5),
+            "--unique",
+            "psq",
+            "--plot-spectrum",
+            "--no-gui",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Use only one of" in result.output
+
+
+def test_cli_reports_old_comma_tuple_syntax_as_parameter_error():
+    result = runner.invoke(
+        app,
+        [
+            "energy",
+            str(ENERGY_HDF5),
+            "-w",
+            "sector=0,A1gm",
+            "--unique",
+            "sector",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "must use ':'" in result.output
+
+
+def test_cli_reports_unknown_where_attr_with_suggestion():
+    result = runner.invoke(
+        app,
+        [
+            "energy",
+            str(ENERGY_HDF5),
+            "-w",
+            "obs_type=energy_single_hadron",
+            "--plot-spectrum",
+            "--no-gui",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Unknown --where attribute 'obs_type'" in result.output
+    assert "obs_kind" in result.output
+
+
+def test_cli_reports_empty_collection_before_plotting():
+    result = runner.invoke(
+        app,
+        [
+            "energy",
+            str(ENERGY_HDF5),
+            "-w",
+            "obs_kind=does_not_exist",
+            "--plot-spectrum",
+            "--no-gui",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Query matched no observables" in result.output

@@ -40,6 +40,7 @@ def add_energy_attrs(
     input_file: str,
     output_file: str,
     ni_yml: str | None = None,
+    ref_particle: str | None = None,
     hdf5_path: str | None = None,
     hdf5_root_path: str | None = None,
     overwrite: bool = False,
@@ -51,6 +52,8 @@ def add_energy_attrs(
         input_file: Input Sigmond file (.smp or .hdf5).
         output_file: Output path (``.hdf5`` enforced).
         ni_yml: Optional PyCalQ YAML with non-interacting pair assignments.
+        ref_particle: Optional reference particle name to assign to reference-mode
+            energy levels (those with ``is_ref=True``).
         hdf5_path: Path within a multi-path HDF5 input (None = auto-detect).
         hdf5_root_path: Root path for the output (default: input path or DEFAULT_ROOT_PATH).
         overwrite: Overwrite (and back up) an existing output file.
@@ -76,13 +79,17 @@ def add_energy_attrs(
         converted.append(energy)
         energy_samps.append(energy)
 
-    # Apply NI pairs from the PyCalQ YAML. The collection wraps the same energy
-    # samplings, so this mutates the obs_info that will be written.
-    if ni_yml:
+    # Apply optional NI pairs / reference particle. The collection wraps the same
+    # energy samplings, so these mutate the obs_info that will be written.
+    if ni_yml or ref_particle:
         if energy_samps:
-            SingleEnsembleEnergyCollection(energy_samps).set_shift_particles_from_pycalq_yml(ni_yml)
+            coll = SingleEnsembleEnergyCollection(energy_samps)
+            if ref_particle:
+                coll.set_ref(ref_particle)
+            if ni_yml:
+                coll.set_shift_particles_from_pycalq_yml(ni_yml)
         else:
-            logger.warning("NI YAML provided but no energy levels were found; ignoring it.")
+            logger.warning("NI YAML / reference particle given but no energy levels found; ignoring.")
 
     root_path = hdf5_root_path or loader.hdf5_path or DEFAULT_ROOT_PATH
     out_path = Path(output_file).with_suffix(".hdf5")
@@ -112,6 +119,9 @@ Examples:
   # Also attach non-interacting pairs from a PyCalQ YAML
   ss-energy-obs input.hdf5 output.hdf5 --ni-yml non_interacting.yml
 
+  # Assign a reference particle to reference-mode levels (E/M_ref)
+  ss-energy-obs input.hdf5 output.hdf5 --ref-particle L
+
   # Tag an fstream samplings file, writing HDF5
   ss-energy-obs input.smp output.hdf5
 
@@ -125,6 +135,10 @@ Examples:
     parser.add_argument(
         "--ni-yml",
         help="Optional PyCalQ YAML with non-interacting pair assignments",
+    )
+    parser.add_argument(
+        "--ref-particle",
+        help="Optional reference particle name to assign to reference-mode levels (E/M_ref)",
     )
     parser.add_argument(
         "--hdf5-path",
@@ -159,6 +173,7 @@ Examples:
             args.input_file,
             args.output_file,
             ni_yml=args.ni_yml,
+            ref_particle=args.ref_particle,
             hdf5_path=args.hdf5_path,
             hdf5_root_path=args.hdf5_root_path,
             overwrite=True,
