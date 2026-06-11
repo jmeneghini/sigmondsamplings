@@ -11,16 +11,19 @@ import xml.etree.ElementTree as ET
 import h5py
 import numpy as np
 
-from .bins import SigmondBins
-from .ensemble_collection import SingleEnsembleCollection
-from .info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
-from .lazy import (
+from collections.abc import Sequence
+from typing import TypeAlias
+
+from ..bins import SigmondBins
+from ..ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
+from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
+from ..lazy import (
     HDF5ObservableRecord,
     LazySigmondBins,
     LazySigmondSampling,
     _FileRef,
 )
-from .sampling import SigmondSampling
+from ..sampling import SigmondSampling
 
 logger = logging.getLogger(__name__)
 SIGMOND_QUERY_CMD = "sigmond_query"
@@ -286,7 +289,7 @@ class SigmondLoader:
         (old files, real Sigmond files, fstream) pass through unchanged.
         """
         if str(attrs.get("obs_kind", "")).startswith("energy"):
-            from .energy_levels import energy_obs_from_attrs
+            from ..energy_levels import energy_obs_from_attrs
 
             return energy_obs_from_attrs(obs_info, attrs)
         return obs_info
@@ -881,3 +884,91 @@ class SigmondLoader:
             )
         name, index_str = m.groups()
         return name, int(index_str)
+
+
+# A single file to load: either a bare path (HDF5 path auto-detected) or a
+# (path, hdf5_path) pair. ``hdf5_path`` of ``None`` triggers auto-detection.
+FileSpec: TypeAlias = "str | os.PathLike | tuple[str, str | None]"
+
+
+class MultiSigmondLoader:
+    """Load several Sigmond files into one multi-ensemble collection.
+
+    Each file is read by its own :class:`SigmondLoader` (one ensemble per file),
+    and the results are concatenated into a :class:`MultiEnsembleCollection`. The
+    collection's constructor enforces that every file shares the same
+    ``sampling_info``, so a mismatched bootstrap/jackknife configuration is
+    rejected up front.
+
+    Example::
+
+        loader = MultiSigmondLoader([
+            ("cls21_c103.h5", "/samplings"),
+            ("cls21_d200.h5", "/samplings"),
+        ])
+        multi = loader.observables               # MultiEnsembleCollection
+        energies = loader.energy_observables()   # MultiEnsembleEnergyCollection
+        for ens, single in multi.by_ensemble.items():
+            ...
+    """
+
+    def __init__(self, files: Sequence[FileSpec], *, lazy: bool = True):
+        """Build one :class:`SigmondLoader` per file.
+
+        Args:
+            files: File paths or ``(path, hdf5_path)`` pairs. A bare path (or a
+                pair with ``hdf5_path=None``) auto-detects the HDF5 root path,
+                which only succeeds when the file holds a single data path.
+            lazy: Defer reading each observable's sample array until first access
+                (HDF5 only). See :meth:`SigmondLoader.__init__`.
+        """
+        if not files:
+            raise ValueError("MultiSigmondLoader requires at least one file")
+        self._lazy = lazy
+        self._specs = [self._normalize(entry) for entry in files]
+        self._loaders = [
+            SigmondLoader(filename, hdf5_path=hdf5_path, lazy=lazy)
+            for filename, hdf5_path in self._specs
+        ]
+
+    @staticmethod
+    def _normalize(entry: FileSpec) -> tuple[str, str | None]:
+        """Coerce a file spec to a ``(filename, hdf5_path)`` pair."""
+        if isinstance(entry, (str, os.PathLike)):
+            return os.fspath(entry), None
+        filename, hdf5_path = entry
+        return os.fspath(filename), hdf5_path
+
+    @property
+    def loaders(self) -> list[SigmondLoader]:
+        """The per-file :class:`SigmondLoader` instances, in input order."""
+        return list(self._loaders)
+
+    @property
+    def file_kinds(self) -> list[str | None]:
+        """``'samplings'``/``'bins'`` per loaded file, in input order."""
+        return [loader.file_kind for loader in self._loaders]
+
+    @property
+    def observables(self) -> MultiEnsembleCollection:
+        """All observables across files as one :class:`MultiEnsembleCollection`."""
+        collection = MultiEnsembleCollection([])
+        for loader in self._loaders:
+            collection += loader.observables
+        return collection
+
+    def energy_observables(
+        self,
+        *,
+        skip_missing_particles: bool = True,
+        return_type: str | None = None,
+    ):
+        """Return the loaded observables as a multi-ensemble energy collection.
+
+        Mirrors :meth:`SigmondLoader.energy_observables`; an explicit semantic
+        view over :attr:`observables`. Returns a ``MultiEnsembleEnergyCollection``.
+        """
+        return self.observables.as_energy_levels(
+            skip_missing_particles=skip_missing_particles,
+            return_type=return_type,
+        )

@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
-from sigmondsamplings.loader import SigmondLoader
+from sigmondsamplings.io.loader import SigmondLoader
 from sigmondsamplings.sampling import SigmondSampling
 from sigmondsamplings.scripts.sigmond_combine import (
     combine_files,

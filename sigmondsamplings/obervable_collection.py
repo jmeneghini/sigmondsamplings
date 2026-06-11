@@ -2,22 +2,24 @@
 ObservableCollection: A fast, queryable collection of observables.
 """
 
+import importlib.util
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import (
     Any,
     TypeVar,
 )
 
+import lazy_loader as lazy
 import numpy as np
 
 from .sampling import SigmondSampling
 
-try:
-    import pandas as pd
-
-    PANDAS_AVAILABLE = True
-except ImportError:
-    PANDAS_AVAILABLE = False
+# ``pandas`` is only needed by ``to_dataframe``; defer it via lazy_loader so the
+# info/unique/group/json query paths don't pay its ~0.2s import cost. Probe
+# availability *before* ``lazy.load`` registers the lazy placeholder in
+# ``sys.modules`` -- otherwise ``find_spec`` would trip the proxy and import it.
+PANDAS_AVAILABLE = importlib.util.find_spec("pandas") is not None
+pd = lazy.load("pandas")
 
 # TypeVar for fluent interface
 T = TypeVar("T", bound="ObservableCollection")
@@ -104,10 +106,15 @@ class PandasExportMixin:
                     attrs = {}
 
             attrs = {key: value for key, value in attrs.items() if key not in excluded}
+            # Display the ensemble by its slug rather than the EnsembleInfo repr.
+            ensemble = attrs.get("ensemble_info")
+            if ensemble is not None and hasattr(ensemble, "slug"):
+                attrs["ensemble_info"] = ensemble.slug
             row.update(attrs)
             rows.append(row)
 
-        return pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+        return df
 
 
 class AttributeAccessor:
@@ -1158,7 +1165,7 @@ class ObservableCollection(PandasExportMixin):
 
     # TODO: would like a better updating mechanism. Want to be able to 'update' or 'append'.
     def to_hdf5(
-        self, filename: str, create_backups: bool = True, root_path: str = "samplings"
+        self, filename: str, overwrite: bool = False, root_path: str = "data"
     ) -> None:
         """
         Export collection data to HDF5 file in Sigmond format.
@@ -1169,12 +1176,12 @@ class ObservableCollection(PandasExportMixin):
 
         Args:
             filename: Path to output HDF5 file
-            create_backups: If True, create backups of existing files (default: True)
-            root_path: Root path in HDF5 file to store data (default: "samplings")
+            overwrite: If True, overwrite existing file (default: False)
+            root_path: Root path in HDF5 file to store data (default: "data")
         """
         from .bins import SigmondBins
         from .ensemble_collection import SingleEnsembleCollection
-        from .writer import SigmondWriter
+        from .io.writer import SigmondWriter
 
         # Validate single-ensemble / shared sampling
         try:
@@ -1193,11 +1200,11 @@ class ObservableCollection(PandasExportMixin):
                 "to a single HDF5 file."
             )
 
-        writer = SigmondWriter(create_backups=create_backups)
+        writer = SigmondWriter(create_backups=True)
         if all_bins:
-            writer.write_bins_hdf5(filename, self._data, root_path=root_path, overwrite=True)
+            writer.write_bins_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
         else:
-            writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=True)
+            writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""

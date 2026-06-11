@@ -17,15 +17,15 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 try:
-    from ..loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from ..writer import SigmondWriter
+    from ..io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from ..io.writer import SigmondWriter
 except ImportError:
     # Handle direct execution
     import os
 
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from writer import SigmondWriter
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from sigmondsamplings.io.writer import SigmondWriter
 
 
 def convert_to_hdf5(

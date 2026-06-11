@@ -488,11 +488,11 @@ class EnergyLevelMixin:
         Filter collection to only include observables matching the given spec.
 
         Each entry in ``spec`` is a tuple of the form:
-        - ``(psq, irrep, level_index)``       – single level
+        - ``(psq, irrep, n_levels)``       – number of levels [0, ..., N-1]
         - ``(psq, irrep, [level_index, ...])`` – multiple levels (flattened)
 
         Args:
-            spec: Iterable of (psq, irrep, level_index_or_list) tuples
+            spec: Iterable of (psq, irrep, n_levels_or_list) tuples
 
         Returns:
             Collection of the same type containing only matching observables
@@ -540,29 +540,32 @@ class EnergyLevelMixin:
             )
         ]
 
-    def save_spec(self, yml_path: str) -> None:
+    def save_spec(self, toml_path: str) -> None:
         """
-        Save the current collection's (psq, irrep, level_index) spec to a YAML file.
+        Save the current collection's (psq, irrep, level_index) spec to a TOML file.
 
-        The YAML groups level indices by (psq, irrep) sector:
+        The TOML groups level indices by (psq, irrep) sector under a ``spectrum``
+        array of tables:
 
-        .. code-block:: yaml
+        .. code-block:: toml
 
-            spec:
-              - psq: 0
-                irrep: A1g
-                levels: [0, 1, 2]
-              - psq: 1
-                irrep: E
-                levels: [0]
+            [[spectrum]]
+            psq = 0
+            irrep = "A1g"
+            levels = [0, 1, 2]
+
+            [[spectrum]]
+            psq = 1
+            irrep = "E"
+            levels = [0]
 
         Args:
-            yml_path: Path to write the spec YAML file
+            toml_path: Path to write the spec TOML file
 
         Example:
-            >>> coll.save_spec('my_spec.yml')
+            >>> coll.save_spec('my_spec.toml')
         """
-        import yaml
+        import tomlkit
 
         sectors: dict[tuple[int, str], set[int]] = {}
         for sampling in self._data:
@@ -570,38 +573,44 @@ class EnergyLevelMixin:
             key = (obs_info.psq, obs_info.irrep)
             sectors.setdefault(key, set()).add(obs_info.level_index)
 
-        spec_list = [
-            {"psq": psq, "irrep": irrep, "levels": sorted(levels)}
-            for (psq, irrep), levels in sorted(
-                item for item in sectors.items() if None not in item[0]
-            )
-        ]
+        spec_entries = tomlkit.aot()
+        for (psq, irrep), levels in sorted(
+            item for item in sectors.items() if None not in item[0]
+        ):
+            entry = tomlkit.table()
+            entry.add("psq", psq)
+            entry.add("irrep", irrep)
+            entry.add("levels", sorted(levels))
+            spec_entries.append(entry)
 
-        with open(yml_path, "w") as f:
-            yaml.dump({"spec": spec_list}, f, default_flow_style=False)
+        document = tomlkit.document()
+        document.add("spectrum", spec_entries)
 
-    def filter_by_spec_yml(self, yml_path: str):
+        with open(toml_path, "w") as f:
+            tomlkit.dump(document, f)
+
+    def filter_from_toml(self, toml_path: str):
         """
-        Load a spec from a YAML file and filter this collection to match it.
+        Load a spec from a TOML file and filter this collection to match it.
 
-        Reads a YAML file produced by :meth:`save_spec` and delegates to
+        Reads a TOML file produced by :meth:`save_spec` and delegates to
         :meth:`filter_by_spec`.
 
         Args:
-            yml_path: Path to a spec YAML file
+            toml_path: Path to a spec TOML file
 
         Returns:
             Collection of the same type filtered to the spec
 
         Example:
-            >>> filtered = coll.filter_by_spec_yml('my_spec.yml')
+            >>> filtered = coll.filter_from_toml('my_spec.toml')
         """
-        import yaml
+        import tomlkit
 
-        with open(yml_path) as f:
-            config = yaml.safe_load(f)
+        with open(toml_path) as f:
+            config = tomlkit.load(f)
 
-        spec = [(entry["psq"], entry["irrep"], entry["levels"]) for entry in config["spec"]]
+        spec = [(entry["psq"], entry["irrep"], entry["levels"]) for entry in config["spectrum"]]
         return self.filter_by_spec(spec)
 
     def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:

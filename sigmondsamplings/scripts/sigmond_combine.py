@@ -14,17 +14,17 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 try:
-    from ..loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from ..io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from ..io.writer import SigmondWriter
     from ..sampling import SigmondSampling
-    from ..writer import SigmondWriter
 except ImportError:
     # Handle direct execution
     import os
 
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from sampling import SigmondSampling
-    from writer import SigmondWriter
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from sigmondsamplings.io.writer import SigmondWriter
+    from sigmondsamplings.sampling import SigmondSampling
 
 
 def resolve_paths(input_files: list[str], base_path: str | None = None) -> list[str]:

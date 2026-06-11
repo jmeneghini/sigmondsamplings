@@ -290,6 +290,21 @@ class MultiEnsembleCollection(ObservableCollection):
             for ens, group in groups.items()
         }
 
+    def reduced(self):
+        """Collapse to the lone ``SingleEnsembleCollection`` when one ensemble is present.
+
+        A collection spanning exactly one ensemble is unwrapped to its
+        single-ensemble view -- so scalar ``ensemble_info``/``sampling_info`` and
+        single-ensemble methods become available -- via :attr:`by_ensemble`, which
+        subclasses override to yield their specific single type (e.g.
+        ``SingleEnsembleEnergyCollection``). A genuinely multi-ensemble (or empty)
+        collection is returned unchanged.
+        """
+        ensembles = self.ensembles
+        if len(ensembles) == 1:
+            return self.by_ensemble[ensembles[0]]
+        return self
+
     # -------------------------------------------------------------------------
     # Dict-like Access by Ensemble
     # -------------------------------------------------------------------------

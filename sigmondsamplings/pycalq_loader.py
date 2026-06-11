@@ -11,7 +11,7 @@ from typing import Any
 
 import pandas as pd
 
-from .loader import SigmondLoader
+from .io.loader import SigmondLoader
 from .project_utils import string_of_list_to_list
 from .sampling import SigmondSampling
 

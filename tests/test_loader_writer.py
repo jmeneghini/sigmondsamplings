@@ -20,9 +20,9 @@ import numpy as np
 import pytest
 
 from sigmondsamplings.bins import SigmondBins
-from sigmondsamplings.loader import DEFAULT_ROOT_PATH, SigmondLoader
+from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
 from sigmondsamplings.sampling import SigmondSampling
-from sigmondsamplings.writer import SigmondWriter
+from sigmondsamplings.io.writer import SigmondWriter
 
 DATA_DIR = Path(__file__).parent / "data"
 CORR_HDF5 = DATA_DIR / "corr_matrix_samplings.hdf5"

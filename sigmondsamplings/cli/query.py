@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from difflib import get_close_matches
 from pathlib import Path
 from typing import Any
 
-from sigmondsamplings.loader import SigmondLoader, is_hdf5_file, verify_sigmond_hdf5
+from sigmondsamplings.io.loader import SigmondLoader, is_hdf5_file, verify_sigmond_hdf5
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,24 @@ class QuerySpec:
     sort: str | None = None
     reverse: bool = False
     limit: int | None = None
+    default_sort: tuple[str, ...] | None = None
+
+
+# Output/display defaults shared by every front-end (ss-query and kb).
+QUERY_FORMATS = ("table", "json", "csv")
+RAW_FRONT = ("name", "data_str", "mean", "error")
+ENERGY_FRONT = (
+    "name",
+    "sector",
+    "energy_type",
+    "psq",
+    "irrep",
+    "level_index",
+    "data_str",
+    "mean",
+    "error",
+)
+ENERGY_DEFAULT_SORT = ("obs_kind", "sector", "level_index", "energy_type")
 
 
 def load_collection(
@@ -119,10 +137,138 @@ def apply_query(collection, spec: QuerySpec):
         attrs = parse_attrs(spec.sort)
         key: str | list[str] = attrs[0] if len(attrs) == 1 else attrs
         collection = collection.sort(key, reverse=spec.reverse, nulls_last=True)
+    elif spec.default_sort:
+        collection = collection.sort(list(spec.default_sort), nulls_last=True)
 
     if spec.limit is not None:
         collection = collection[: spec.limit]
 
+    return collection
+
+
+def run_query_view(
+    collection,
+    *,
+    energy: bool,
+    spec: QuerySpec,
+    unique: str | None = None,
+    group: str | None = None,
+    list_columns: bool = False,
+    plot: str | None = None,
+    plot_spectrum: bool = False,
+    plot_output: str | Path | None = None,
+    no_gui: bool = False,
+    plot_obs_index: int | None = None,
+    plot_panels: str | None = None,
+    latex: bool = False,
+    columns: str | None = None,
+    exclude: str | None = None,
+    fmt: str = "table",
+    save: str | Path | None = None,
+):
+    """Apply *spec* to *collection*, then render, plot, or save the result.
+
+    The data-source-agnostic core of the query CLI: ``ss-query`` hands it a
+    file-loaded collection, while other front-ends (e.g. a project-wide
+    multi-ensemble collection) pass their own. Performs the requested terminal
+    action (table/json/csv render, plot, or ``--save`` spectrum config) and
+    returns the filtered collection.
+
+    Raises :class:`ValueError` for invalid option combinations so each caller can
+    translate it into its own CLI error type. Plotting imports are deferred so
+    callers that never plot do not pull in matplotlib.
+    """
+    from .render import render_dataframe, render_records
+
+    if fmt not in QUERY_FORMATS:
+        raise ValueError(f"--format must be one of: {', '.join(QUERY_FORMATS)}")
+
+    collection = apply_query(collection, spec)
+
+    if save is not None and not energy:
+        raise ValueError("--save writes an energy spectrum config and requires the energy view.")
+    if plot_spectrum and not energy:
+        raise ValueError("--plot-spectrum is only available for energy queries.")
+    if plot and plot_spectrum:
+        raise ValueError("Use either --plot or --plot-spectrum, not both.")
+    plot_options_used = (
+        plot_output is not None
+        or no_gui
+        or plot_obs_index is not None
+        or plot_panels is not None
+        or latex
+    )
+    if plot_options_used and not (plot or plot_spectrum):
+        raise ValueError("Plot options require --plot or --plot-spectrum.")
+    if plot_spectrum and (plot_obs_index is not None or plot_panels is not None):
+        raise ValueError("--plot-obs-index and --plot-panels are only valid with --plot.")
+
+    mode_count = sum(
+        bool(value) for value in (unique, group, list_columns, plot, plot_spectrum, save)
+    )
+    if mode_count > 1:
+        raise ValueError(
+            "Use only one of --unique, --group, --list-columns, --plot, "
+            "--plot-spectrum, or --save."
+        )
+
+    if save is not None:
+        collection.save_spec(str(save))
+        return collection
+
+    if unique:
+        render_records(unique_records(collection, unique), fmt=fmt)
+        return collection
+
+    if group:
+        render_records(group_records(collection, group), fmt=fmt)
+        return collection
+
+    selected_columns = parse_columns(columns)
+    excluded_attrs = parse_columns(exclude)
+    preferred_front = ENERGY_FRONT if energy else RAW_FRONT
+
+    if list_columns:
+        render_records(
+            column_records(collection, preferred_front, excluded_attrs=excluded_attrs),
+            fmt=fmt,
+        )
+        return collection
+
+    if plot or plot_spectrum:
+        if len(collection) == 0:
+            raise ValueError(
+                "Query matched no observables; cannot plot. "
+                "Check --where, --contains, and --regex filters."
+            )
+        from .plot import render_generic_plot, render_spectrum_plot
+
+        try:
+            if plot:
+                render_generic_plot(
+                    collection,
+                    method=plot,
+                    output=plot_output,
+                    show=not no_gui,
+                    obs_index=plot_obs_index,
+                    panels=plot_panels,
+                    latex=latex,
+                )
+            else:
+                render_spectrum_plot(
+                    collection, output=plot_output, show=not no_gui, latex=latex
+                )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Could not render plot: {exc}") from exc
+        return collection
+
+    df = collection_dataframe(
+        collection,
+        selected_columns or preferred_front,
+        excluded_attrs=excluded_attrs,
+    )
+    df = select_columns(df, selected_columns, preferred_front)
+    render_dataframe(df, fmt=fmt)
     return collection
 
 

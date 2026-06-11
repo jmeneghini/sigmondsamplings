@@ -15,10 +15,10 @@ import pytest
 
 from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
-from sigmondsamplings.loader import SigmondLoader
+from sigmondsamplings.io.loader import SigmondLoader
 from sigmondsamplings.obervable_collection import ObservableCollection
 from sigmondsamplings.sampling import SigmondSampling
-from sigmondsamplings.writer import SigmondWriter
+from sigmondsamplings.io.writer import SigmondWriter
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Fixtures / helpers

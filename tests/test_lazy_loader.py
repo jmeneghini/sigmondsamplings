@@ -25,7 +25,7 @@ from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.energy_level_collection import SingleEnsembleEnergyCollection
 from sigmondsamplings.energy_levels import EnergyObsInfo
 from sigmondsamplings.lazy import LazySigmondBins, LazySigmondSampling
-from sigmondsamplings.loader import SigmondLoader
+from sigmondsamplings.io.loader import SigmondLoader
 from sigmondsamplings.sampling import SigmondSampling
 
 DATA_DIR = Path(__file__).parent / "data"

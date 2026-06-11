@@ -13,7 +13,7 @@ from sigmondsamplings.cli.query import (
     parse_where_specs,
     unique_records,
 )
-from sigmondsamplings.loader import SigmondLoader
+from sigmondsamplings.io.loader import SigmondLoader
 
 
 DATA_DIR = Path(__file__).parent / "data"

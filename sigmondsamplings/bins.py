@@ -16,6 +16,8 @@ which produces one or more SigmondSampling objects, optionally using Dask for
 out-of-core processing of very large bin sequences.
 """
 
+import importlib
+import importlib.util
 from typing import Any, Union
 
 import numpy as np
@@ -23,12 +25,29 @@ import numpy as np
 from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 from .sampling import SigmondSampling
 
-try:
-    import dask.array as da
 
-    DASK_AVAILABLE = True
-except ImportError:
-    DASK_AVAILABLE = False
+class _LazyModule:
+    """Import a (possibly dotted) module on first attribute access.
+
+    ``dask.array`` is expensive to import (~0.5s; it pulls in pandas/toolz/yaml).
+    ``lazy_loader.load`` only defers *top-level* modules -- for a dotted name it
+    eagerly imports the parent package -- so we use this proxy to defer the
+    import until a dask array is actually touched, not merely because this
+    module was imported.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._module = None
+
+    def __getattr__(self, attr: str) -> Any:
+        if self._module is None:
+            self._module = importlib.import_module(self._name)
+        return getattr(self._module, attr)
+
+
+da = _LazyModule("dask.array")
+DASK_AVAILABLE = importlib.util.find_spec("dask") is not None
 
 try:
     from uncertainties import ufloat

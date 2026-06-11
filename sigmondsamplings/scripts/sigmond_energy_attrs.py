@@ -20,20 +20,22 @@ import logging
 import sys
 from pathlib import Path
 
+from sigmondsamplings.ensemble_collection import SingleEnsembleCollection
+
 logger = logging.getLogger(__name__)
 
 try:
     from ..energy_level_collection import SingleEnsembleEnergyCollection
-    from ..loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from ..writer import SigmondWriter
+    from ..io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from ..io.writer import SigmondWriter
 except ImportError:
     # Handle direct execution
     import os
 
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from energy_level_collection import SingleEnsembleEnergyCollection
-    from loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from writer import SigmondWriter
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from sigmondsamplings.energy_level_collection import SingleEnsembleEnergyCollection
+    from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
+    from sigmondsamplings.io.writer import SigmondWriter
 
 
 def add_energy_attrs(
@@ -68,41 +70,35 @@ def add_energy_attrs(
 
     # Convert each observable to its energy type where possible; keep the
     # original (attr-less) object when it is not an energy level.
-    converted, energy_samps = [], []
+    non_energy_samps, energy_samps = [], []
     for samp in observables:
         try:
             energy = samp.as_energy_level()
+            energy_samps.append(energy)
         except (ValueError, AttributeError) as e:
-            logger.debug(f"Keeping {samp.observable_info.name} as-is: {e}")
-            converted.append(samp)
-            continue
-        converted.append(energy)
-        energy_samps.append(energy)
+            logger.debug(f"""Failed to convert {samp.observable_info.name} to energy observable: {e}
+                         \nKeeping original observable without energy attrs.""")
+            non_energy_samps.append(samp)
+            
+    non_energy_coll = SingleEnsembleCollection(non_energy_samps)
 
     # Apply optional NI pairs / reference particle. The collection wraps the same
     # energy samplings, so these mutate the obs_info that will be written.
-    if ni_yml or ref_particle:
-        if energy_samps:
-            coll = SingleEnsembleEnergyCollection(energy_samps)
-            if ref_particle:
-                coll.set_ref(ref_particle)
-            if ni_yml:
-                coll.set_shift_particles_from_pycalq_yml(ni_yml)
-        else:
+    if energy_samps:
+        energy_coll = SingleEnsembleEnergyCollection(energy_samps)
+        if ref_particle:
+            energy_coll.set_ref(ref_particle)
+        if ni_yml:
+            energy_coll.set_shift_particles_from_pycalq_yml(ni_yml)
+        out_coll: SingleEnsembleCollection = non_energy_coll + energy_coll
+    else:
+        if ni_yml or ref_particle:
             logger.warning("NI YAML / reference particle given but no energy levels found; ignoring.")
-
+        out_coll: SingleEnsembleCollection = non_energy_coll
+    
     root_path = hdf5_root_path or loader.hdf5_path or DEFAULT_ROOT_PATH
     out_path = Path(output_file).with_suffix(".hdf5")
-    writer = SigmondWriter()
-    if loader.file_kind == "bins":
-        writer.write_bins_hdf5(str(out_path), converted, root_path, overwrite=overwrite)
-    else:
-        writer.write_hdf5(str(out_path), converted, root_path, overwrite=overwrite)
-
-    logger.info(
-        f"Wrote {len(converted)} observables "
-        f"({len(energy_samps)} with energy attrs) to {out_path}"
-    )
+    out_coll.to_hdf5(str(out_path), overwrite=overwrite, root_path=root_path)
     return out_path
 
 
