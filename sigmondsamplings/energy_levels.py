@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from slatmeta import (
+from slat import (
     IRREP_LATEX_MAP,
     PARTICLE_LATEX_MAP,
     get_energy_type_latex_str,

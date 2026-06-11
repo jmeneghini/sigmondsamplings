@@ -1,5 +1,5 @@
 from sigmondsamplings import COLORS, IndexedCycle
-from slatmeta import (
+from slat import (
     IRREP_LATEX_MAP,
     PARTICLE_LATEX_MAP,
     get_all_qctype_latex_mappings,
@@ -15,7 +15,7 @@ from slatmeta import (
 )
 
 
-def test_slatmeta_label_helpers_match_shared_maps():
+def test_slat_label_helpers_match_shared_maps():
     assert PARTICLE_LATEX_MAP["pi"] == r"\pi"
     assert IRREP_LATEX_MAP["A1g"] == r"A_{1g}"
     assert get_particle_latex_str("rho") == r"\rho"
@@ -25,14 +25,14 @@ def test_slatmeta_label_helpers_match_shared_maps():
     assert get_irrep_latex_str("unknown") == "unknown"
 
 
-def test_sigmondsamplings_reexports_slatmeta_colors():
+def test_sigmondsamplings_reexports_slat_colors():
     cycle = IndexedCycle(COLORS)
 
     assert next(cycle) == COLORS[0]
     assert cycle.get_current() == COLORS[1]
 
 
-def test_slatmeta_extracts_kbfit_constants_helpers():
+def test_slat_extracts_kbfit_constants_helpers():
     assert get_spectro_str(4, 1, 2) == "3P2"
     assert get_twoJ_L_twoS_from_spectro("2D3/2") == (3, 2, 1)
     assert get_spectro_latex_str(3, 2, 1) == r"{}^{2}D_ {3/2}"

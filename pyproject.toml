@@ -33,6 +33,7 @@ dependencies = [
     'rich>=13',
     'lazy_loader>=0.3',
     'tomlkit>=0.12',
+    'pydantic>=2',
 ]
 
 [project.optional-dependencies]
@@ -56,7 +57,7 @@ ss-energy-obs = "sigmondsamplings.scripts.sigmond_energy_attrs:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sigmondsamplings*", "slatmeta*"]
+include = ["sigmondsamplings*", "slat*"]
 
 [tool.ruff]
 line-length = 100

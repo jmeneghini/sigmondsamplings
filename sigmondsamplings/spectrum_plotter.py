@@ -13,7 +13,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-from slatmeta import COLORS, IndexedCycle, get_irrep_latex_str
+from slat import COLORS, IndexedCycle, get_irrep_latex_str
 
 from .energy_level_collection import SingleEnsembleEnergyCollection
 from .sampling import SigmondSampling
