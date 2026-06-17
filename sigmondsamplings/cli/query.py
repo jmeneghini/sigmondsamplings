@@ -100,6 +100,10 @@ def parse_attrs(attrs: str) -> list[str]:
 def parse_where_specs(specs: Iterable[str] | None, collection=None) -> dict[str, Any]:
     """Parse repeated ``attr=value`` specs into collection filter kwargs."""
     filters: dict[str, Any] = {}
+    # Available attribute names are identical across observables of a type, so scan
+    # the collection once here and reuse the set for every spec rather than
+    # rescanning all observables per spec.
+    available = _available_attrs(collection) if collection is not None else None
     for spec in specs or ():
         if "=" not in spec:
             raise ValueError(f"Invalid --where {spec!r}; expected attr=value")
@@ -107,8 +111,8 @@ def parse_where_specs(specs: Iterable[str] | None, collection=None) -> dict[str,
         attr = attr.strip()
         if not attr:
             raise ValueError(f"Invalid --where {spec!r}; attribute is empty")
-        if collection is not None and not _attr_exists(collection, attr):
-            raise ValueError(_unknown_attr_message(collection, attr))
+        if available is not None and attr not in available:
+            raise ValueError(_unknown_attr_message(attr, available))
         value = _parse_where_value(raw_value.strip())
         if collection is not None:
             value = _normalize_filter_value(collection, attr, value)
@@ -153,7 +157,7 @@ def run_query_view(
     spec: QuerySpec,
     unique: str | None = None,
     group: str | None = None,
-    list_columns: bool = False,
+    list_attrs: bool = False,
     plot: str | None = None,
     plot_spectrum: bool = False,
     plot_output: str | Path | None = None,
@@ -204,11 +208,11 @@ def run_query_view(
         raise ValueError("--plot-obs-index and --plot-panels are only valid with --plot.")
 
     mode_count = sum(
-        bool(value) for value in (unique, group, list_columns, plot, plot_spectrum, save)
+        bool(value) for value in (unique, group, list_attrs, plot, plot_spectrum, save)
     )
     if mode_count > 1:
         raise ValueError(
-            "Use only one of --unique, --group, --list-columns, --plot, "
+            "Use only one of --unique, --group, --list-attrs, --plot, "
             "--plot-spectrum, or --save."
         )
 
@@ -228,9 +232,9 @@ def run_query_view(
     excluded_attrs = parse_columns(exclude)
     preferred_front = ENERGY_FRONT if energy else RAW_FRONT
 
-    if list_columns:
+    if list_attrs:
         render_records(
-            column_records(collection, preferred_front, excluded_attrs=excluded_attrs),
+            attr_records(collection, preferred_front, excluded_attrs=excluded_attrs),
             fmt=fmt,
         )
         return collection
@@ -306,20 +310,23 @@ def collection_dataframe(
     return df
 
 
-def column_records(
+def attr_records(
     collection,
     preferred_front: Sequence[str],
     *,
     excluded_attrs: Iterable[str] | None = None,
-) -> list[dict[str, str]]:
-    """Return display records for all available dataframe columns."""
+) -> list[dict[str, str | int]]:
+    """Return one record per available attribute with its non-null occurrence count."""
     df = collection_dataframe(
         collection,
         columns=preferred_front,
         excluded_attrs=excluded_attrs,
     )
     df = select_columns(df, None, preferred_front)
-    return [{"column": str(column)} for column in df.columns]
+    return [
+        {"attribute": str(column), "count": int(df[column].notna().sum())}
+        for column in df.columns
+    ]
 
 
 def attr_values(collection, attr: str) -> list[Any]:
@@ -411,10 +418,6 @@ def _first_non_none_attr(collection, attr: str) -> Any:
     return None
 
 
-def _attr_exists(collection, attr: str) -> bool:
-    return attr in _available_attrs(collection)
-
-
 def _available_attrs(collection) -> set[str]:
     attrs: set[str] = set()
     for sampling in collection:
@@ -425,14 +428,14 @@ def _available_attrs(collection) -> set[str]:
     return attrs
 
 
-def _unknown_attr_message(collection, attr: str) -> str:
-    available = sorted(_available_attrs(collection))
+def _unknown_attr_message(attr: str, available: set[str]) -> str:
+    available_sorted = sorted(available)
     aliases = {"obs_type": "obs_kind"}
     alias = aliases.get(attr)
-    matches = [alias] if alias in available else get_close_matches(attr, available, n=1)
+    matches = [alias] if alias in available else get_close_matches(attr, available_sorted, n=1)
     suffix = f" Did you mean {matches[0]!r}?" if matches else ""
-    sample = ", ".join(available[:12])
-    if len(available) > 12:
+    sample = ", ".join(available_sorted[:12])
+    if len(available_sorted) > 12:
         sample += ", ..."
     return f"Unknown --where attribute {attr!r}.{suffix} Available attributes include: {sample}"
 

@@ -59,6 +59,10 @@ ss-energy-obs = "sigmondsamplings.scripts.sigmond_energy_attrs:main"
 where = ["."]
 include = ["sigmondsamplings*", "slat*"]
 
+[tool.setuptools.package-data]
+sigmondsamplings = ["py.typed", "*.pyi"]
+slat = ["py.typed"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
@@ -76,3 +80,8 @@ ignore = ["E501"]
 
 # Allow auto-fixing for all enabled rules (when `--fix` is passed)
 fixable = ["ALL"]
+
+
+[tool.ty.environment]
+root = [".",]
+python-version = "3.11"

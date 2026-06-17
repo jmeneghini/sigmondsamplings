@@ -17,6 +17,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from . import obsmeta
 from .loader import (
     DEFAULT_ROOT_PATH,
     SigmondLoader,
@@ -28,6 +29,8 @@ from ..bins import SigmondBins
 from ..sampling import EnsembleInfo, ObservableInfo, SamplingInfo, SigmondSampling
 
 logger = logging.getLogger(__name__)
+
+HDF5_EXTENSIONS = {".h5", ".hdf5"}
 
 
 class SigmondWriter:
@@ -281,16 +284,20 @@ class SigmondWriter:
         to_attrs = getattr(observable_info, "to_attrs", None)
         return to_attrs() if to_attrs else None
 
-    @staticmethod
-    def _write_attrs(dataset: h5py.Dataset, attrs: dict | None) -> None:
-        """Attach ``attrs`` to ``dataset`` (list values become vlen UTF-8 arrays)."""
-        if not attrs:
-            return
-        for key, value in attrs.items():
-            if isinstance(value, list):
-                dataset.attrs.create(key, value, dtype=h5py.string_dtype("utf-8"))
-            else:
-                dataset.attrs[key] = value
+    def _write_value_datasets(self, values_group: h5py.Group, items) -> dict[str, dict]:
+        """
+        Create every component dataset for ``items`` and return their ObsMeta fields.
+
+        ``items`` yields ``(observable_info, data, is_complex)``; the returned
+        ``{dataset_key: fields}`` mapping is ready for :func:`obsmeta.write`. Energy
+        annotations live in the table rather than per-dataset attrs.
+        """
+        meta: dict[str, dict] = {}
+        for observable_info, data, is_complex in items:
+            for key, arr, attrs in self._observable_datasets(observable_info, data, is_complex):
+                values_group.create_dataset(key, data=arr)
+                meta[key] = obsmeta.fields_for(arr, attrs)
+        return meta
 
     def _observable_datasets(
         self, observable_info: ObservableInfo, data: np.ndarray, is_complex: bool
@@ -351,6 +358,25 @@ class SigmondWriter:
                 )
             self._create_numbered_backup(filename)
 
+    @staticmethod
+    def hdf5_output_path(input_filename: str | Path, output_filename: str | Path) -> Path:
+        """
+        Resolve an output filename for HDF5 writes.
+
+        A requested ``.h5``/``.hdf5`` suffix is preserved. If the output path has
+        no HDF5 suffix, use the input file's HDF5 suffix when it has one, falling
+        back to ``.hdf5`` for legacy fstream inputs.
+        """
+        outpath = Path(output_filename)
+        if outpath.suffix.lower() in HDF5_EXTENSIONS:
+            return outpath
+
+        input_suffix = Path(input_filename).suffix
+        if input_suffix.lower() in HDF5_EXTENSIONS:
+            return outpath.with_suffix(input_suffix)
+
+        return outpath.with_suffix(".hdf5")
+
     # ──────────────────────────────────────────────────────────────────────
     # Public write API
     # ──────────────────────────────────────────────────────────────────────
@@ -363,11 +389,11 @@ class SigmondWriter:
         overwrite: bool = False,
     ) -> Path:
         """
-        Write samplings to an HDF5 file (the ``.hdf5`` extension is enforced).
+        Write samplings to an HDF5 file.
 
         Returns the path actually written.
         """
-        outpath = Path(filename).with_suffix(".hdf5")
+        outpath = self.hdf5_output_path(filename, filename)
         self.write_hdf5(str(outpath), samplings, root_path, overwrite)
         return outpath
 
@@ -406,11 +432,11 @@ class SigmondWriter:
             values_group = self._write_sigmond_skeleton(
                 hdf5_file, group_name, "Sigmond--SamplingsFile", header_xml
             )
-            for sampling in samplings:
-                for key, arr, attrs in self._observable_datasets(
-                    sampling.observable_info, sampling.data, sampling.is_complex
-                ):
-                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
+            meta = self._write_value_datasets(
+                values_group,
+                ((s.observable_info, s.data, s.is_complex) for s in samplings),
+            )
+            obsmeta.write(values_group.parent, meta)
 
         logger.info(f"Wrote {len(samplings)} samplings to {filename} at path '/{group_name}/'")
 
@@ -451,11 +477,11 @@ class SigmondWriter:
             values_group = self._write_sigmond_skeleton(
                 hdf5_file, group_name, "Sigmond--BinsFile", header_xml
             )
-            for b in bins_list:
-                for key, arr, attrs in self._observable_datasets(
-                    b.observable_info, b._as_numpy(), b.is_complex
-                ):
-                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
+            meta = self._write_value_datasets(
+                values_group,
+                ((b.observable_info, b._as_numpy(), b.is_complex) for b in bins_list),
+            )
+            obsmeta.write(values_group.parent, meta)
 
         logger.info(
             f"Wrote {len(bins_list)} bins observables to {filename} at path '/{group_name}/'"
@@ -523,7 +549,11 @@ class SigmondWriter:
         self._validate_samplings_compatibility(str(filename), new_samplings, root_path)
 
         with h5py.File(filename, "r+") as f:
-            values_group = f[root_path]["Values"]
+            data_group = f[root_path]
+            values_group = data_group["Values"]
+            # Merge new rows into any existing table; datasets the file already had
+            # without a row keep their per-dataset attrs and are read via fallback.
+            meta = obsmeta.read(data_group)
             for sampling in new_samplings:
                 oi = sampling.observable_info
                 for key, arr, attrs in self._observable_datasets(
@@ -536,7 +566,9 @@ class SigmondWriter:
                                 f"Use overwrite=True to replace it."
                             )
                         del values_group[key]
-                    self._write_attrs(values_group.create_dataset(key, data=arr), attrs)
+                    values_group.create_dataset(key, data=arr)
+                    meta[key] = obsmeta.fields_for(arr, attrs)
+            obsmeta.write(data_group, meta)
 
     def _validate_samplings_compatibility(
         self, filename: str, new_samplings: list[SigmondSampling], root_path: str | None = None
@@ -636,7 +668,7 @@ class SigmondWriter:
         if output_format != "hdf5":
             raise ValueError(f"Unsupported output format: {output_format}")
 
-        outpath = Path(output_filename).with_suffix(".hdf5")
+        outpath = self.hdf5_output_path(input_filename, output_filename)
 
         # Raw bins carry no SamplingInfo, so they must use the bins writer.
         loader = SigmondLoader(filename=input_filename)

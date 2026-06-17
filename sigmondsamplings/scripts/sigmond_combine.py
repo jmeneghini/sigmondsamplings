@@ -209,27 +209,22 @@ def combine_files(
     validate_compatibility(all_samplings, verbose)
     logger.info("All samplings are compatible")
 
-    # Ensure output is HDF5 format
-    if not output_file.lower().endswith(".hdf5"):
-        output_file = output_file.rsplit(".", 1)[0] + ".hdf5"
-        logger.info(f"Output file adjusted to HDF5 format: {output_file}")
-
     # Check if output file exists
-    output_path = Path(output_file)
+    output_path = SigmondWriter.hdf5_output_path(resolved_files[0], output_file)
     if output_path.exists() and not overwrite:
         raise FileExistsError(
-            f"Output file {output_file} already exists. Use --overwrite to replace it."
+            f"Output file {output_path} already exists. Use --overwrite to replace it."
         )
 
     # Write combined file using SigmondWriter
-    logger.info(f"Writing combined file to {output_file}...")
+    logger.info(f"Writing combined file to {output_path}...")
     writer = SigmondWriter(create_backups=True)
 
     # Convert dict to list for SigmondWriter
     samplings_list = list(all_samplings.values())
 
     final_output = writer.write_file(
-        filename=output_file,
+        filename=str(output_path),
         samplings=samplings_list,
         root_path=hdf5_root_path,
         overwrite=overwrite,

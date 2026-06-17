@@ -52,7 +52,8 @@ def add_energy_attrs(
 
     Args:
         input_file: Input Sigmond file (.smp or .hdf5).
-        output_file: Output path (``.hdf5`` enforced).
+        output_file: Output path. A ``.h5``/``.hdf5`` suffix is preserved; if
+            omitted, the input HDF5 suffix is used, with ``.hdf5`` as fallback.
         ni_yml: Optional PyCalQ YAML with non-interacting pair assignments.
         ref_particle: Optional reference particle name to assign to reference-mode
             energy levels (those with ``is_ref=True``).
@@ -97,7 +98,7 @@ def add_energy_attrs(
         out_coll: SingleEnsembleCollection = non_energy_coll
     
     root_path = hdf5_root_path or loader.hdf5_path or DEFAULT_ROOT_PATH
-    out_path = Path(output_file).with_suffix(".hdf5")
+    out_path = SigmondWriter.hdf5_output_path(input_file, output_file)
     out_coll.to_hdf5(str(out_path), overwrite=overwrite, root_path=root_path)
     return out_path
 
@@ -160,8 +161,9 @@ Examples:
         logger.error(f"NI YAML file {args.ni_yml} does not exist")
         sys.exit(1)
 
-    if Path(args.output_file).with_suffix(".hdf5").exists() and not args.force:
-        logger.error(f"Output file {args.output_file} already exists. Use --force to overwrite.")
+    output_path = SigmondWriter.hdf5_output_path(args.input_file, args.output_file)
+    if output_path.exists() and not args.force:
+        logger.error(f"Output file {output_path} already exists. Use --force to overwrite.")
         sys.exit(1)
 
     try:

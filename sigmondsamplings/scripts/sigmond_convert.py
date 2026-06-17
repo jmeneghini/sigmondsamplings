@@ -105,8 +105,9 @@ Examples:
         logger.error(f"Input file {args.input_file} does not exist")
         sys.exit(1)
 
-    if Path(args.output_file).exists() and not args.force:
-        logger.error(f"Output file {args.output_file} already exists. Use --force to overwrite.")
+    output_path = SigmondWriter.hdf5_output_path(args.input_file, args.output_file)
+    if output_path.exists() and not args.force:
+        logger.error(f"Output file {output_path} already exists. Use --force to overwrite.")
         sys.exit(1)
 
     try:

@@ -5,6 +5,7 @@ ObservableCollection: A fast, queryable collection of observables.
 import importlib.util
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import (
+    TYPE_CHECKING,
     Any,
     TypeVar,
 )
@@ -20,6 +21,9 @@ from .sampling import SigmondSampling
 # ``sys.modules`` -- otherwise ``find_spec`` would trip the proxy and import it.
 PANDAS_AVAILABLE = importlib.util.find_spec("pandas") is not None
 pd = lazy.load("pandas")
+
+if TYPE_CHECKING:
+    from .stats import SamplingStats
 
 # TypeVar for fluent interface
 T = TypeVar("T", bound="ObservableCollection")
@@ -1205,6 +1209,11 @@ class ObservableCollection(PandasExportMixin):
             writer.write_bins_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
         else:
             writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
+            
+    def to_stats(self) -> 'SamplingStats':
+        """Return statistics for the collection."""
+        from .stats import SamplingStats
+        return SamplingStats(self._data)
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""

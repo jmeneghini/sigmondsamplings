@@ -14,6 +14,7 @@ import numpy as np
 from collections.abc import Sequence
 from typing import TypeAlias
 
+from . import obsmeta
 from ..bins import SigmondBins
 from ..ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
 from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
@@ -235,10 +236,15 @@ class SigmondLoader:
         Open a Sigmond HDF5 file, validate its structure, and map ``extract`` over each
         observable dataset in the ``Values`` group.
 
-        ``extract(obs_info, dataset_name, dataset)`` is invoked once per parseable
-        dataset and its return value collected. Datasets whose key cannot be parsed
-        are skipped. This is the single read/validate path shared by the eager
-        (full-array) and lazy (name+shape) loaders.
+        ``extract(obs_info, dataset_name, values_group, fields)`` is invoked once per
+        parseable dataset and its return value collected, where ``fields`` is the
+        observable's :mod:`obsmeta` row (``None`` for legacy files). Datasets whose
+        key cannot be parsed are skipped. This is the single read/validate path
+        shared by the eager (full-array) and lazy (name+shape) loaders.
+
+        Observable annotations come from the consolidated ``ObsMeta`` table in one
+        read; datasets absent from it (legacy or real Sigmond files) fall back to
+        their per-dataset HDF5 attributes.
 
         Returns:
             (ensemble_info, sampling_info_or_None, [extract(...), ...])
@@ -261,17 +267,19 @@ class SigmondLoader:
                 raise ValueError(f"No Values group found in {path}")
 
             values_group = group["Values"]
+            meta = obsmeta.read(group)
 
             results: list = []
             for dataset_name in values_group.keys():
-                dataset = values_group[dataset_name]
                 try:
                     obs_info = self._parse_observable_key(dataset_name, ensemble_info)
                 except (ValueError, NotImplementedError) as e:
                     logger.debug(f"Skipping dataset {dataset_name}: {e}")
                     continue
-                obs_info = self._apply_obs_attrs(obs_info, dataset.attrs)
-                results.append(extract(obs_info, dataset_name, dataset))
+                fields = meta.get(dataset_name)
+                attrs = fields if fields is not None else values_group[dataset_name].attrs
+                obs_info = self._apply_obs_attrs(obs_info, attrs)
+                results.append(extract(obs_info, dataset_name, values_group, fields))
 
             if not results:
                 raise ValueError("No valid observable data found in file")
@@ -304,7 +312,7 @@ class SigmondLoader:
             (ensemble_info, sampling_info_or_None, [(obs_info, data), ...])
         """
         return self._iter_hdf5_values(
-            filename, path, lambda obs_info, name, ds: (obs_info, ds[:])
+            filename, path, lambda obs_info, name, vg, fields: (obs_info, vg[name][:])
         )
 
     def _read_hdf5_index(
@@ -313,14 +321,22 @@ class SigmondLoader:
         """
         Index phase for lazy loading: read header + ``Values`` dataset names and shapes only.
 
-        No sample arrays are read. Shapes come from the HDF5 dataset headers (cheap)
-        so lazy bins can report ``num_bins`` without materializing.
+        No sample arrays are read. Shapes come from the consolidated ``ObsMeta``
+        table (so no dataset is opened at all), falling back to the HDF5 dataset
+        header for legacy files; either way lazy bins report ``num_bins`` without
+        materializing.
 
         Returns:
             (ensemble_info, sampling_info_or_None, [(obs_info, dataset_name, shape), ...])
         """
         return self._iter_hdf5_values(
-            filename, path, lambda obs_info, name, ds: (obs_info, name, tuple(ds.shape))
+            filename,
+            path,
+            lambda obs_info, name, vg, fields: (
+                obs_info,
+                name,
+                obsmeta.shape_of(fields) or tuple(vg[name].shape),
+            ),
         )
 
     def _group_records(

@@ -26,6 +26,7 @@ from sigmondsamplings.scripts.sigmond_combine import (
     validate_compatibility,
 )
 from sigmondsamplings.scripts.sigmond_convert import convert_to_hdf5
+from sigmondsamplings.scripts.sigmond_energy_attrs import add_energy_attrs
 
 DATA_DIR = Path(__file__).parent / "data"
 CORR_HDF5 = DATA_DIR / "corr_matrix_samplings.hdf5"
@@ -71,6 +72,22 @@ class TestConvertToHDF5:
         out = tmp_path / "no_ext_output"
         result = convert_to_hdf5(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
         assert Path(result).suffix == ".hdf5"
+
+    def test_h5_output_extension_preserved(self, tmp_path):
+        out = tmp_path / "repacked.h5"
+        result = convert_to_hdf5(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        assert Path(result) == out
+        assert out.exists()
+
+    def test_missing_output_extension_inherits_input_h5_extension(self, tmp_path):
+        input_h5 = tmp_path / "input.h5"
+        shutil.copy2(ENERGY_HDF5, input_h5)
+        out = tmp_path / "repacked"
+
+        result = convert_to_hdf5(str(input_h5), str(out), hdf5_path="samplings")
+
+        assert Path(result) == tmp_path / "repacked.h5"
+        assert Path(result).exists()
 
     @needs_sigmond_query
     def test_convert_fstream_smp(self, tmp_path):
@@ -158,8 +175,37 @@ class TestCombineFiles:
         result = combine_files([str(ENERGY_HDF5)], str(out), overwrite=True)
         assert Path(result).suffix == ".hdf5"
 
+    def test_h5_output_extension_preserved(self, tmp_path):
+        out = tmp_path / "combined.h5"
+        result = combine_files([str(ENERGY_HDF5)], str(out), overwrite=True)
+        assert Path(result) == out
+        assert out.exists()
+
     def test_existing_output_without_overwrite_raises(self, tmp_path):
         out = tmp_path / "combined.hdf5"
         out.write_text("placeholder")
         with pytest.raises(FileExistsError):
             combine_files([str(ENERGY_HDF5)], str(out), overwrite=False)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# sigmond_energy_attrs.add_energy_attrs
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestAddEnergyAttrs:
+    def test_h5_output_extension_preserved(self, tmp_path):
+        out = tmp_path / "energy_attrs.h5"
+        result = add_energy_attrs(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        assert Path(result) == out
+        assert out.exists()
+
+    def test_missing_output_extension_inherits_input_h5_extension(self, tmp_path):
+        input_h5 = tmp_path / "energy_input.h5"
+        shutil.copy2(ENERGY_HDF5, input_h5)
+        out = tmp_path / "energy_attrs"
+
+        result = add_energy_attrs(str(input_h5), str(out), hdf5_path="samplings")
+
+        assert Path(result) == tmp_path / "energy_attrs.h5"
+        assert Path(result).exists()

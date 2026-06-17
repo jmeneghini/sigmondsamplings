@@ -8,8 +8,8 @@ from sigmondsamplings.cli.main import app
 from sigmondsamplings.cli.query import (
     QuerySpec,
     apply_query,
+    attr_records,
     collection_dataframe,
-    column_records,
     parse_where_specs,
     unique_records,
 )
@@ -111,16 +111,21 @@ def test_cli_dataframe_can_recover_explicit_default_excluded_column():
     assert "_latex_str" in explicit_df.columns
 
 
-def test_column_records_lists_ordered_available_dataframe_columns():
+def test_attr_records_lists_ordered_attributes_with_occurrence_counts():
     levels = _energy_levels()
 
-    records = column_records(levels, ["name", "sector", "mean"])
-    columns = [record["column"] for record in records]
+    records = attr_records(levels, ["name", "sector", "mean"])
+    columns = [record["attribute"] for record in records]
 
     assert columns[:3] == ["name", "sector", "mean"]
     assert "_latex_str" not in columns
     assert "ensemble_info" not in columns
     assert "energy_type" in columns
+    # every record carries a non-negative occurrence count
+    assert all(isinstance(record["count"], int) and record["count"] >= 0 for record in records)
+    # "name" is present on every observable
+    name_record = next(record for record in records if record["attribute"] == "name")
+    assert name_record["count"] == len(list(levels))
 
 
 def test_unique_records_handles_numeric_unique_values_as_lists():
