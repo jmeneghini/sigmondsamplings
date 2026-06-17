@@ -6,7 +6,6 @@ from pathlib import Path
 
 from sigmondsamplings import SamplingStats, SigmondLoader
 
-
 DATA = Path(__file__).resolve().parents[1] / "tests" / "data" / "energy_levels_samplings.hdf5"
 
 
@@ -15,7 +14,7 @@ def main() -> None:
     observables = loader.observables
 
     print(f"file kind: {loader.file_kind}")
-    print(f"hdf5 path: {loader.hdf5_path}")
+    print(f"root group: {loader.group}")
     print(f"n observables: {len(observables)}")
 
     first = observables[0]

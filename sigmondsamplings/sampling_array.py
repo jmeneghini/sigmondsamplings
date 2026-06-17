@@ -28,7 +28,7 @@ from typing import Any
 import numpy as np
 import xarray as xr
 
-from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
+from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 from .sampling import SigmondSampling
 
 RESAMPLING_DIM = "resampling"
@@ -114,7 +114,7 @@ class ArrayObsInfo(ObservableInfo):
         index: int = 0,
         op_type: str = "n",
         re_im: str = "re",
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         latex_str: str | None = None,
     ):
         super().__init__(name, index, op_type, re_im, ensemble_info, latex_str)
@@ -405,7 +405,7 @@ class SigmondSamplingArray:
         name_fn: Callable | None = None,
         dim_names: Sequence[str] | None = None,
         coords: dict[str, Sequence] | None = None,
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         is_complex: bool = False,
     ) -> SigmondSamplingArray:
         """Wrap a raw buffer of shape ``S + (R,)`` in a SigmondSamplingArray.
@@ -893,7 +893,7 @@ class SigmondSamplingArray:
                 name="mixed_operation",
                 shape=result_shape,
                 dim_names=tuple(result.dims[:-1]),
-                ensemble_info=first.ensemble_info if same_ens else DEFAULT_ENSEMBLE,
+                ensemble_info=first.ensemble_info if same_ens else INDEP_ENSEMBLE,
             )
             new_infos = _default_element_infos(new_obs, result_shape)
 
@@ -1060,7 +1060,7 @@ def _combined_obs_info(
             name="mixed_operation",
             shape=new_shape,
             dim_names=new_dims,
-            ensemble_info=ref.ensemble_info if same_ens else DEFAULT_ENSEMBLE,
+            ensemble_info=ref.ensemble_info if same_ens else INDEP_ENSEMBLE,
         ),
         False,
     )

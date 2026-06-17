@@ -5,7 +5,7 @@ Utility functions for SigmondSamplings package.
 import numpy as np
 
 from .sampling import (
-    DEFAULT_ENSEMBLE,
+    INDEP_ENSEMBLE,
     EnsembleInfo,
     ObservableInfo,
     SamplingInfo,
@@ -62,7 +62,7 @@ def create_uniform_sampling(
         high: Upper bound for uniform distribution
         num_samples: Number of resampled values to generate
         observable_name: Name for the observable
-        ensemble_info: EnsembleInfo object (uses DEFAULT_ENSEMBLE if None)
+        ensemble_info: EnsembleInfo object (uses INDEP_ENSEMBLE if None)
         sampling_method: Sampling method ('bootstrap' or 'jackknife')
         seed: Random seed for reproducibility
 
@@ -83,7 +83,7 @@ def create_uniform_sampling(
 
     # Use provided ensemble_info or default
     if ensemble_info is None:
-        ensemble_info = DEFAULT_ENSEMBLE
+        ensemble_info = INDEP_ENSEMBLE
 
     sampling_info = SamplingInfo(sampling_method, num_samples, seed or 0)
     observable_info = ObservableInfo(observable_name, 0, "n", "re", ensemble_info)
@@ -110,7 +110,7 @@ def create_complex_gaussian_sampling(
         std_imag: Standard deviation for the imaginary part
         sampling_info: SamplingInfo object
         observable_name: Name for the observable
-        ensemble_info: EnsembleInfo object (uses DEFAULT_ENSEMBLE if None)
+        ensemble_info: EnsembleInfo object (uses INDEP_ENSEMBLE if None)
 
     Returns:
         SigmondSampling object with synthetic complex data
@@ -132,7 +132,7 @@ def create_complex_gaussian_sampling(
 
     # Use provided ensemble_info or default
     if ensemble_info is None:
-        ensemble_info = DEFAULT_ENSEMBLE
+        ensemble_info = INDEP_ENSEMBLE
 
     observable_info = ObservableInfo(observable_name, 0, "n", "cx", ensemble_info)
 

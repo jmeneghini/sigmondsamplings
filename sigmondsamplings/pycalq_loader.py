@@ -102,7 +102,7 @@ class PyCALQLoader(SigmondLoader):
     def __init__(
         self,
         pycalq_project_base_dir: str | Path | None = None,
-        hdf5_path: str = "/samplings",
+        group: str = "/samplings",
     ):
         """
         Initialize the PyCALQLoader.
@@ -111,14 +111,14 @@ class PyCALQLoader(SigmondLoader):
         ----------
         pycalq_project_base_dir : Optional[Union[str, Path]]
             Base directory for PyCALQ project files. If None, defaults to current working directory.
-        hdf5_path : str, optional
-            Path inside HDF5 files for sigmond_query. Defaults to "/samplings".
+        group : str, optional
+            HDF5 root group inside HDF5 files for sigmond_query. Defaults to "/samplings".
         """
         pycalq_project_base_dir = (
             Path(pycalq_project_base_dir) if pycalq_project_base_dir else Path.cwd()
         )
         self.pycalq_project_base_dir = pycalq_project_base_dir
-        self.hdf5_path = hdf5_path
+        self.group = group
         super().__init__()
 
     def _format_hdf5_file_path(self, file_path: str) -> str:
@@ -136,7 +136,7 @@ class PyCALQLoader(SigmondLoader):
             Formatted path in the format 'file.hdf5[/path]' for sigmond_query
         """
         if file_path.endswith(".hdf5"):
-            return f"{file_path}[{self.hdf5_path}]"
+            return f"{file_path}[{self.group}]"
         return file_path
 
     def load_all_observables(self, filename: str) -> dict[str, "SigmondSampling"]:

@@ -20,9 +20,9 @@ import numpy as np
 import pytest
 
 from sigmondsamplings.bins import SigmondBins
-from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
-from sigmondsamplings.sampling import SigmondSampling
+from sigmondsamplings.io.loader import DEFAULT_GROUP, SigmondLoader
 from sigmondsamplings.io.writer import SigmondWriter
+from sigmondsamplings.sampling import SigmondSampling
 
 DATA_DIR = Path(__file__).parent / "data"
 CORR_HDF5 = DATA_DIR / "corr_matrix_samplings.hdf5"
@@ -84,7 +84,7 @@ class TestLoadCorrMatrixHDF5:
     def test_kind_and_count(self):
         ld = SigmondLoader(str(CORR_HDF5))
         assert ld.file_kind == "samplings"
-        assert ld.hdf5_path == "isotriplet_S0_A1gm_1_P0"
+        assert ld.group == "isotriplet_S0_A1gm_1_P0"
         assert len(ld.observables) == 6
 
     def test_all_complex_corrt(self):
@@ -123,7 +123,7 @@ class TestLoadEnergyLevelsHDF5:
     def test_kind_and_count(self):
         ld = SigmondLoader(str(ENERGY_HDF5))
         assert ld.file_kind == "samplings"
-        assert ld.hdf5_path == "samplings"
+        assert ld.group == "samplings"
         assert len(ld.observables) == 54
 
     def test_all_real_simple_names(self):
@@ -167,7 +167,7 @@ class TestLoadPionFstream:
     def test_kind_and_count(self):
         ld = SigmondLoader(str(PION_SMP))
         assert ld.file_kind == "samplings"
-        assert ld.hdf5_path is None  # fstream has no HDF5 path
+        assert ld.group is None  # fstream has no HDF5 path
         assert len(ld.observables) == 51
 
     def test_names_contain_slashes(self):
@@ -196,7 +196,7 @@ class TestSamplingsRoundTrip:
         original = list(SigmondLoader(str(CORR_HDF5)).observables)
         out = tmp_path / "corr_rt.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
-            str(out), original, root_path="samplings", overwrite=True
+            str(out), original, group="samplings", overwrite=True
         )
         reloaded = list(SigmondLoader(str(out)).observables)
         assert all(o.is_complex for o in reloaded)
@@ -207,7 +207,7 @@ class TestSamplingsRoundTrip:
         original = list(SigmondLoader(str(ENERGY_HDF5)).observables)
         out = tmp_path / "energy_rt.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
-            str(out), original, root_path="samplings", overwrite=True
+            str(out), original, group="samplings", overwrite=True
         )
         reloaded = list(SigmondLoader(str(out)).observables)
         _assert_samplings_roundtrip(original, reloaded)
@@ -241,7 +241,7 @@ class TestEnergyAttrsRoundTrip:
         ]
         out = tmp_path / "energy_attrs_rt.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
-            str(out), samps, root_path="samplings", overwrite=True
+            str(out), samps, group="samplings", overwrite=True
         )
         return out
 
@@ -274,7 +274,7 @@ class TestEnergyAttrsRoundTrip:
         out = tmp_path / "plain_rt.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
             str(out), [SigmondSampling(np.arange(11.0), plain, si, False)],
-            root_path="samplings", overwrite=True,
+            group="samplings", overwrite=True,
         )
         oi = list(SigmondLoader(str(out)).observables)[0].observable_info
         assert type(oi) is ObservableInfo
@@ -285,7 +285,7 @@ class TestBinsRoundTrip:
         original = list(SigmondLoader(str(BINS_HDF5)).observables)
         out = tmp_path / "bins_rt.hdf5"
         SigmondWriter(create_backups=False).write_bins_hdf5(
-            str(out), original, root_path="bins", overwrite=True
+            str(out), original, group="bins", overwrite=True
         )
         ld = SigmondLoader(str(out))
         assert ld.file_kind == "bins"
@@ -298,9 +298,9 @@ class TestConvertFormat:
     def test_convert_bins_hdf5_preserves_kind(self, tmp_path):
         out = tmp_path / "bins_converted.hdf5"
         SigmondWriter(create_backups=False).convert_format(
-            str(BINS_HDF5), str(out), hdf5_root_path="/dest/", overwrite=True
+            str(BINS_HDF5), str(out), group="/dest/", overwrite=True
         )
-        ld = SigmondLoader(str(out), hdf5_path="dest")
+        ld = SigmondLoader(str(out), group="dest")
         assert ld.file_kind == "bins"
         _assert_samplings_roundtrip(
             list(SigmondLoader(str(BINS_HDF5)).observables), list(ld.observables)
@@ -310,9 +310,9 @@ class TestConvertFormat:
     def test_convert_fstream_smp_to_hdf5(self, tmp_path):
         out = tmp_path / "pion_converted.hdf5"
         SigmondWriter(create_backups=False).convert_format(
-            str(PION_SMP), str(out), hdf5_root_path="/samplings/", overwrite=True
+            str(PION_SMP), str(out), group="/samplings/", overwrite=True
         )
-        ld = SigmondLoader(str(out), hdf5_path="samplings")
+        ld = SigmondLoader(str(out), group="samplings")
         assert ld.file_kind == "samplings"
         _assert_samplings_roundtrip(
             list(SigmondLoader(str(PION_SMP)).observables), list(ld.observables)
@@ -398,14 +398,14 @@ class TestMultiRootPathHDF5:
 
     def test_unknown_path_raises_and_lists_available(self, multi_path_hdf5):
         with pytest.raises(ValueError, match="not found"):
-            SigmondLoader(str(multi_path_hdf5), hdf5_path="does_not_exist")
+            SigmondLoader(str(multi_path_hdf5), group="does_not_exist")
 
     def test_each_path_loads_its_own_group(self, multi_path_hdf5):
-        corr = SigmondLoader(str(multi_path_hdf5), hdf5_path=CORR_PATH)
-        levels = SigmondLoader(str(multi_path_hdf5), hdf5_path=LEVELS_PATH)
+        corr = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH)
+        levels = SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH)
 
-        assert corr.hdf5_path == CORR_PATH
-        assert levels.hdf5_path == LEVELS_PATH
+        assert corr.group == CORR_PATH
+        assert levels.group == LEVELS_PATH
         assert len(corr.observables) == 6
         assert len(levels.observables) == 54
         # Groups are independent: complex CorrT in one, real scalars in the other.
@@ -413,36 +413,36 @@ class TestMultiRootPathHDF5:
         assert not any(o.is_complex for o in levels.observables)
 
     def test_path_load_matches_standalone_fixture(self, multi_path_hdf5):
-        from_multi = SigmondLoader(str(multi_path_hdf5), hdf5_path=CORR_PATH).observables
+        from_multi = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH).observables
         standalone = SigmondLoader(str(CORR_HDF5)).observables
         _assert_samplings_roundtrip(list(standalone), list(from_multi))
 
     def test_append_targets_one_group_only(self, multi_path_hdf5):
-        donor = list(SigmondLoader(str(multi_path_hdf5), hdf5_path=LEVELS_PATH).observables)[0]
+        donor = list(SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH).observables)[0]
         new_obs = _clone_with_name(donor, "added_to_levels")
 
         out = SigmondWriter(create_backups=False).append_to_file(
-            str(multi_path_hdf5), [new_obs], hdf5_root_path=LEVELS_PATH
+            str(multi_path_hdf5), [new_obs], group=LEVELS_PATH
         )
         assert Path(out) == multi_path_hdf5  # appended in place
 
-        levels = SigmondLoader(str(multi_path_hdf5), hdf5_path=LEVELS_PATH).observables
-        corr = SigmondLoader(str(multi_path_hdf5), hdf5_path=CORR_PATH).observables
+        levels = SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH).observables
+        corr = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH).observables
         assert len(levels) == 55  # the targeted group grew
         assert "added_to_levels" in _by_name(levels)
         assert len(corr) == 6  # the other group is untouched
 
     def test_modify_targets_one_group_only(self, multi_path_hdf5):
-        target = list(SigmondLoader(str(multi_path_hdf5), hdf5_path=LEVELS_PATH).observables)[0]
+        target = list(SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH).observables)[0]
         name, index = target.observable_info.name, target.observable_info.index
         new_data = np.full(len(target.data), 2.71828)
 
         SigmondWriter(create_backups=False).modify_observable(
-            str(multi_path_hdf5), name, index, new_data, hdf5_root_path=LEVELS_PATH
+            str(multi_path_hdf5), name, index, new_data, group=LEVELS_PATH
         )
 
-        levels = SigmondLoader(str(multi_path_hdf5), hdf5_path=LEVELS_PATH).observables
-        corr = SigmondLoader(str(multi_path_hdf5), hdf5_path=CORR_PATH).observables
+        levels = SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH).observables
+        corr = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH).observables
         np.testing.assert_allclose(levels.find(name=name, index=index).data, new_data, rtol=1e-12)
         assert len(levels) == 54 and len(corr) == 6  # no group gained/lost observables
 
@@ -459,28 +459,28 @@ class TestNestedRootPath:
         original = list(SigmondLoader(str(ENERGY_HDF5)).observables)
         out = tmp_path / "nested.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
-            str(out), original, root_path=self.NESTED, overwrite=True
+            str(out), original, group=self.NESTED, overwrite=True
         )
 
-        # A single nested root group is auto-detected (no hdf5_path needed).
+        # A single nested root group is auto-detected (no group needed).
         ld = SigmondLoader(str(out))
-        assert ld.hdf5_path == self.NESTED
+        assert ld.group == self.NESTED
         _assert_samplings_roundtrip(original, list(ld.observables))
 
     def test_explicit_nested_path_loads(self, tmp_path):
         original = list(SigmondLoader(str(ENERGY_HDF5)).observables)
         out = tmp_path / "nested.hdf5"
         SigmondWriter(create_backups=False).write_hdf5(
-            str(out), original, root_path=f"/{self.NESTED}/", overwrite=True
+            str(out), original, group=f"/{self.NESTED}/", overwrite=True
         )
-        ld = SigmondLoader(str(out), hdf5_path=self.NESTED)
+        ld = SigmondLoader(str(out), group=self.NESTED)
         _assert_samplings_roundtrip(original, list(ld.observables))
 
 
-class TestDefaultRootPath:
-    def test_write_file_uses_default_root_path(self, tmp_path):
+class TestDefaultGroup:
+    def test_write_file_uses_default_group(self, tmp_path):
         original = list(SigmondLoader(str(ENERGY_HDF5)).observables)
         out = SigmondWriter(create_backups=False).write_file(
             str(tmp_path / "out.hdf5"), original, overwrite=True
         )
-        assert SigmondLoader(str(out)).hdf5_path == DEFAULT_ROOT_PATH
+        assert SigmondLoader(str(out)).group == DEFAULT_GROUP

@@ -1,4 +1,4 @@
-"""Collection-oriented query helpers for the ``ss-query`` CLI."""
+"""Collection-oriented query helpers for the ``ss`` CLI."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class QuerySpec:
     default_sort: tuple[str, ...] | None = None
 
 
-# Output/display defaults shared by every front-end (ss-query and kb).
+# Output/display defaults shared by every front-end (ss query and kb).
 QUERY_FORMATS = ("table", "json", "csv")
 RAW_FRONT = ("name", "data_str", "mean", "error")
 ENERGY_FRONT = (
@@ -45,14 +45,14 @@ ENERGY_DEFAULT_SORT = ("obs_kind", "sector", "level_index", "energy_type")
 def load_collection(
     filename: str | Path,
     *,
-    hdf5_path: str | None = None,
+    group: str | None = None,
     energy: bool = False,
     lazy: bool = True,
 ):
     """Load raw observables or the energy-level view for a Sigmond file."""
     filename = str(filename)
     use_lazy = lazy and is_hdf5_file(filename)
-    loader = SigmondLoader(filename, hdf5_path=hdf5_path, lazy=use_lazy)
+    loader = SigmondLoader(filename, group=group, lazy=use_lazy)
     if energy:
         return loader.energy_observables(return_type="list")
     collection = loader.observables
@@ -60,17 +60,17 @@ def load_collection(
     return collection
 
 
-def hdf5_paths(filename: str | Path) -> list[str]:
-    """Return Sigmond HDF5 data paths in ``filename``."""
-    is_valid, _file_kind, paths = verify_sigmond_hdf5(str(filename))
+def root_groups(filename: str | Path) -> list[str]:
+    """Return Sigmond HDF5 root groups in ``filename``."""
+    is_valid, _file_kind, groups = verify_sigmond_hdf5(str(filename))
     if not is_valid:
         raise ValueError(f"{filename} is not a valid Sigmond HDF5 file")
-    return paths or []
+    return groups or []
 
 
-def file_info(filename: str | Path, *, hdf5_path: str | None = None) -> dict[str, Any]:
+def file_info(filename: str | Path, *, group: str | None = None) -> dict[str, Any]:
     """Return a compact info record for a Sigmond file."""
-    collection = load_collection(filename, hdf5_path=hdf5_path, lazy=True)
+    collection = load_collection(filename, group=group, lazy=True)
     sampling_info = collection.shared_attr("sampling_info")
     ensemble_info = collection.shared_attr("ensemble_info")
     return {
@@ -156,7 +156,7 @@ def run_query_view(
     energy: bool,
     spec: QuerySpec,
     unique: str | None = None,
-    group: str | None = None,
+    group_by: str | None = None,
     list_attrs: bool = False,
     plot: str | None = None,
     plot_spectrum: bool = False,
@@ -172,7 +172,7 @@ def run_query_view(
 ):
     """Apply *spec* to *collection*, then render, plot, or save the result.
 
-    The data-source-agnostic core of the query CLI: ``ss-query`` hands it a
+    The data-source-agnostic core of the query CLI: ``ss query`` hands it a
     file-loaded collection, while other front-ends (e.g. a project-wide
     multi-ensemble collection) pass their own. Performs the requested terminal
     action (table/json/csv render, plot, or ``--save`` spectrum config) and
@@ -208,11 +208,11 @@ def run_query_view(
         raise ValueError("--plot-obs-index and --plot-panels are only valid with --plot.")
 
     mode_count = sum(
-        bool(value) for value in (unique, group, list_attrs, plot, plot_spectrum, save)
+        bool(value) for value in (unique, group_by, list_attrs, plot, plot_spectrum, save)
     )
     if mode_count > 1:
         raise ValueError(
-            "Use only one of --unique, --group, --list-attrs, --plot, "
+            "Use only one of --unique, --group-by, --list-attrs, --plot, "
             "--plot-spectrum, or --save."
         )
 
@@ -224,8 +224,8 @@ def run_query_view(
         render_records(unique_records(collection, unique), fmt=fmt)
         return collection
 
-    if group:
-        render_records(group_records(collection, group), fmt=fmt)
+    if group_by:
+        render_records(group_records(collection, group_by), fmt=fmt)
         return collection
 
     selected_columns = parse_columns(columns)

@@ -1,30 +1,20 @@
-#!/usr/bin/env python3
 """
-Script to combine multiple Sigmond files into a single HDF5 file.
+Combine multiple Sigmond files into a single HDF5 file.
 
-This script loads multiple Sigmond files (.smp, .bins, .fstream, .hdf5, etc) and combines
+Loads multiple Sigmond files (.smp, .bins, .fstream, .hdf5, etc) and combines
 them into a single HDF5 output file.
+
+Library functions backing the ``ss combine`` command (see ``sigmondsamplings.cli``).
 """
 
-import argparse
 import logging
-import sys
 from pathlib import Path
 
+from ..sampling import SigmondSampling
+from .loader import DEFAULT_GROUP, SigmondLoader
+from .writer import SigmondWriter
+
 logger = logging.getLogger(__name__)
-
-try:
-    from ..io.loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from ..io.writer import SigmondWriter
-    from ..sampling import SigmondSampling
-except ImportError:
-    # Handle direct execution
-    import os
-
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from sigmondsamplings.io.loader import DEFAULT_ROOT_PATH, SigmondLoader
-    from sigmondsamplings.io.writer import SigmondWriter
-    from sigmondsamplings.sampling import SigmondSampling
 
 
 def resolve_paths(input_files: list[str], base_path: str | None = None) -> list[str]:
@@ -168,7 +158,7 @@ def validate_compatibility(samplings: dict[str, SigmondSampling], verbose: bool 
 def combine_files(
     input_files: list[str],
     output_file: str,
-    hdf5_root_path: str = DEFAULT_ROOT_PATH,
+    group: str = DEFAULT_GROUP,
     base_path: str | None = None,
     verbose: bool = False,
     overwrite: bool = False,
@@ -179,7 +169,7 @@ def combine_files(
     Args:
         input_files: List of input file paths (relative or absolute)
         output_file: Output HDF5 file path
-        hdf5_root_path: Root path for HDF5 output
+        group: HDF5 root group to write the combined output under
         base_path: Base path for resolving relative input paths
         verbose: Whether to print detailed progress information
         overwrite: Whether to overwrite existing output file
@@ -226,7 +216,7 @@ def combine_files(
     final_output = writer.write_file(
         filename=str(output_path),
         samplings=samplings_list,
-        root_path=hdf5_root_path,
+        group=group,
         overwrite=overwrite,
     )
 
@@ -234,77 +224,3 @@ def combine_files(
     logger.info(f"Combined file contains {len(all_samplings)} observables")
 
     return final_output
-
-
-def main():
-    """Main entry point for the combine script."""
-    parser = argparse.ArgumentParser(
-        description="Combine multiple Sigmond files into a single HDF5 file",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Combine files in current directory
-  sigmond-combine file1.smp file2.hdf5 file3.smp -o combined.hdf5
-
-  # Combine with relative paths from a base directory
-  sigmond-combine ../data/*.smp results/*.hdf5 -o combined.hdf5 --base-path /path/to/project
-
-  # Combine with custom HDF5 root path and verbose output
-  sigmond-combine *.smp -o combined.hdf5 --hdf5-root-path /ensemble_A/ --verbose
-
-  # Overwrite existing output file
-  sigmond-combine file1.smp file2.smp -o existing.hdf5 --overwrite
-
-Note: All input files must have compatible sampling information (bootstrap/jackknife
-parameters) but can come from different ensembles.
-        """,
-    )
-
-    parser.add_argument(
-        "input_files", nargs="+", help="Input Sigmond files (.smp, .fstream, .hdf5)"
-    )
-    parser.add_argument("-o", "--output", required=True, help="Output HDF5 file path")
-    parser.add_argument(
-        "--hdf5-root-path",
-        default=DEFAULT_ROOT_PATH,
-        help=f"Root path for output HDF5 file (default: {DEFAULT_ROOT_PATH})",
-    )
-    parser.add_argument(
-        "--base-path",
-        help="Base path for resolving relative input paths (default: current directory)",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Print detailed progress information",
-    )
-    parser.add_argument(
-        "--overwrite",
-        "-f",
-        action="store_true",
-        help="Overwrite output file if it exists",
-    )
-
-    args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO, format="%(message)s"
-    )
-
-    try:
-        combine_files(
-            input_files=args.input_files,
-            output_file=args.output,
-            hdf5_root_path=args.hdf5_root_path,
-            base_path=args.base_path,
-            verbose=args.verbose,
-            overwrite=args.overwrite,
-        )
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

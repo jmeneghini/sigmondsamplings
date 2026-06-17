@@ -16,7 +16,7 @@
 
 - **Runtime Configuration**: Global `rcparams` support package-level defaults for plotting behavior, metric selection, confidence levels, color/marker palettes, and the `KnownEnsembles` XML database path. Settings can be temporarily overridden or saved/loaded from TOML config files.
 
-- **CLI Utilities**: The package installs `sigmond-convert` and `sigmond-combine` for converting fstream files to HDF5 and combining multiple sampling files.
+- **CLI Utilities**: The package installs a single `ss` command. `ss query` inspects/queries files (`groups`, `info`, `obs`, `energy`); `ss convert`, `ss combine`, and `ss energy-tag` write HDF5 (convert an fstream/HDF5 file, combine several sampling files, or tag energy attributes).
 
 
 ## Installation
@@ -105,7 +105,7 @@ loader = SigmondLoader(str(filename))
 observables = loader.observables
 
 print(loader.file_kind)        # "samplings"
-print(loader.hdf5_path)        # auto-detected HDF5 root path, if unique
+print(loader.group)            # auto-detected HDF5 root group, if unique
 print(len(observables))
 
 ensemble_info, sampling_info, observable_infos = loader.get_file_info()
@@ -203,7 +203,7 @@ subset, round-trip converted data, or newly constructed observables:
 from sigmondsamplings import SigmondWriter
 
 writer = SigmondWriter(create_backups=False)
-writer.write_hdf5("subset.hdf5", observables[:5], root_path="samplings", overwrite=True)
+writer.write_hdf5("subset.hdf5", observables[:5], group="samplings", overwrite=True)
 ```
 
 ### Create Synthetic Data

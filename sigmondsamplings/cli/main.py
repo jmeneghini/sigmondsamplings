@@ -1,4 +1,8 @@
-"""Typer entry point for ``ss-query``."""
+"""Typer entry point for the unified ``ss`` CLI.
+
+Two areas: ``ss query …`` (read/inspect Sigmond files) and the write commands
+``ss convert`` / ``ss combine`` / ``ss energy-tag`` (defined in :mod:`.io`).
+"""
 
 from __future__ import annotations
 
@@ -12,43 +16,55 @@ from .query import (
     QUERY_FORMATS,
     QuerySpec,
     file_info,
-    hdf5_paths,
     load_collection,
+    root_groups,
     run_query_view,
 )
 from .render import render_records
+from .write import combine, convert, energy_tag
 
 app = typer.Typer(
-    help="View and query Sigmond sampling and bins files.",
+    help="Inspect, convert, and combine Sigmond sampling and bins files.",
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
+query_app = typer.Typer(
+    help="View and query Sigmond sampling and bins files.",
+    no_args_is_help=True,
+)
+app.add_typer(query_app, name="query")
 
-@app.command()
-def paths(file: Path) -> None:
-    """List Sigmond HDF5 data paths."""
-    records = [{"path": path} for path in hdf5_paths(file)]
+# Write-side commands share the root app alongside the query group.
+app.command()(convert)
+app.command()(combine)
+app.command(name="energy-tag")(energy_tag)
+
+
+@query_app.command()
+def groups(file: Path) -> None:
+    """List Sigmond HDF5 root groups."""
+    records = [{"group": group} for group in root_groups(file)]
     render_records(records, fmt="table")
 
 
-@app.command()
+@query_app.command()
 def info(
     file: Path,
-    hdf5_path: str | None = typer.Option(None, "--hdf5-path", help="Root path inside HDF5 file."),
+    group: str | None = typer.Option(None, "--group", help="HDF5 root group to read."),
     fmt: str = typer.Option("table", "--format", help="Output format: table, json, or csv."),
 ) -> None:
     """Show a compact file summary."""
     _check_format(fmt)
-    render_records([file_info(file, hdf5_path=hdf5_path)], fmt=fmt)
+    render_records([file_info(file, group=group)], fmt=fmt)
 
 
-@app.command()
+@query_app.command()
 def obs(
     file: Path,
     where: list[str] | None = typer.Option(None, "--where", "-w", help="Filter as attr=value. Repeat or use comma values for membership."),
     unique: str | None = typer.Option(None, "--unique", help="Show unique values for attr or attr,attr."),
-    group: str | None = typer.Option(None, "--group", help="Group by attr or attr,attr and show counts."),
+    group_by: str | None = typer.Option(None, "--group-by", help="Group by attr or attr,attr and show counts."),
     list_attrs: bool = typer.Option(False, "--list-attrs", help="List available attributes with their occurrence counts after filtering."),
     plot: str | None = typer.Option(None, "--plot", help=f"Render plot method: {', '.join(GENERIC_PLOT_METHODS)}."),
     plot_output: Path | None = typer.Option(None, "--plot-output", help="Write plot to this path."),
@@ -63,17 +79,17 @@ def obs(
     sort: str | None = typer.Option(None, "--sort", help="Sort by attr or attr,attr."),
     reverse: bool = typer.Option(False, "--reverse", help="Reverse sort order."),
     limit: int | None = typer.Option(None, "--limit", min=0, help="Maximum rows to show."),
-    hdf5_path: str | None = typer.Option(None, "--hdf5-path", help="Root path inside HDF5 file."),
+    group: str | None = typer.Option(None, "--group", help="HDF5 root group to read."),
     fmt: str = typer.Option("table", "--format", help="Output format: table, json, or csv."),
 ) -> None:
     """Query raw observables."""
     _query_view(
         file,
         energy=False,
-        hdf5_path=hdf5_path,
+        group=group,
         where=where,
         unique=unique,
-        group=group,
+        group_by=group_by,
         list_attrs=list_attrs,
         plot=plot,
         plot_spectrum=False,
@@ -93,12 +109,12 @@ def obs(
     )
 
 
-@app.command()
+@query_app.command()
 def energy(
     file: Path,
     where: list[str] | None = typer.Option(None, "--where", "-w", help="Filter as attr=value. Repeat or use comma values for membership."),
     unique: str | None = typer.Option(None, "--unique", help="Show unique values for attr or attr,attr."),
-    group: str | None = typer.Option(None, "--group", help="Group by attr or attr,attr and show counts."),
+    group_by: str | None = typer.Option(None, "--group-by", help="Group by attr or attr,attr and show counts."),
     list_attrs: bool = typer.Option(False, "--list-attrs", help="List available attributes with their occurrence counts after filtering."),
     plot: str | None = typer.Option(None, "--plot", help=f"Render plot method: {', '.join(GENERIC_PLOT_METHODS)}."),
     plot_spectrum: bool = typer.Option(False, "--plot-spectrum", help="Render the queried energy collection with SectorSpectrumPlotter."),
@@ -115,17 +131,17 @@ def energy(
     reverse: bool = typer.Option(False, "--reverse", help="Reverse sort order."),
     limit: int | None = typer.Option(None, "--limit", min=0, help="Maximum rows to show."),
     save: Path | None = typer.Option(None, "--save", help="Write the queried spectrum to a spec TOML instead of displaying it."),
-    hdf5_path: str | None = typer.Option(None, "--hdf5-path", help="Root path inside HDF5 file."),
+    group: str | None = typer.Option(None, "--group", help="HDF5 root group to read."),
     fmt: str = typer.Option("table", "--format", help="Output format: table, json, or csv."),
 ) -> None:
     """Query energy observables."""
     _query_view(
         file,
         energy=True,
-        hdf5_path=hdf5_path,
+        group=group,
         where=where,
         unique=unique,
-        group=group,
+        group_by=group_by,
         list_attrs=list_attrs,
         plot=plot,
         plot_spectrum=plot_spectrum,
@@ -150,10 +166,10 @@ def _query_view(
     file: Path,
     *,
     energy: bool,
-    hdf5_path: str | None,
+    group: str | None,
     where: list[str] | None,
     unique: str | None,
-    group: str | None,
+    group_by: str | None,
     list_attrs: bool,
     plot: str | None,
     plot_spectrum: bool,
@@ -172,7 +188,7 @@ def _query_view(
     fmt: str,
     save: Path | None = None,
 ) -> None:
-    collection = load_collection(file, hdf5_path=hdf5_path, energy=energy)
+    collection = load_collection(file, group=group, energy=energy)
     spec = QuerySpec(
         where=tuple(where or ()),
         contains=contains,
@@ -188,7 +204,7 @@ def _query_view(
             energy=energy,
             spec=spec,
             unique=unique,
-            group=group,
+            group_by=group_by,
             list_attrs=list_attrs,
             plot=plot,
             plot_spectrum=plot_spectrum,

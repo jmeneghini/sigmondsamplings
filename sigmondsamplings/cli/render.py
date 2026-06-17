@@ -1,4 +1,4 @@
-"""Output rendering for the ``ss-query`` CLI."""
+"""Output rendering for the ``ss`` CLI."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from rich.console import Console
 from rich.table import Table
 
 from .query import format_value
-
 
 console = Console()
 

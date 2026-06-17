@@ -50,10 +50,7 @@ Repository = "https://github.com/jmeneghini/sigmondsamplings"
 Issues = "https://github.com/jmeneghini/sigmondsamplings/issues"
 
 [project.scripts]
-ss-query = "sigmondsamplings.cli.main:main"
-sigmond-convert = "sigmondsamplings.scripts.sigmond_convert:main"
-sigmond-combine = "sigmondsamplings.scripts.sigmond_combine:main"
-ss-energy-obs = "sigmondsamplings.scripts.sigmond_energy_attrs:main"
+ss = "sigmondsamplings.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

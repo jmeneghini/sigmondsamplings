@@ -11,7 +11,7 @@ from slat import (
     get_particle_latex_str,
 )
 
-from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo
+from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo
 
 
 class Particle:
@@ -382,7 +382,7 @@ class EnergyObsInfo(ObservableInfo):
         self,
         name: str = None,
         index: int = 0,
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         irrep: str = None,
         psq: int = None,
         energy_type: str = None,
@@ -593,7 +593,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
         self,
         name: str = None,
         index: int = 0,
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         irrep: str = None,
         psq: int = None,
         energy_type: str = None,

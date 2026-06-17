@@ -1169,7 +1169,7 @@ class ObservableCollection(PandasExportMixin):
 
     # TODO: would like a better updating mechanism. Want to be able to 'update' or 'append'.
     def to_hdf5(
-        self, filename: str, overwrite: bool = False, root_path: str = "data"
+        self, filename: str, overwrite: bool = False, group: str = "data"
     ) -> None:
         """
         Export collection data to HDF5 file in Sigmond format.
@@ -1181,7 +1181,7 @@ class ObservableCollection(PandasExportMixin):
         Args:
             filename: Path to output HDF5 file
             overwrite: If True, overwrite existing file (default: False)
-            root_path: Root path in HDF5 file to store data (default: "data")
+            group: HDF5 root group to store data under (default: "data")
         """
         from .bins import SigmondBins
         from .ensemble_collection import SingleEnsembleCollection
@@ -1206,9 +1206,9 @@ class ObservableCollection(PandasExportMixin):
 
         writer = SigmondWriter(create_backups=True)
         if all_bins:
-            writer.write_bins_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
+            writer.write_bins_hdf5(filename, self._data, group=group, overwrite=overwrite)
         else:
-            writer.write_hdf5(filename, self._data, root_path=root_path, overwrite=overwrite)
+            writer.write_hdf5(filename, self._data, group=group, overwrite=overwrite)
             
     def to_stats(self) -> 'SamplingStats':
         """Return statistics for the collection."""

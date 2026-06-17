@@ -48,7 +48,7 @@ class _FileRef:
     """
 
     filename: str
-    values_path: str
+    values_group: str
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,7 @@ class HDF5ObservableRecord:
 def _read_record(record: HDF5ObservableRecord) -> np.ndarray:
     """Materialization phase: read and fuse exactly the dataset(s) for one observable."""
     with h5py.File(record.file.filename, "r") as f:
-        group = f[record.file.values_path]
+        group = f[record.file.values_group]
         re_part = group[record.real_name][:] if record.real_name is not None else None
         im_part = group[record.imag_name][:] if record.imag_name is not None else None
     if re_part is not None and im_part is not None:

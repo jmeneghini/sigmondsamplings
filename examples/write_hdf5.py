@@ -7,7 +7,6 @@ from tempfile import TemporaryDirectory
 
 from sigmondsamplings import SigmondLoader, SigmondWriter
 
-
 DATA = Path(__file__).resolve().parents[1] / "tests" / "data" / "energy_levels_samplings.hdf5"
 
 
@@ -19,9 +18,9 @@ def main() -> None:
         out = Path(tmp) / "energy_subset.hdf5"
 
         writer = SigmondWriter(create_backups=False)
-        writer.write_hdf5(str(out), subset, root_path="samplings", overwrite=True)
+        writer.write_hdf5(str(out), subset, group="samplings", overwrite=True)
 
-        reloaded = SigmondLoader(str(out), hdf5_path="samplings")
+        reloaded = SigmondLoader(str(out), group="samplings")
 
         print(f"wrote: {out}")
         print(f"n original: {len(subset)}")

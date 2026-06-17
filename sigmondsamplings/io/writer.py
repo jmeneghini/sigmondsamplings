@@ -17,16 +17,16 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from ..bins import SigmondBins
+from ..sampling import EnsembleInfo, ObservableInfo, SamplingInfo, SigmondSampling
 from . import obsmeta
 from .loader import (
-    DEFAULT_ROOT_PATH,
+    DEFAULT_GROUP,
     SigmondLoader,
-    clean_hdf5_path,
+    clean_group,
     is_hdf5_file,
     verify_sigmond_hdf5,
 )
-from ..bins import SigmondBins
-from ..sampling import EnsembleInfo, ObservableInfo, SamplingInfo, SigmondSampling
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +129,7 @@ class SigmondWriter:
     # HDF5 / XML building blocks
     # ──────────────────────────────────────────────────────────────────────
 
-    def _ensure_hdf5_format(
-        self, filename: str, hdf5_root_path: str | None = None
-    ) -> tuple[Path, str]:
+    def _ensure_hdf5_format(self, filename: str, group: str | None = None) -> tuple[Path, str]:
         """
         Resolve the HDF5 file that in-place mutating operations should act on.
 
@@ -144,21 +142,20 @@ class SigmondWriter:
         use the fast h5py path.
 
         Returns:
-            (hdf5_filename, root_path) ready for in-place operations.
+            (hdf5_filename, group) ready for in-place operations.
         """
         filepath = Path(filename)
 
         # Already a valid Sigmond HDF5 file -> operate on it directly.
         if is_hdf5_file(str(filepath)):
-            is_valid, _, available_paths = verify_sigmond_hdf5(str(filepath))
+            is_valid, _, available_groups = verify_sigmond_hdf5(str(filepath))
             if not is_valid:
                 raise ValueError(f"File {filepath} is not a valid Sigmond HDF5 file")
-            root_path = hdf5_root_path
-            if root_path is None:
-                if not available_paths:
-                    raise ValueError(f"No data paths found in HDF5 file {filepath}")
-                root_path = available_paths[0]
-            return filepath, clean_hdf5_path(root_path)
+            if group is None:
+                if not available_groups:
+                    raise ValueError(f"No data groups found in HDF5 file {filepath}")
+                group = available_groups[0]
+            return filepath, clean_group(group)
 
         # fstream input: convert once to a sibling .hdf5, preserving the original.
         hdf5_filename = filepath.with_suffix(".hdf5")
@@ -166,22 +163,22 @@ class SigmondWriter:
             raise ValueError(f"Cannot derive an .hdf5 sibling for {filepath}")
 
         loader = SigmondLoader()
-        root_path = clean_hdf5_path(hdf5_root_path or DEFAULT_ROOT_PATH)
+        group = clean_group(group or DEFAULT_GROUP)
 
         logger.info(f"Converting fstream {filepath} -> {hdf5_filename} for in-place processing...")
-        loader.load_file(str(filepath), hdf5_path=root_path)
+        loader.load_file(str(filepath), group=group)
         observables = list(loader.observables)
         if not observables:
             raise ValueError(f"No observables found in {filepath}")
 
         # Preserve bins vs. samplings so the converted file keeps its native kind.
         if loader.file_kind == "bins" or all(isinstance(o, SigmondBins) for o in observables):
-            self.write_bins_hdf5(str(hdf5_filename), observables, root_path, overwrite=True)
+            self.write_bins_hdf5(str(hdf5_filename), observables, group, overwrite=True)
         else:
-            self.write_hdf5(str(hdf5_filename), observables, root_path, overwrite=True)
+            self.write_hdf5(str(hdf5_filename), observables, group, overwrite=True)
 
         logger.info(f"Conversion complete. Original fstream {filepath} left unchanged.")
-        return hdf5_filename, root_path
+        return hdf5_filename, group
 
     def _append_mcbins_info(self, root: ET.Element, ensemble_info: EnsembleInfo) -> None:
         """Append the shared ``<MCBinsInfo>`` block (ensemble + optional tweaks) to ``root``."""
@@ -385,7 +382,7 @@ class SigmondWriter:
         self,
         filename: str,
         samplings: list[SigmondSampling],
-        root_path: str = DEFAULT_ROOT_PATH,
+        group: str = DEFAULT_GROUP,
         overwrite: bool = False,
     ) -> Path:
         """
@@ -394,14 +391,14 @@ class SigmondWriter:
         Returns the path actually written.
         """
         outpath = self.hdf5_output_path(filename, filename)
-        self.write_hdf5(str(outpath), samplings, root_path, overwrite)
+        self.write_hdf5(str(outpath), samplings, group, overwrite)
         return outpath
 
     def write_hdf5(
         self,
         filename: str,
         samplings: list[SigmondSampling],
-        root_path: str = DEFAULT_ROOT_PATH,
+        group: str = DEFAULT_GROUP,
         overwrite: bool = False,
     ) -> None:
         """
@@ -410,14 +407,14 @@ class SigmondWriter:
         Args:
             filename: Output file path.
             samplings: SigmondSampling objects (all sharing ensemble/sampling info).
-            root_path: HDF5 data group path; may be nested (e.g. "isotriplet/P0A1g").
+            group: HDF5 root group; may be nested (e.g. "isotriplet/P0A1g").
             overwrite: Overwrite (and back up) an existing file.
         """
         self._prepare_output(filename, overwrite)
         if not samplings:
             raise ValueError("No samplings provided")
 
-        group_name = clean_hdf5_path(root_path)
+        group_name = clean_group(group)
         ensemble_info = samplings[0].observable_info.ensemble_info
         sampling_info = samplings[0].sampling_info
 
@@ -444,7 +441,7 @@ class SigmondWriter:
         self,
         filename: str,
         bins_list: list[SigmondBins],
-        root_path: str = DEFAULT_ROOT_PATH,
+        group: str = DEFAULT_GROUP,
         overwrite: bool = False,
     ) -> None:
         """
@@ -452,7 +449,7 @@ class SigmondWriter:
 
         The output mirrors a real Sigmond bins file: FIdentifier
         ``Sigmond--BinsFile``, a ``SigmondBinsFile`` header, and one dataset per
-        observable component under ``<root_path>/Values``. Complex bins are split
+        observable component under ``<group>/Values``. Complex bins are split
         into Re/Im datasets. CorrT/raw-XML names round-trip verbatim because keys
         are built from the observable name (see ``_dataset_key_for_observable``).
         """
@@ -460,7 +457,7 @@ class SigmondWriter:
         if not bins_list:
             raise ValueError("No bins provided")
 
-        group_name = clean_hdf5_path(root_path)
+        group_name = clean_group(group)
         ensemble_info = bins_list[0].observable_info.ensemble_info
         num_bins = bins_list[0].num_bins
 
@@ -496,7 +493,7 @@ class SigmondWriter:
         filename: str,
         new_samplings: list[SigmondSampling],
         overwrite: bool = True,
-        hdf5_root_path: str | None = None,
+        group: str | None = None,
     ) -> Path:
         """
         Append new samplings to an existing file.
@@ -509,7 +506,7 @@ class SigmondWriter:
             filename: Path to the existing file.
             new_samplings: Samplings to add.
             overwrite: Replace observables whose keys already exist.
-            hdf5_root_path: HDF5 root path (None = auto-detect).
+            group: HDF5 root group (None = auto-detect).
 
         Returns:
             Path to the modified HDF5 file (the original for HDF5 input, or the
@@ -518,9 +515,9 @@ class SigmondWriter:
         if not Path(filename).exists():
             raise FileNotFoundError(f"File {filename} does not exist")
 
-        hdf5_filename, root_path = self._ensure_hdf5_format(filename, hdf5_root_path)
+        hdf5_filename, group = self._ensure_hdf5_format(filename, group)
         self._create_numbered_backup(hdf5_filename)
-        self._append_to_hdf5(hdf5_filename, new_samplings, overwrite, root_path)
+        self._append_to_hdf5(hdf5_filename, new_samplings, overwrite, group)
         return Path(hdf5_filename)
 
     def _append_to_hdf5(
@@ -528,28 +525,28 @@ class SigmondWriter:
         filename: str | Path,
         new_samplings: list[SigmondSampling],
         overwrite: bool,
-        root_path: str | None = None,
+        group: str | None = None,
     ) -> None:
         if not new_samplings:
             raise ValueError("No samplings provided")
 
-        # Resolve and validate the target data group (read-only pass).
+        # Resolve and validate the target root group (read-only pass).
         with h5py.File(filename, "r") as f:
-            if root_path is None:
-                data_groups = [key for key in f.keys() if key != "Info"]
-                if not data_groups:
+            if group is None:
+                root_groups = [key for key in f.keys() if key != "Info"]
+                if not root_groups:
                     raise ValueError("No data groups found in HDF5 file")
-                root_path = data_groups[0]
-            if root_path not in f:
-                raise ValueError(f"Data group {root_path} not found in file")
-            if "Values" not in f[root_path]:
-                raise ValueError(f"Values group not found in data group {root_path}")
+                group = root_groups[0]
+            if group not in f:
+                raise ValueError(f"Root group {group} not found in file")
+            if "Values" not in f[group]:
+                raise ValueError(f"Values group not found in root group {group}")
 
         # Compatibility check runs with the file closed to avoid locking issues.
-        self._validate_samplings_compatibility(str(filename), new_samplings, root_path)
+        self._validate_samplings_compatibility(str(filename), new_samplings, group)
 
         with h5py.File(filename, "r+") as f:
-            data_group = f[root_path]
+            data_group = f[group]
             values_group = data_group["Values"]
             # Merge new rows into any existing table; datasets the file already had
             # without a row keep their per-dataset attrs and are read via fallback.
@@ -571,7 +568,7 @@ class SigmondWriter:
             obsmeta.write(data_group, meta)
 
     def _validate_samplings_compatibility(
-        self, filename: str, new_samplings: list[SigmondSampling], root_path: str | None = None
+        self, filename: str, new_samplings: list[SigmondSampling], group: str | None = None
     ) -> None:
         """
         Ensure ``new_samplings`` share the existing file's ensemble and sampling info.
@@ -581,7 +578,7 @@ class SigmondWriter:
         if not new_samplings:
             return
 
-        loader = SigmondLoader(filename=filename, hdf5_path=root_path)
+        loader = SigmondLoader(filename=filename, group=group)
         existing = loader.observables
         if not existing:
             raise ValueError(f"No existing samplings found in {filename}")
@@ -609,7 +606,7 @@ class SigmondWriter:
         observable_name: str,
         observable_index: int,
         new_data: np.ndarray,
-        hdf5_root_path: str | None = None,
+        group: str | None = None,
     ) -> Path:
         """
         Replace the data of one observable in an existing file.
@@ -626,11 +623,11 @@ class SigmondWriter:
         if not Path(filename).exists():
             raise FileNotFoundError(f"File {filename} does not exist")
 
-        hdf5_filename, root_path = self._ensure_hdf5_format(filename, hdf5_root_path)
+        hdf5_filename, group = self._ensure_hdf5_format(filename, group)
         self._create_numbered_backup(str(hdf5_filename))
 
         loader = SigmondLoader()
-        loader.load_file(str(hdf5_filename), hdf5_path=root_path)
+        loader.load_file(str(hdf5_filename), group=group)
 
         original = loader.observables.find(name=observable_name, index=observable_index)
         if original is None:
@@ -648,7 +645,7 @@ class SigmondWriter:
         modified = SigmondSampling(
             new_data, original.observable_info, original.sampling_info, original.is_complex
         )
-        self._append_to_hdf5(hdf5_filename, [modified], overwrite=True, root_path=root_path)
+        self._append_to_hdf5(hdf5_filename, [modified], overwrite=True, group=group)
         return Path(hdf5_filename)
 
     def convert_format(
@@ -656,7 +653,7 @@ class SigmondWriter:
         input_filename: str,
         output_filename: str,
         output_format: str = "hdf5",
-        hdf5_root_path: str = DEFAULT_ROOT_PATH,
+        group: str = DEFAULT_GROUP,
         overwrite: bool = False,
     ) -> Path:
         """
@@ -677,11 +674,11 @@ class SigmondWriter:
             raise ValueError(f"No observables found in {input_filename}")
 
         if loader.file_kind == "bins" or all(isinstance(o, SigmondBins) for o in observables):
-            self.write_bins_hdf5(str(outpath), observables, hdf5_root_path, overwrite=overwrite)
+            self.write_bins_hdf5(str(outpath), observables, group, overwrite=overwrite)
         elif loader.file_kind == "samplings" or all(
             isinstance(o, SigmondSampling) for o in observables
         ):
-            self.write_hdf5(str(outpath), observables, hdf5_root_path, overwrite=overwrite)
+            self.write_hdf5(str(outpath), observables, group, overwrite=overwrite)
         else:
             raise TypeError(
                 "Loaded observables are a mixed or unsupported set of types and "

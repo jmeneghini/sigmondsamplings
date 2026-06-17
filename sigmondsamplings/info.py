@@ -285,7 +285,7 @@ class EnsembleInfo:
 
 
 # Default ensemble for general use - accessible to users
-DEFAULT_ENSEMBLE = EnsembleInfo("indep", 1, 1)
+INDEP_ENSEMBLE = EnsembleInfo("indep", 1, 1)
 
 
 class SamplingInfo:
@@ -340,7 +340,7 @@ class ObservableInfo:
         index: int = 0,
         op_type: str = "n",
         re_im: str = "re",
-        ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         latex_str: str = None,
     ):
         self.name = name
@@ -380,7 +380,7 @@ class ObservableInfo:
 
     @classmethod
     def from_string(
-        cls, obs_string: str, ensemble_info: EnsembleInfo = DEFAULT_ENSEMBLE
+        cls, obs_string: str, ensemble_info: EnsembleInfo = INDEP_ENSEMBLE
     ) -> "ObservableInfo":
         """
         Parse observable info from string format.

@@ -1,8 +1,9 @@
 """
-Tests for the CLI helper modules in sigmondsamplings/scripts/.
+Tests for the I/O operation functions in sigmondsamplings/io/ (convert, combine,
+energy_tag) that back the ``ss`` CLI write commands.
 
-These exercise the library-level functions (not the argparse ``main()`` wrappers)
-against the fixtures in tests/data/. fstream inputs are gated on sigmond_query.
+These exercise the library-level functions directly against the fixtures in
+tests/data/. fstream inputs are gated on sigmond_query.
 
 Run with:  python -m pytest tests/test_scripts.py -v
 """
@@ -17,16 +18,16 @@ import numpy as np
 import pytest
 
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
-from sigmondsamplings.io.loader import SigmondLoader
-from sigmondsamplings.sampling import SigmondSampling
-from sigmondsamplings.scripts.sigmond_combine import (
+from sigmondsamplings.io.combine import (
     combine_files,
     load_all_samplings,
     resolve_paths,
     validate_compatibility,
 )
-from sigmondsamplings.scripts.sigmond_convert import convert_to_hdf5
-from sigmondsamplings.scripts.sigmond_energy_attrs import add_energy_attrs
+from sigmondsamplings.io.convert import convert_to_hdf5
+from sigmondsamplings.io.energy_tag import add_energy_attrs
+from sigmondsamplings.io.loader import SigmondLoader
+from sigmondsamplings.sampling import SigmondSampling
 
 DATA_DIR = Path(__file__).parent / "data"
 CORR_HDF5 = DATA_DIR / "corr_matrix_samplings.hdf5"
@@ -48,34 +49,34 @@ def _sampling(name: str, ens: EnsembleInfo = ENS, samp: SamplingInfo = BOOT) -> 
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_convert.convert_to_hdf5
+# io.convert.convert_to_hdf5
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class TestConvertToHDF5:
     def test_repack_hdf5_samplings(self, tmp_path):
         out = tmp_path / "repacked.hdf5"
-        # Passing hdf5_path skips the multi-path guard (which would need sigmond_query).
-        convert_to_hdf5(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        # Passing in_group skips the multi-group guard (which would need sigmond_query).
+        convert_to_hdf5(str(ENERGY_HDF5), str(out), in_group="samplings")
         ld = SigmondLoader(str(out))
         assert ld.file_kind == "samplings"
         assert len(ld.observables) == 54
 
     def test_convert_bins_preserves_kind(self, tmp_path):
         out = tmp_path / "bins_out.hdf5"
-        convert_to_hdf5(str(BINS_HDF5), str(out), hdf5_path="bins")
+        convert_to_hdf5(str(BINS_HDF5), str(out), in_group="bins")
         ld = SigmondLoader(str(out))
         assert ld.file_kind == "bins"
         assert len(ld.observables) == 5
 
     def test_output_extension_enforced(self, tmp_path):
         out = tmp_path / "no_ext_output"
-        result = convert_to_hdf5(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        result = convert_to_hdf5(str(ENERGY_HDF5), str(out), in_group="samplings")
         assert Path(result).suffix == ".hdf5"
 
     def test_h5_output_extension_preserved(self, tmp_path):
         out = tmp_path / "repacked.h5"
-        result = convert_to_hdf5(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        result = convert_to_hdf5(str(ENERGY_HDF5), str(out), in_group="samplings")
         assert Path(result) == out
         assert out.exists()
 
@@ -84,7 +85,7 @@ class TestConvertToHDF5:
         shutil.copy2(ENERGY_HDF5, input_h5)
         out = tmp_path / "repacked"
 
-        result = convert_to_hdf5(str(input_h5), str(out), hdf5_path="samplings")
+        result = convert_to_hdf5(str(input_h5), str(out), in_group="samplings")
 
         assert Path(result) == tmp_path / "repacked.h5"
         assert Path(result).exists()
@@ -99,7 +100,7 @@ class TestConvertToHDF5:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_combine.resolve_paths
+# io.combine.resolve_paths
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -117,7 +118,7 @@ class TestResolvePaths:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_combine.load_all_samplings
+# io.combine.load_all_samplings
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -135,7 +136,7 @@ class TestLoadAllSamplings:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_combine.validate_compatibility
+# io.combine.validate_compatibility
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -159,7 +160,7 @@ class TestValidateCompatibility:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_combine.combine_files
+# io.combine.combine_files
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -189,14 +190,14 @@ class TestCombineFiles:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# sigmond_energy_attrs.add_energy_attrs
+# io.energy_tag.add_energy_attrs
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class TestAddEnergyAttrs:
     def test_h5_output_extension_preserved(self, tmp_path):
         out = tmp_path / "energy_attrs.h5"
-        result = add_energy_attrs(str(ENERGY_HDF5), str(out), hdf5_path="samplings")
+        result = add_energy_attrs(str(ENERGY_HDF5), str(out), in_group="samplings")
         assert Path(result) == out
         assert out.exists()
 
@@ -205,7 +206,7 @@ class TestAddEnergyAttrs:
         shutil.copy2(ENERGY_HDF5, input_h5)
         out = tmp_path / "energy_attrs"
 
-        result = add_energy_attrs(str(input_h5), str(out), hdf5_path="samplings")
+        result = add_energy_attrs(str(input_h5), str(out), in_group="samplings")
 
         assert Path(result) == tmp_path / "energy_attrs.h5"
         assert Path(result).exists()

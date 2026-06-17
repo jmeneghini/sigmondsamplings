@@ -1,10 +1,9 @@
-"""Plot renderers for queried ``ss-query`` collections."""
+"""Plot renderers for queried ``ss query`` collections."""
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-
 
 GENERIC_PLOT_METHODS = (
     "histogram",

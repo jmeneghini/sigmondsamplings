@@ -7,7 +7,7 @@ from typing import Any, Union
 
 import numpy as np
 
-from .info import DEFAULT_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
+from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 
 try:
     from uncertainties import ufloat
@@ -519,7 +519,7 @@ class SigmondSampling:
             else:
                 # Mixed ensembles - use default ensemble
                 result_observable_info = ObservableInfo(
-                    "mixed_operation", 0, "n", "re", DEFAULT_ENSEMBLE
+                    "mixed_operation", 0, "n", "re", INDEP_ENSEMBLE
                 )
 
         return SigmondSampling(

@@ -16,9 +16,9 @@ import pytest
 from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
 from sigmondsamplings.io.loader import SigmondLoader
+from sigmondsamplings.io.writer import SigmondWriter
 from sigmondsamplings.obervable_collection import ObservableCollection
 from sigmondsamplings.sampling import SigmondSampling
-from sigmondsamplings.io.writer import SigmondWriter
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Fixtures / helpers
@@ -262,11 +262,11 @@ class TestRoundTrip:
     def test_write_read_plain(self, tmp_path, bins_a, bins_b):
         out = tmp_path / "plain_bins.hdf5"
         coll = ObservableCollection([bins_a, bins_b])
-        coll.to_hdf5(str(out), create_backups=False, root_path="test_bins")
+        coll.to_hdf5(str(out), create_backups=False, group="test_bins")
 
         assert out.exists()
 
-        loader = SigmondLoader(str(out), hdf5_path="test_bins")
+        loader = SigmondLoader(str(out), group="test_bins")
         assert loader.file_kind == "bins"
         loaded = loader.observables
         assert len(loaded) == 2
@@ -284,17 +284,17 @@ class TestRoundTrip:
         out = tmp_path / "converted_bins.hdf5"
 
         writer = SigmondWriter(create_backups=False)
-        writer.write_bins_hdf5(str(src), [bins_a, bins_b], root_path="src_bins", overwrite=True)
+        writer.write_bins_hdf5(str(src), [bins_a, bins_b], group="src_bins", overwrite=True)
 
         writer.convert_format(
             str(src),
             str(out),
             output_format="hdf5",
-            hdf5_root_path="/dest_bins/",
+            group="/dest_bins/",
             overwrite=True,
         )
 
-        loader = SigmondLoader(str(out), hdf5_path="dest_bins")
+        loader = SigmondLoader(str(out), group="dest_bins")
         assert loader.file_kind == "bins"
 
         loaded = loader.observables
@@ -314,9 +314,9 @@ class TestRoundTrip:
         out = tmp_path / "corrt_bins.hdf5"
 
         coll = ObservableCollection([bins])
-        coll.to_hdf5(str(out), create_backups=False, root_path="test_bins")
+        coll.to_hdf5(str(out), create_backups=False, group="test_bins")
 
-        loader = SigmondLoader(str(out), hdf5_path="test_bins")
+        loader = SigmondLoader(str(out), group="test_bins")
         loaded = loader.observables
         assert len(loaded) == 1
 
@@ -342,7 +342,7 @@ class TestRoundTrip:
             coll.to_hdf5(
                 str(tmp_path / "mixed.hdf5"),
                 create_backups=False,
-                root_path="test_bins",
+                group="test_bins",
             )
 
 
@@ -378,10 +378,10 @@ class TestFstreamBins:
         out = tmp_path / "tq_roundtrip.hdf5"
 
         ObservableCollection(list(original)).to_hdf5(
-            str(out), create_backups=False, root_path="test_bins"
+            str(out), create_backups=False, group="test_bins"
         )
 
-        loader2 = SigmondLoader(str(out), hdf5_path="test_bins")
+        loader2 = SigmondLoader(str(out), group="test_bins")
         reloaded = loader2.observables
         assert len(reloaded) == len(original)
 
