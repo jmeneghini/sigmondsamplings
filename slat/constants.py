@@ -31,6 +31,8 @@ __all__ = [
     "latex_to_unicode",
     "get_energy_type_latex_str",
     "get_energy_type_unicode_str",
+    "resolve_particle_name",
+    "is_particle_name",
     "get_particle_latex_str",
     "get_particle_unicode_str",
     "get_all_particle_latex_mappings",
@@ -211,7 +213,7 @@ SHIFT_ENERGY_TYPES: set[str] = {"delab", "decm"}
 NI_PAIR_ENERGY_TYPES: set[str] = {"delab", "decm", "qcmsq"}
 
 
-def get_energy_type_latex_str(energy_type_name: str, index: int = None) -> str:
+def get_energy_type_latex_str(energy_type_name: str, index: int | None = None) -> str:
     """Return the LaTeX label for an energy type, falling back to the input."""
     tex_str = ENERGY_TYPE_LATEX_MAP.get(energy_type_name, energy_type_name)
     if index is not None:
@@ -233,6 +235,9 @@ PARTICLE_LATEX_MAP: dict[str, str] = {
     "eta": r"\eta",
     "kaon": r"K",
     "K": r"K",
+    "Kbar": r"\bar{K}",
+    # Legacy spelling of the anti-kaon. Prefer "Kbar": encoding "anti-" in letter
+    # case is what forces single-letter names to resolve case-sensitively below.
     "k": r"\bar{K}",
     "K+": r"K^+",
     "K-": r"K^-",
@@ -255,6 +260,31 @@ PARTICLE_LATEX_MAP: dict[str, str] = {
     "xi": r"\Xi",
     "X": r"\Xi",
 }
+
+
+_PARTICLE_BY_LOWER: dict[str, str] = {
+    name.lower(): name for name in PARTICLE_LATEX_MAP if len(name) > 1
+}
+
+
+def resolve_particle_name(particle_name: str) -> str | None:
+    """
+    Resolve a particle token to its canonical spelling, or ``None`` if unknown.
+
+    Full particle names are case-insensitive (``"PI"``, ``"Pi"`` -> ``"pi"``);
+    single-letter abbreviations (``N``, ``S``, ``L``, ``X``, ``K``, ``k``) must
+    match exactly, so a stray ``n``/``s``/``l``/``x`` token in an observable name
+    is never mistaken for a particle, and ``K``/``k`` keep their distinct
+    kaon/anti-kaon meanings.
+    """
+    if particle_name in PARTICLE_LATEX_MAP:
+        return particle_name
+    return _PARTICLE_BY_LOWER.get(particle_name.lower())
+
+
+def is_particle_name(particle_name: str) -> bool:
+    """Whether a token resolves to a known particle (see :func:`resolve_particle_name`)."""
+    return resolve_particle_name(particle_name) is not None
 
 
 def get_particle_latex_str(particle_name: str) -> str:

@@ -1,5 +1,15 @@
-"""
-Model function wrapper for SigmondSamplings with automatic parameter handling.
+"""Post-fit model wrapper with automatic parameter sampling and error propagation.
+
+This is the *post-fit* engine: given a callable ``func(x, p0, p1, ...)`` and a set
+of fitted parameter samplings, :class:`SigmondModelFunc` evaluates the model and
+propagates uncertainty through :class:`~sigmondsamplings.sampling.SigmondSampling`
+arithmetic for plotting and downstream analysis.
+
+It is distinct from :class:`sigmondsamplings.fitting.model.Model` /
+:class:`~sigmondsamplings.fitting.model.CallableModel`, the *fit-time* flat-vector
+theory model the objective differentiates. Fit-time parameter description (initial
+values, bounds, constraints) lives in :class:`sigmondsamplings.fitting.params.ParamSetResolved`;
+this module only consumes the resulting parameter samplings.
 """
 
 from __future__ import annotations
@@ -7,104 +17,44 @@ from __future__ import annotations
 import inspect
 import warnings
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .obervable_collection import ObservableCollection
-from .sampling import INDEP_ENSEMBLE, ObservableInfo, SamplingInfo, SigmondSampling
+from ..info import INDEP_ENSEMBLE, ObservableInfo, SamplingInfo
+from ..observable_collection import ObservableCollection
+from ..sampling import SigmondSampling
 
 if TYPE_CHECKING:
-    from .stats import SamplingStats
+    from ..stats import SamplingStats
+
+__all__ = [
+    "SigmondModelFunc",
+    "exponential_decay_model",
+    "gaussian_model",
+    "polynomial_model",
+]
 
 
-@dataclass(frozen=True)
-class ParamBounds:
-    """Lower/upper bounds for one fit parameter."""
-
-    lower: float | None = None
-    upper: float | None = None
-
-    def __post_init__(self) -> None:
-        lower = None if self.lower is None else float(self.lower)
-        upper = None if self.upper is None else float(self.upper)
-        if lower is not None and upper is not None and lower > upper:
-            raise ValueError(f"lower bound exceeds upper bound: {lower} > {upper}")
-        object.__setattr__(self, "lower", lower)
-        object.__setattr__(self, "upper", upper)
-
-    @classmethod
-    def from_pair(cls, pair: tuple[float | None, float | None] | None) -> "ParamBounds":
-        if pair is None:
-            return cls()
-        if len(pair) != 2:
-            raise ValueError("parameter bounds must be a (lower, upper) pair")
-        return cls(pair[0], pair[1])
-
-    def as_tuple(self) -> tuple[float | None, float | None]:
-        return self.lower, self.upper
-
-
-@dataclass(frozen=True)
-class ParamSpec:
-    """Fit-parameter metadata used by models and minimizers."""
-
-    info: ObservableInfo
-    initial: float | None = None
-    bounds: ParamBounds = ParamBounds()
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.info, ObservableInfo):
-            raise TypeError("ParamSpec.info must be an ObservableInfo")
-        initial = None if self.initial is None else float(self.initial)
-        bounds = self.bounds if isinstance(self.bounds, ParamBounds) else ParamBounds.from_pair(self.bounds)
-        object.__setattr__(self, "initial", initial)
-        object.__setattr__(self, "bounds", bounds)
-
-    @property
-    def name(self) -> str:
-        return self.info.name
-
-
-def param_spec(
-    name: str,
+def _normalize_parameter_infos(
+    params: Iterable[str | ObservableInfo],
     *,
-    initial: float | None = None,
-    bounds: tuple[float | None, float | None] | ParamBounds | None = None,
-    latex_str: str | None = None,
-    index: int = 0,
     ensemble_info=INDEP_ENSEMBLE,
-) -> ParamSpec:
-    """Create a :class:`ParamSpec` from a parameter name and optional bounds."""
-    info = ObservableInfo(name, index, "n", "re", ensemble_info, latex_str)
-    bound_obj = bounds if isinstance(bounds, ParamBounds) else ParamBounds.from_pair(bounds)
-    return ParamSpec(info=info, initial=initial, bounds=bound_obj)
-
-
-def normalize_param_specs(
-    params: Iterable[str | ObservableInfo | ParamSpec],
-    *,
-    sampling_info: SamplingInfo | None = None,
-    ensemble_info=INDEP_ENSEMBLE,
-) -> list[ParamSpec]:
-    """Normalize parameter names, ObservableInfo objects, or ParamSpec objects."""
-    specs: list[ParamSpec] = []
+) -> list[ObservableInfo]:
+    """Normalize parameter names or ObservableInfo objects to ObservableInfo list."""
+    infos: list[ObservableInfo] = []
     for idx, param in enumerate(params):
-        if isinstance(param, ParamSpec):
-            spec = param
-        elif isinstance(param, ObservableInfo):
-            spec = ParamSpec(param)
+        if isinstance(param, ObservableInfo):
+            infos.append(param)
         elif isinstance(param, str):
-            spec = param_spec(param, index=idx, ensemble_info=ensemble_info)
+            infos.append(ObservableInfo(param, idx, "n", "re", ensemble_info))
         else:
             raise TypeError(
-                "params must contain parameter names, ObservableInfo objects, or ParamSpec objects"
+                "parameter_infos must contain parameter names or ObservableInfo objects"
             )
-        specs.append(spec)
-    if not specs:
-        raise ValueError("params must contain at least one parameter")
-    return specs
+    if not infos:
+        raise ValueError("parameter_infos must contain at least one parameter")
+    return infos
 
 
 METRIC_LATEX: dict[str, str] = {
@@ -144,7 +94,7 @@ class SigmondModelFunc:
     def __init__(
         self,
         func: Callable,
-        parameter_infos: list[ObservableInfo | ParamSpec] | ObservableCollection,
+        parameter_infos: list[ObservableInfo | str] | ObservableCollection,
         sampling_info: SamplingInfo | None = None,
         latex_str: str | None = None,
         independent_var_latex: str | None = None,
@@ -154,8 +104,9 @@ class SigmondModelFunc:
 
         Args:
             func: Model function f(x, param1, param2, ...)
-            parameter_infos: List of ObservableInfo for each parameter, or an
-                ObservableCollection containing fitted parameter samplings.
+            parameter_infos: List of ObservableInfo (or parameter names) for each
+                parameter, or an ObservableCollection containing fitted parameter
+                samplings.
             sampling_info: SamplingInfo describing the resampling method. Required
                 when parameter_infos is a list; inferred when an ObservableCollection
                 is provided.
@@ -171,8 +122,7 @@ class SigmondModelFunc:
             raise ValueError("sampling_info is required when parameter_infos is not a collection")
 
         self.func = func
-        self._param_specs = normalize_param_specs(parameter_infos, sampling_info=sampling_info)
-        self._initial_parameter_infos = [spec.info for spec in self._param_specs]
+        self._initial_parameter_infos = _normalize_parameter_infos(parameter_infos)
         self.sampling_info = sampling_info
         self.latex_str = latex_str
         self.independent_var_latex = independent_var_latex
@@ -225,27 +175,9 @@ class SigmondModelFunc:
         return self._initial_parameter_infos
 
     @property
-    def param_specs(self) -> list[ParamSpec]:
-        """Get parameter specs, including initial guesses and bounds."""
-        return list(self._param_specs)
-
-    @property
     def param_names(self) -> list[str]:
         """Get parameter names in model order."""
         return [info.name for info in self.parameter_infos]
-
-    @property
-    def initial_params(self) -> np.ndarray:
-        """Initial parameter vector from ParamSpec.initial values."""
-        missing = [spec.name for spec in self._param_specs if spec.initial is None]
-        if missing:
-            raise ValueError(f"Initial values are missing for parameter(s): {missing}")
-        return np.asarray([spec.initial for spec in self._param_specs], dtype=float)
-
-    @property
-    def param_bounds(self) -> list[tuple[float | None, float | None]]:
-        """Parameter bounds in model order."""
-        return [spec.bounds.as_tuple() for spec in self._param_specs]
 
     @classmethod
     def from_observable_collection(
@@ -657,8 +589,8 @@ def exponential_decay_model(
     def exp_func(x, A, m):
         return A * np.exp(-m * x)
 
-    amp = param_spec("amplitude", latex_str=r"$A$", index=0, ensemble_info=ensemble_info)
-    mass = param_spec("mass", bounds=(0.0, None), latex_str=r"$m$", index=1, ensemble_info=ensemble_info)
+    amp = ObservableInfo("amplitude", 0, "n", "re", ensemble_info, r"$A$")
+    mass = ObservableInfo("mass", 1, "n", "re", ensemble_info, r"$m$")
 
     return SigmondModelFunc(
         exp_func, [amp, mass], sampling_info, latex_str, independent_var_latex
@@ -678,7 +610,7 @@ def polynomial_model(
         return np.polyval(coeffs, x)
 
     param_infos = [
-        param_spec(f"coeff_{i}", index=i, latex_str=f"$c_{i}$", ensemble_info=ensemble_info)
+        ObservableInfo(f"coeff_{i}", i, "n", "re", ensemble_info, f"$c_{i}$")
         for i in range(degree + 1)
     ]
 
@@ -699,9 +631,9 @@ def gaussian_model(
     def gauss_func(x, A, mu, sigma):
         return A * np.exp(-((x - mu) ** 2) / (2 * sigma**2))
 
-    amp_info = param_spec("amplitude", index=0, latex_str=r"$A$", ensemble_info=ensemble_info)
-    mean_info = param_spec("mean", index=1, latex_str=r"$\mu$", ensemble_info=ensemble_info)
-    sigma_info = param_spec("sigma", index=2, bounds=(0.0, None), latex_str=r"$\sigma$", ensemble_info=ensemble_info)
+    amp_info = ObservableInfo("amplitude", 0, "n", "re", ensemble_info, r"$A$")
+    mean_info = ObservableInfo("mean", 1, "n", "re", ensemble_info, r"$\mu$")
+    sigma_info = ObservableInfo("sigma", 2, "n", "re", ensemble_info, r"$\sigma$")
 
     return SigmondModelFunc(
         gauss_func,

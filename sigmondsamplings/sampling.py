@@ -393,15 +393,15 @@ class SigmondSampling:
         new.is_complex = self.is_complex
         return new
 
-    def create_ref_sampling(self, samp: "SigmondSampling") -> "SigmondSampling":
-        """Create a reference sampling for the given particle."""
+    def ref_observable_info(self, samp: "SigmondSampling") -> ObservableInfo:
+        """Observable metadata this sampling would carry as a ratio to *samp*.
+
+        Split out of :meth:`create_ref_sampling` so callers can predict the result
+        without paying for the division - notably the idempotency check in
+        ``EnergyLevelMixin.create_ref``.
+        """
         from .energy_levels import EnergyObsInfo, SHEnergyObsInfo
 
-        new_ref = self / samp
-        # Copy self.observable_info (not new_ref's) to preserve the subclass type.
-        # __array_ufunc__ replaces observable_info with a plain ObservableInfo when the
-        # two operands have different observable_infos, so new_ref.observable_info would
-        # lose EnergyObsInfo/SHEnergyObsInfo.
         new_obs_info = self.observable_info.copy()
         if isinstance(new_obs_info, EnergyObsInfo):
             new_obs_info.ref_particle = (
@@ -409,11 +409,19 @@ class SigmondSampling:
                 if isinstance(samp.observable_info, SHEnergyObsInfo)
                 else "ref"
             )
-            new_obs_info.update_name()
+            new_obs_info.update_name(strict=False)
         else:
             new_obs_info.name = f"{self.observable_info.name}_ref"
+        return new_obs_info
 
-        new_ref.observable_info = new_obs_info
+    def create_ref_sampling(self, samp: "SigmondSampling") -> "SigmondSampling":
+        """Create a reference sampling for the given particle."""
+        new_ref = self / samp
+        # Build from self.observable_info (not new_ref's) to preserve the subclass type.
+        # __array_ufunc__ replaces observable_info with a plain ObservableInfo when the
+        # two operands have different observable_infos, so new_ref.observable_info would
+        # lose EnergyObsInfo/SHEnergyObsInfo.
+        new_ref.observable_info = self.ref_observable_info(samp)
         return new_ref
 
     @property

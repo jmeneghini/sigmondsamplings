@@ -105,9 +105,18 @@ recorded redundantly in `/Info/FIdentifier`; the loader cross-checks the two.
 ## `ObsMeta`
 
 A single 1-D variable-length UTF-8 dataset beside `Values`, holding one JSON
-object per `Values` dataset: its `key`, sample `shape`, `dtype`, and any energy
-annotations (`obs_kind`, `irrep`, `psq`, `energy_type`, `level_index`,
-`ref_particle`, `ni_pairs`). One read recovers all per-observable metadata, and
-the lazy loader can report shapes without opening a single sample dataset. Files
-predating this table (and real Sigmond output) simply lack `ObsMeta`; readers
-fall back to per-dataset HDF5 attributes.
+object per `Values` dataset: its `key`, sample `shape`, `dtype`, and optional
+annotations such as explicit `latex_str` labels or energy metadata (`obs_kind`,
+`irrep`, `psq`, `energy_type`, `level_index`, `ref_particle`, `ni_pairs`). One
+read recovers all per-observable metadata, and the lazy loader can report shapes
+without opening a single sample dataset. Files predating this table (and real
+Sigmond output) simply lack `ObsMeta`; readers fall back to per-dataset HDF5
+attributes.
+
+`obs_kind` is the class discriminator: the loader looks it up in the registry
+that `ObservableInfo` subclasses join via `@register_obs_kind` and calls that
+class's `from_attrs`, so a read reproduces the exact type that was written
+rather than guessing from the dataset name. Current tags are `energy` and
+`energy_single_hadron` (alias `energy_sh` accepted on read); an absent tag means
+a plain `ObservableInfo`. Since energy types regenerate their LaTeX label from
+these attrs, `latex_str` is stored only for observables that do not.

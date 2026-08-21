@@ -12,11 +12,29 @@
 
 - **Convenient Many-Observable Data Structures**: In-memory `ObservableCollection` objects act as queryable containers, providing batched accessors along with `filter`, `find`, `group_by`, and `sort` methods. `EnergyObsInfo` can be constructed by flexibly parsing observable names and extracting level info, which can then be stored in specialized `Single/MultiEnsembleEnergyCollection` objects with accessors like `irreps`, `psq_values`, and `group_by_irrep()`.
 
-- **Plotting**: General observable plots, such as histograms and corner plots, are provided by `SamplingPlotter`. Spectrum plotting of energy levels is provided by `SpectrumPlotter`, and a WIP fit-result plotter lives in `fit_plotter.py`.
+- **Plotting**: General observable plots, such as histograms and corner plots, are provided by `SamplingPlotter`. Spectrum plotting of energy levels is provided by `SpectrumPlotter`, and a WIP fit-result plotter lives in `fitting/fit_plotter.py`.
 
 - **Runtime Configuration**: Global `rcparams` support package-level defaults for plotting behavior, metric selection, confidence levels, color/marker palettes, and the `KnownEnsembles` XML database path. Settings can be temporarily overridden or saved/loaded from TOML config files.
 
-- **CLI Utilities**: The package installs a single `ss` command. `ss query` inspects/queries files (`groups`, `info`, `obs`, `energy`); `ss convert`, `ss combine`, and `ss energy-tag` write HDF5 (convert an fstream/HDF5 file, combine several sampling files, or tag energy attributes).
+- **CLI Utilities**: The package installs a single `ss` command. `ss query` inspects/queries files (`groups`, `info`, `obs`, `energy`); `ss convert`, `ss combine`, and `ss edit` write HDF5 (convert an fstream/HDF5 file, combine several sampling files, or edit an observable set).
+
+  `ss edit` retags observables as energy levels, rewrites attributes, adds derived observables, and prunes, all on the way to a new file:
+
+  ```bash
+  # interpret energy attrs and attach non-interacting pairs
+  ss edit in.h5 out.h5 --tag-energy --ni-yml ni.yml --ref-particle N
+
+  # add E/M_N reference levels for every level
+  ss edit in.h5 out.h5 --tag-energy --add-ref N
+
+  # fix a mis-parsed observable and resync its canonical name
+  ss edit in.h5 out.h5 --tag-energy -w name=badname_0 --set psq=2 --set irrep=E --rename
+
+  # prune to a spectrum captured earlier by `ss query energy --save`
+  ss edit in.h5 out.h5 --spec spectrum.toml --only
+  ```
+
+  Selection (`-w/--where`, `--contains`, `--regex`, `--spec`) is the same filter language `ss query` uses. A scope says which observables an operation *touches*; everything else passes through untouched, and only `--only`/`--drop` change what reaches the output. For multi-step edits that need different scopes per operation, write them to a TOML recipe and pass `--recipe`; `--save-recipe` records what a flag invocation ran, for provenance and replay.
 
 
 ## Installation

@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from difflib import get_close_matches
 from pathlib import Path
 from typing import Any
 
 from sigmondsamplings.io.loader import SigmondLoader, is_hdf5_file, verify_sigmond_hdf5
+from sigmondsamplings.selection import _get_attr, filter_collection, parse_where_specs
+
+# ``parse_where_specs`` is re-exported so existing importers keep working; it and the
+# selection clauses now live in ``sigmondsamplings.selection`` so the edit executor can
+# share them without importing from ``cli``.
+__all__ = [
+    "QuerySpec",
+    "apply_query",
+    "attr_records",
+    "collection_dataframe",
+    "file_info",
+    "load_collection",
+    "parse_where_specs",
+    "root_groups",
+    "run_query_view",
+    "unique_records",
+]
 
 
 @dataclass(frozen=True)
@@ -39,7 +54,10 @@ ENERGY_FRONT = (
     "mean",
     "error",
 )
-ENERGY_DEFAULT_SORT = ("obs_kind", "sector", "level_index", "energy_type")
+# Group by kind first: bools sort False before True, so multi-hadron levels lead
+# and single hadrons trail - the same grouping the old ``obs_kind`` string sort gave,
+# now stated on purpose rather than falling out of alphabetical order.
+ENERGY_DEFAULT_SORT = ("is_single_hadron", "sector", "level_index", "energy_type")
 
 
 def load_collection(
@@ -97,45 +115,14 @@ def parse_attrs(attrs: str) -> list[str]:
     return parsed
 
 
-def parse_where_specs(specs: Iterable[str] | None, collection=None) -> dict[str, Any]:
-    """Parse repeated ``attr=value`` specs into collection filter kwargs."""
-    filters: dict[str, Any] = {}
-    # Available attribute names are identical across observables of a type, so scan
-    # the collection once here and reuse the set for every spec rather than
-    # rescanning all observables per spec.
-    available = _available_attrs(collection) if collection is not None else None
-    for spec in specs or ():
-        if "=" not in spec:
-            raise ValueError(f"Invalid --where {spec!r}; expected attr=value")
-        attr, raw_value = spec.split("=", 1)
-        attr = attr.strip()
-        if not attr:
-            raise ValueError(f"Invalid --where {spec!r}; attribute is empty")
-        if available is not None and attr not in available:
-            raise ValueError(_unknown_attr_message(attr, available))
-        value = _parse_where_value(raw_value.strip())
-        if collection is not None:
-            value = _normalize_filter_value(collection, attr, value)
-        _merge_filter(filters, attr, value)
-    return filters
-
-
 def apply_query(collection, spec: QuerySpec):
     """Apply generic CLI query options using collection methods."""
-    filters = parse_where_specs(spec.where, collection)
-    if filters:
-        collection = collection.filter(**filters)
-
-    if spec.contains:
-        collection = collection.filter(
-            predicate=lambda obs_info: spec.contains in str(obs_info.name)
-        )
-
-    if spec.regex:
-        pattern = re.compile(spec.regex)
-        collection = collection.filter(
-            predicate=lambda obs_info: pattern.search(str(obs_info.name)) is not None
-        )
+    collection = filter_collection(
+        collection,
+        where=spec.where,
+        contains=spec.contains,
+        regex=spec.regex,
+    )
 
     if spec.sort:
         attrs = parse_attrs(spec.sort)
@@ -164,6 +151,7 @@ def run_query_view(
     no_gui: bool = False,
     plot_obs_index: int | None = None,
     plot_panels: str | None = None,
+    plot_backend: str | None = None,
     latex: bool = False,
     columns: str | None = None,
     exclude: str | None = None,
@@ -257,10 +245,15 @@ def run_query_view(
                     obs_index=plot_obs_index,
                     panels=plot_panels,
                     latex=latex,
+                    backend=plot_backend,
                 )
             else:
                 render_spectrum_plot(
-                    collection, output=plot_output, show=not no_gui, latex=latex
+                    collection,
+                    output=plot_output,
+                    show=not no_gui,
+                    latex=latex,
+                    backend=plot_backend,
                 )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Could not render plot: {exc}") from exc
@@ -356,99 +349,8 @@ def format_value(value: Any) -> str:
     return "" if value is None else str(value)
 
 
-def _parse_where_value(value: str) -> Any:
-    if "," in value:
-        return [_parse_scalar(part.strip()) for part in value.split(",") if part.strip()]
-    return _parse_scalar(value)
-
-
-def _parse_scalar(value: str) -> Any:
-    lowered = value.lower()
-    if lowered == "none":
-        return None
-    if lowered == "true":
-        return True
-    if lowered == "false":
-        return False
-    try:
-        return int(value)
-    except ValueError:
-        pass
-    try:
-        return float(value)
-    except ValueError:
-        return value
-
-
-def _merge_filter(filters: dict[str, Any], attr: str, value: Any) -> None:
-    if attr not in filters:
-        filters[attr] = value
-        return
-
-    old_value = filters[attr]
-    old_values = old_value if isinstance(old_value, list) else [old_value]
-    new_values = value if isinstance(value, list) else [value]
-    filters[attr] = old_values + new_values
-
-
-def _normalize_filter_value(collection, attr: str, value: Any) -> Any:
-    sample = _first_non_none_attr(collection, attr)
-    if isinstance(sample, tuple):
-        if isinstance(value, str) and ":" in value:
-            return _parse_tuple_value(value)
-        if isinstance(value, list):
-            if all(isinstance(item, str) and ":" in item for item in value):
-                return [_parse_tuple_value(item) for item in value]
-            raise ValueError(
-                f"Tuple-valued filter '{attr}' must use ':' between tuple fields "
-                "and ',' between values, e.g. sector=0:A1g,1:T1u"
-            )
-    return value
-
-
-def _parse_tuple_value(value: str) -> tuple[Any, ...]:
-    return tuple(_parse_scalar(part.strip()) for part in value.split(":"))
-
-
-def _first_non_none_attr(collection, attr: str) -> Any:
-    for sampling in collection:
-        value = _get_attr(sampling, attr)
-        if value is not None:
-            return value
-    return None
-
-
-def _available_attrs(collection) -> set[str]:
-    attrs: set[str] = set()
-    for sampling in collection:
-        for target in (sampling, sampling.observable_info, sampling.sampling_info):
-            attrs.update(name for name in dir(target) if not name.startswith("_"))
-            if hasattr(target, "__dict__"):
-                attrs.update(name for name in vars(target) if not name.startswith("_"))
-    return attrs
-
-
-def _unknown_attr_message(attr: str, available: set[str]) -> str:
-    available_sorted = sorted(available)
-    aliases = {"obs_type": "obs_kind"}
-    alias = aliases.get(attr)
-    matches = [alias] if alias in available else get_close_matches(attr, available_sorted, n=1)
-    suffix = f" Did you mean {matches[0]!r}?" if matches else ""
-    sample = ", ".join(available_sorted[:12])
-    if len(available_sorted) > 12:
-        sample += ", ..."
-    return f"Unknown --where attribute {attr!r}.{suffix} Available attributes include: {sample}"
-
-
 def _composite_getter(attrs: Sequence[str]):
     if len(attrs) == 1:
         attr = attrs[0]
         return lambda sampling: _get_attr(sampling, attr)
     return lambda sampling: tuple(_get_attr(sampling, attr) for attr in attrs)
-
-
-def _get_attr(sampling, attr: str) -> Any:
-    for target in (sampling, sampling.observable_info, sampling.sampling_info):
-        if hasattr(target, attr):
-            return getattr(target, attr)
-    return None

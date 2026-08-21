@@ -7,7 +7,11 @@ from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
+    Literal,
+    TypeAlias,
     TypeVar,
+    cast,
+    overload,
 )
 
 import lazy_loader as lazy
@@ -23,10 +27,18 @@ PANDAS_AVAILABLE = importlib.util.find_spec("pandas") is not None
 pd = lazy.load("pandas")
 
 if TYPE_CHECKING:
+    from .bins import SigmondBins
     from .stats import SamplingStats
+
+    CollectionItem: TypeAlias = SigmondSampling | SigmondBins
+else:
+    CollectionItem: TypeAlias = Any
 
 # TypeVar for fluent interface
 T = TypeVar("T", bound="ObservableCollection")
+ReturnType: TypeAlias = Literal["dict", "list", "numpy"]
+ValuesInput: TypeAlias = Sequence[Any] | Mapping[Any, Any] | np.ndarray
+ValueKey: TypeAlias = str | Callable[[CollectionItem], Any] | Sequence[Any]
 
 
 def _is_membership_filter_value(value: Any, target_value: Any) -> bool:
@@ -74,7 +86,6 @@ class PandasExportMixin:
         excluded = set(self.dataframe_excluded_attrs)
         excluded.update(excluded_attrs or ())
         samp_val_attrs = ["full_sample_value", "mean", "error"]
-        samp_val_methods = []
 
         rows = []
         for s in data_source:
@@ -83,16 +94,14 @@ class PandasExportMixin:
             for key in samp_val_attrs:
                 if hasattr(s, key):
                     row[key] = getattr(s, key)
-            CI_tuple = s.confidence_interval()
-            row["CI_upper"] = CI_tuple[0]
-            row["CI_lower"] = CI_tuple[1]
-            for method in samp_val_methods:
-                if hasattr(s, method):
-                    try:
-                        row[method] = getattr(s, method)()
-                    except Exception:
-                        row[method] = None
-
+            sampling_info = getattr(s, "sampling_info", None)
+            if sampling_info is not None and sampling_info.method != "bootstrap":
+                row["CI_lower"] = None
+                row["CI_upper"] = None
+            else:
+                ci_lower, ci_upper = s.confidence_interval()
+                row["CI_lower"] = ci_lower
+                row["CI_upper"] = ci_upper
             # Dynamically add all available ObsInfo attributes
             # This replaces the hardcoded list of attributes
             obs_info = s.observable_info
@@ -117,24 +126,27 @@ class PandasExportMixin:
             row.update(attrs)
             rows.append(row)
 
-        df = pd.DataFrame(rows)
-        return df
+        return pd.DataFrame(rows)
 
 
 class AttributeAccessor:
     """
     Provides safe, namespaced access to both properties (data) and methods (actions).
 
-    Enhanced to support batch attribute updates via replace().
+    Supports batch attribute writes two ways: replace() copies and returns a new
+    collection, update() sets in place on the existing objects.
 
     Examples:
         # Reading (unchanged)
         names = collection.obs.name  # Returns ['n1', 'n2', ...]
 
-        # Writing (new - returns new collection)
+        # Writing a copy (returns new collection)
         new_coll = collection.obs.replace(name='uniform_name')
         new_coll = collection.obs.replace(name=['n1', 'n2', ...])
         new_coll = collection.obs.replace(name=lambda obs: f'new_{obs.name}')
+
+        # Writing in place (returns None, visible through every sharing collection)
+        collection.filter(psq=0).obs.update(irrep='A1g')
     """
 
     def __init__(self, collection, target_extractor: Callable[[Any], Any]):
@@ -146,9 +158,34 @@ class AttributeAccessor:
         """Fast numeric check for numpy-return optimization."""
         return isinstance(value, (int, float, np.number, bool))
 
+    @staticmethod
+    def _resolve_value(value: Any, idx: int, target: Any) -> Any:
+        """Resolve one replace/update value for item *idx* against *target*."""
+        if callable(value):
+            return value(target)
+        if isinstance(value, (list, tuple)):
+            return value[idx]
+        return value
+
+    def _check_kwargs(self, kwargs: dict) -> None:
+        """Reject empty kwargs and per-item lists that do not match the collection."""
+        if not kwargs:
+            raise ValueError("Must provide at least one attribute to set")
+        for attr_name, value in kwargs.items():
+            if isinstance(value, (list, tuple)) and len(value) != len(self._collection):
+                raise ValueError(
+                    f"List length for '{attr_name}' ({len(value)}) must match "
+                    f"collection length ({len(self._collection)})"
+                )
+
     def replace(self, **kwargs) -> "ObservableCollection":
         """
-        Replace one or more attributes and return new collection.
+        Replace one or more attributes and return a new collection.
+
+        The originals are left untouched: each observable is copied before its
+        attributes are set. Use :meth:`update` when the change should be visible
+        through every collection sharing these observables (e.g. a filtered scope
+        and its parent).
 
         Args:
             **kwargs: Attribute-value pairs to replace. Values can be:
@@ -168,19 +205,11 @@ class AttributeAccessor:
             new_coll = collection.obs.replace(name=lambda obs: f'new_{obs.name}')
             new_coll = collection.obs.replace(name='test', index=99)
         """
-        if not kwargs:
-            raise ValueError("Must provide at least one attribute to replace")
+        self._check_kwargs(kwargs)
 
         if not self._collection._data:
             # Empty collection - return new empty collection
             return self._collection._fast_load([], self._collection._return_type)
-
-        # Validate all list lengths upfront
-        for attr_name, value in kwargs.items():
-            if isinstance(value, (list, tuple)) and len(value) != len(self._collection):
-                raise ValueError(
-                    f"List length for '{attr_name}' ({len(value)}) must match collection length ({len(self._collection)})"
-                )
 
         # Create new samplings with updated attributes
         new_samplings = []
@@ -190,43 +219,51 @@ class AttributeAccessor:
             # Optimize for observable_info (most common case)
             if target is sampling.observable_info:
                 new_obs_info = sampling.observable_info.copy()
-
-                # Update all requested attributes
                 for attr_name, value in kwargs.items():
-                    # Resolve value for this item
-                    if callable(value):
-                        new_value = value(new_obs_info)
-                    elif isinstance(value, (list, tuple)):
-                        new_value = value[idx]
-                    else:
-                        new_value = value
-
-                    # Set the attribute
-                    setattr(new_obs_info, attr_name, new_value)
-
+                    setattr(new_obs_info, attr_name, self._resolve_value(value, idx, new_obs_info))
                 # Create a metadata-only view, preserving concrete/lazy type.
                 new_sampling = sampling.with_observable_info(new_obs_info)
             else:
                 new_sampling = sampling.copy()
                 target = self._extractor(new_sampling)
-
-                # Update all requested attributes
                 for attr_name, value in kwargs.items():
-                    # Resolve value for this item
-                    if callable(value):
-                        new_value = value(target)
-                    elif isinstance(value, (list, tuple)):
-                        new_value = value[idx]
-                    else:
-                        new_value = value
-
-                    # Set the attribute
-                    setattr(target, attr_name, new_value)
+                    setattr(target, attr_name, self._resolve_value(value, idx, target))
 
             new_samplings.append(new_sampling)
 
         # Return new collection using fast path
         return self._collection._fast_load(new_samplings, self._collection._return_type)
+
+    def update(self, **kwargs) -> None:
+        """
+        Set one or more attributes in place, on the existing objects.
+
+        The in-place counterpart of :meth:`replace`, taking the same scalar /
+        per-item-list / callable value forms. Because ``filter`` returns a collection
+        over the *same* observables rather than copies, updating a filtered scope is
+        visible in the collection it was filtered from - which is what lets a scoped
+        edit avoid a split-and-rejoin:
+
+            >>> scope = collection.filter(psq=0)
+            >>> scope.obs.update(irrep='A1g')   # collection sees it too
+
+        Any cached shared attributes on the collection are invalidated.
+
+        Args:
+            **kwargs: Attribute-value pairs to set, as for :meth:`replace`.
+
+        Raises:
+            ValueError: If no attributes are given, or a list length doesn't match
+                the collection length.
+        """
+        self._check_kwargs(kwargs)
+
+        for idx, sampling in enumerate(self._collection._data):
+            target = self._extractor(sampling)
+            for attr_name, value in kwargs.items():
+                setattr(target, attr_name, self._resolve_value(value, idx, target))
+
+        self._collection.clear_shared_attr_cache()
 
     def __getattr__(self, name):
         # 1. Safety check on empty collection
@@ -287,9 +324,9 @@ class ObservableCollection(PandasExportMixin):
     Uses __slots__ for memory efficiency and fast attribute access.
     """
 
-    __slots__ = ("_data", "_return_type", "_shared_attr_cache")
+    __slots__ = ("_data", "_return_type", "_shared_attr_cache", "_mutation_version")
 
-    def __init__(self, data: Iterable[SigmondSampling], return_type: str = "numpy"):
+    def __init__(self, data: Iterable[CollectionItem], return_type: ReturnType = "numpy"):
         """
         Initialize ObservableCollection with deduplication.
 
@@ -305,9 +342,10 @@ class ObservableCollection(PandasExportMixin):
             raise ValueError("return_type must be 'dict', 'list', or 'numpy'")
         self._return_type = return_type
         self._shared_attr_cache = {}
+        self._mutation_version = [0]
 
     @classmethod
-    def _fast_load(cls: type[T], data: list[SigmondSampling], return_type: str) -> T:
+    def _fast_load(cls: type[T], data: list[CollectionItem], return_type: ReturnType) -> T:
         """
         Internal constructor to bypass validation/deduplication for trusted data.
         Used by filter/sort methods to return new instances efficiently.
@@ -316,7 +354,36 @@ class ObservableCollection(PandasExportMixin):
         instance._data = data
         instance._return_type = return_type
         instance._shared_attr_cache = {}
+        instance._mutation_version = [0]
         return instance
+
+    def _view(self: T, data: list[CollectionItem]) -> T:
+        """Return a shallow view sharing only the underlying mutation version."""
+        instance = self._fast_load(data, self._return_type)
+        instance._mutation_version = self._mutation_version
+        return instance
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Drop transient cache entries when pickling collection subclasses."""
+        state = {
+            "_data": self._data,
+            "_return_type": self._return_type,
+            "_shared_attr_cache": {},
+            "_mutation_version": [0],
+        }
+        instance_dict = getattr(self, "__dict__", None)
+        if instance_dict is not None:
+            state["__dict__"] = instance_dict.copy()
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        instance_dict = state.pop("__dict__", None)
+        self._data = state["_data"]
+        self._return_type = state["_return_type"]
+        self._shared_attr_cache = {}
+        self._mutation_version = [0]
+        if instance_dict is not None:
+            self.__dict__.update(instance_dict)
 
     def copy(self: T) -> T:
         """Return a copy with each contained SigmondSampling copied independently."""
@@ -365,12 +432,12 @@ class ObservableCollection(PandasExportMixin):
         )
 
     @property
-    def return_type(self) -> str:
+    def return_type(self) -> ReturnType:
         """Get the return type for attribute access ('dict' or 'list')."""
         return self._return_type
 
     @return_type.setter
-    def return_type(self, value: str):
+    def return_type(self, value: ReturnType) -> None:
         if value not in ("dict", "list", "numpy"):
             raise ValueError("return_type must be 'dict', 'list', or 'numpy'")
         self._return_type = value
@@ -399,7 +466,11 @@ class ObservableCollection(PandasExportMixin):
         """
         return AttributeAccessor(self, lambda s: s)
 
-    def filter(self: T, predicate=None, **kwargs) -> T:
+    def filter(
+        self: T,
+        predicate: Callable[[Any], bool] | None = None,
+        **kwargs: Any,
+    ) -> T:
         """
         Filter observables by attributes or direct object comparison.
 
@@ -418,53 +489,58 @@ class ObservableCollection(PandasExportMixin):
         """
         # Return shallow copy if no filters provided
         if predicate is None and not kwargs:
-            return self._fast_load(self._data[:], self._return_type)
+            return self._view(self._data[:])
 
         if not self._data:
-            return self._fast_load([], self._return_type)
+            return self._view([])
 
         # Prepare attribute-based criteria
         direct_checks, obs_filters, samp_filters = self._prepare_criteria(kwargs)
 
-        # Build combined filter function
-        if predicate is not None:
-            # Add predicate as an additional check
-            def predicate_check(samp):
-                return predicate(samp.observable_info)
-        else:
-            predicate_check = None
-
-        # Optimized loop combining all filters with AND logic
         filtered = [
             samp
             for samp in self._data
-            if (predicate_check is None or predicate_check(samp))
-            and (not direct_checks or all(chk(samp) for chk in direct_checks))
-            and (
-                not obs_filters
-                or all(getattr(samp.observable_info, k, None) == v for k, v in obs_filters)
-            )
-            and (
-                not samp_filters
-                or all(getattr(samp.sampling_info, k, None) == v for k, v in samp_filters)
-            )
+            if self._matches(samp, predicate, direct_checks, obs_filters, samp_filters)
         ]
 
-        return self._fast_load(filtered, self._return_type)
+        return self._view(filtered)
 
     def _normalize_values(
-        self, values: Sequence[Any] | Mapping[Any, Any] | np.ndarray
+        self, values: ValuesInput
     ) -> list[Any]:
         """Normalize values input to a list aligned with _data ordering."""
         if isinstance(values, Mapping):
-            values_list = list(values.values())
+            value_mapping = cast(Mapping[Any, Any], values)
+            try:
+                values_list = [value_mapping[item.observable_info] for item in self._data]
+            except KeyError as exc:
+                raise ValueError(
+                    "Mapping values must contain every collection observable_info key"
+                ) from exc
         else:
             values_list = list(values)
         if len(values_list) != len(self._data):
             raise ValueError("Values length must match number of observables")
         return values_list
 
-    def _attr_values(self, attr: str, force_list: bool = True) -> list[Any]:
+    def _resolve_values(
+        self,
+        key: ValueKey | None,
+        values: ValuesInput | None,
+    ) -> list[Any]:
+        """Resolve a named, computed, or explicit value for every collection item."""
+        if values is not None:
+            return self._normalize_values(values)
+        if key is None:
+            raise ValueError("Provide key or values")
+        if isinstance(key, str):
+            return self._attr_values(key)
+        if callable(key):
+            key_func = cast(Callable[[CollectionItem], Any], key)
+            return [key_func(item) for item in self._data]
+        return self._normalize_values(key)
+
+    def _attr_values(self, attr: str) -> list[Any]:
         """
         Collect attribute values from samplings or their metadata.
 
@@ -486,8 +562,7 @@ class ObservableCollection(PandasExportMixin):
                     # Dict return type - extract values in data order
                     return list(result.values())
                 if isinstance(result, np.ndarray):
-                    # NumPy return type - convert to list when requested
-                    return result.tolist() if force_list else result
+                    return result.tolist()
                 if isinstance(result, list):
                     # Plain list (non-numeric AttributeAccessor return)
                     return result
@@ -500,9 +575,9 @@ class ObservableCollection(PandasExportMixin):
 
     def shared_attr(
         self,
-        key: str | Callable[[SigmondSampling], Any] | Sequence[Any] | None = None,
+        key: ValueKey | None = None,
         *,
-        values: Sequence[Any] | Mapping[Any, Any] | np.ndarray | None = None,
+        values: ValuesInput | None = None,
         default: Any = None,
         strict: bool = False,
         cache: bool = True,
@@ -530,23 +605,13 @@ class ObservableCollection(PandasExportMixin):
             # Attribute name
             collection.shared_attr("ensemble_info", default=None)
         """
-        if values is None and key is None:
-            raise ValueError("Provide key or values")
-
         cache_key = None
-        if values is None:
-            if cache:
-                cache_key = key
-                if cache_key in self._shared_attr_cache:
-                    return self._shared_attr_cache[cache_key]
-            if isinstance(key, str):
-                values_list = self._attr_values(key)
-            elif callable(key):
-                values_list = [key(s) for s in self._data]
-            else:
-                values_list = self._normalize_values(key)
-        else:
-            values_list = self._normalize_values(values)
+        if values is None and cache and isinstance(key, str):
+            cache_key = key
+            cached = self._shared_attr_cache.get(cache_key)
+            if cached is not None and cached[0] == self._mutation_version[0]:
+                return cached[1]
+        values_list = self._resolve_values(key, values)
 
         if not values_list:
             return default
@@ -566,22 +631,23 @@ class ObservableCollection(PandasExportMixin):
             if strict:
                 raise ValueError("Values are not shared across the collection")
             if cache_key is not None:
-                self._shared_attr_cache[cache_key] = default
+                self._shared_attr_cache[cache_key] = (self._mutation_version[0], default)
             return default
 
         if cache_key is not None:
-            self._shared_attr_cache[cache_key] = first_val
+            self._shared_attr_cache[cache_key] = (self._mutation_version[0], first_val)
         return first_val
 
     def clear_shared_attr_cache(self) -> None:
-        """Clear shared attribute cache."""
+        """Invalidate cached shared attributes across all shallow views."""
         self._shared_attr_cache.clear()
+        self._mutation_version[0] += 1
 
     def group_by(
         self,
-        key: str | Callable[[SigmondSampling], Hashable] | Sequence[Any] | None = None,
+        key: ValueKey | None = None,
         *,
-        values: Sequence[Any] | Mapping[Any, Any] | np.ndarray | None = None,
+        values: ValuesInput | None = None,
     ) -> dict[Hashable, T]:
         """
         Group samplings by a key or provided values.
@@ -604,34 +670,28 @@ class ObservableCollection(PandasExportMixin):
             # Autocomplete-friendly
             collection.group_by(values=collection.obs.irrep)
         """
-        if values is None and key is None:
-            raise ValueError("Provide key or values")
+        values_list = self._resolve_values(key, values)
 
-        if values is None:
-            if isinstance(key, str):
-                values_list = self._attr_values(key)
-            elif callable(key):
-                values_list = [key(s) for s in self._data]
-            else:
-                values_list = self._normalize_values(key)
-        else:
-            values_list = self._normalize_values(values)
-
-        groups: dict[Hashable, list[SigmondSampling]] = {}
+        groups: dict[Hashable, list[CollectionItem]] = {}
         for sampling, group_key in zip(self._data, values_list):
+            try:
+                hash(group_key)
+            except TypeError as exc:
+                raise TypeError("Group keys must be hashable") from exc
+            group_key = cast(Hashable, group_key)
             groups.setdefault(group_key, []).append(sampling)
 
-        return {
-            group_key: self._fast_load(group, self._return_type)
-            for group_key, group in groups.items()
-        }
+        return cast(
+            dict[Hashable, T],
+            {group_key: self._view(group) for group_key, group in groups.items()},
+        )
 
     def unique(
         self,
-        key: str | Callable[[SigmondSampling], Hashable] | Sequence[Any] | None = None,
+        key: ValueKey | None = None,
         *,
-        values: Sequence[Any] | Mapping[Any, Any] | np.ndarray | None = None,
-    ) -> list[Any] | np.ndarray | None:
+        values: ValuesInput | None = None,
+    ) -> list[Any] | np.ndarray:
         """
         Get unique values for a key or provided values.
 
@@ -658,18 +718,7 @@ class ObservableCollection(PandasExportMixin):
             # Get unique composite keys
             collection.unique(lambda s: (s.observable_info.irrep, s.observable_info.psq))
         """
-        if values is None and key is None:
-            raise ValueError("Provide key or values")
-
-        if values is None:
-            if isinstance(key, str):
-                values_list = self._attr_values(key)
-            elif callable(key):
-                values_list = [key(s) for s in self._data]
-            else:
-                values_list = self._normalize_values(key)
-        else:
-            values_list = self._normalize_values(values)
+        values_list = self._resolve_values(key, values)
 
         # Get unique values while preserving order
         seen = set()
@@ -686,7 +735,7 @@ class ObservableCollection(PandasExportMixin):
                     unique_values.append(value)
 
         if len(unique_values) == 0:
-            return None
+            return []
 
         # Format return based on return_type
         # Sort with None-safe key (None values sort first)
@@ -696,13 +745,16 @@ class ObservableCollection(PandasExportMixin):
                     # For numpy with numeric values, use np.sort (handles None as NaN)
                     arr = np.array(unique_values)
                     return np.sort(arr)
-            # Use None-safe sorting: (value is None, value) puts None first
-            return sorted(unique_values, key=lambda x: (x is None, x))
+            return sorted(unique_values, key=lambda x: (x is not None, x))
         except TypeError:
             # If still can't sort (e.g., mixed incompatible types), return unsorted
             return unique_values
 
-    def find(self, predicate: Callable = None, **kwargs) -> SigmondSampling | None:
+    def find(
+        self,
+        predicate: Callable[[Any], bool] | None = None,
+        **kwargs: Any,
+    ) -> CollectionItem | None:
         """
         Find first sampling matching predicate or attribute criteria.
 
@@ -724,37 +776,17 @@ class ObservableCollection(PandasExportMixin):
         # Prepare attribute-based criteria
         direct_checks, obs_filters, samp_filters = self._prepare_criteria(kwargs)
 
-        # Build combined filter function
-        if predicate is not None:
-
-            def predicate_check(samp):
-                return predicate(samp.observable_info)
-        else:
-            predicate_check = None
-
-        # Optimized search loop combining all filters with AND logic
         for samp in self._data:
-            if (
-                (predicate_check is None or predicate_check(samp))
-                and (not direct_checks or all(chk(samp) for chk in direct_checks))
-                and (
-                    not obs_filters
-                    or all(getattr(samp.observable_info, k, None) == v for k, v in obs_filters)
-                )
-                and (
-                    not samp_filters
-                    or all(getattr(samp.sampling_info, k, None) == v for k, v in samp_filters)
-                )
-            ):
+            if self._matches(samp, predicate, direct_checks, obs_filters, samp_filters):
                 return samp
 
         return None
 
     def sort(
         self: T,
-        key: str | Callable | Sequence[str] | None = None,
+        key: str | Callable[[CollectionItem], Any] | Sequence[str] | None = None,
         *,
-        values: Sequence[Any] | Mapping[Any, Any] | np.ndarray | None = None,
+        values: ValuesInput | None = None,
         reverse: bool = False,
         nulls_last: bool = False,
     ) -> T:
@@ -792,7 +824,7 @@ class ObservableCollection(PandasExportMixin):
             raise ValueError("Provide key or values")
 
         if not self._data:
-            return self._fast_load([], self._return_type)
+            return self._view([])
 
         # Determine the sort key function
         if values is not None:
@@ -803,25 +835,62 @@ class ObservableCollection(PandasExportMixin):
             # Sort with None-safe key
             def safe_sort_key(pair):
                 val = pair[1]
-                return (val is None, val) if nulls_last else (val is not None, val)
+                return self._none_safe_sort_value(val, nulls_last, reverse)
 
             sorted_pairs = sorted(paired, key=safe_sort_key, reverse=reverse)
             new_data = [s for s, _ in sorted_pairs]
         elif callable(key):
             # Custom function - wrap with None handling
+            key_func = cast(Callable[[CollectionItem], Any], key)
+
             def safe_sort_key(s):
-                val = key(s)
-                return (val is None, val) if nulls_last else (val is not None, val)
+                return self._none_safe_sort_value(key_func(s), nulls_last, reverse)
 
             new_data = sorted(self._data, key=safe_sort_key, reverse=reverse)
         else:
             # String or list of strings - use existing composite key builder
-            sort_key = self._build_composite_sort_key(key, nulls_last=nulls_last)
+            if key is None:
+                raise ValueError("Provide key or values")
+            attr_key = cast(str | Sequence[str], key)
+            sort_key = self._build_composite_sort_key(
+                attr_key,
+                nulls_last=nulls_last,
+                reverse=reverse,
+            )
             new_data = sorted(self._data, key=sort_key, reverse=reverse)
 
-        return self._fast_load(new_data, self._return_type)
+        return self._view(new_data)
 
-    def _prepare_criteria(self, kwargs: dict) -> tuple:
+    @staticmethod
+    def _matches(
+        sampling: CollectionItem,
+        predicate: Callable[[Any], bool] | None,
+        direct_checks: Sequence[Callable[[CollectionItem], bool]],
+        obs_filters: Sequence[tuple[str, Any]],
+        samp_filters: Sequence[tuple[str, Any]],
+    ) -> bool:
+        """Return whether one item satisfies all collection filter criteria."""
+        return (
+            (predicate is None or predicate(sampling.observable_info))
+            and all(check(sampling) for check in direct_checks)
+            and all(
+                getattr(sampling.observable_info, attr, None) == value
+                for attr, value in obs_filters
+            )
+            and all(
+                getattr(sampling.sampling_info, attr, None) == value
+                for attr, value in samp_filters
+            )
+        )
+
+    def _prepare_criteria(
+        self,
+        kwargs: dict[str, Any],
+    ) -> tuple[
+        list[Callable[[CollectionItem], bool]],
+        list[tuple[str, Any]],
+        list[tuple[str, Any]],
+    ]:
         """
         Internal helper to parse kwargs into direct object checks and attribute filters.
         Routes attributes to ObservableInfo or SamplingInfo based on first item inspection.
@@ -913,7 +982,20 @@ class ObservableCollection(PandasExportMixin):
                 return value
         return first_value
 
-    def _build_composite_sort_key(self, by, nulls_last: bool = False) -> Callable:
+    @staticmethod
+    def _none_safe_sort_value(value: Any, nulls_last: bool, reverse: bool) -> tuple[bool, Any]:
+        """Decorate a value so null placement stays fixed when order reverses."""
+        is_none = value is None
+        null_flag = is_none != reverse if nulls_last else is_none == reverse
+        return null_flag, value
+
+    def _build_composite_sort_key(
+        self,
+        by: str | Sequence[str],
+        *,
+        nulls_last: bool = False,
+        reverse: bool = False,
+    ) -> Callable[[CollectionItem], tuple[tuple[bool, Any], ...]]:
         """
         Internal helper to build a sort key function.
         Inspects the first item to find where attributes live.
@@ -951,13 +1033,19 @@ class ObservableCollection(PandasExportMixin):
         # or last (True > False) depending on nulls_last
         def safe_key(sampling):
             return tuple(
-                (val is not None, val) if not nulls_last else (val is None, val)
+                self._none_safe_sort_value(val, nulls_last, reverse)
                 for val in (ex(sampling) for ex in extractors)
             )
 
         return safe_key
 
-    def filter_data(self: T, predicate=None, min_val=None, max_val=None, **kwargs) -> T:
+    def filter_data(
+        self: T,
+        predicate: Callable[[CollectionItem], bool] | None = None,
+        min_val: Any = None,
+        max_val: Any = None,
+        **kwargs: Any,
+    ) -> T:
         """
         Filter observables based on their data values (full_sample_value).
 
@@ -1028,10 +1116,15 @@ class ObservableCollection(PandasExportMixin):
             "ne": lambda t: lambda v: v != t,
         }
 
+        unknown_ops = set(kwargs).difference(ops)
+        if unknown_ops:
+            supported = ", ".join(sorted(ops))
+            unknown = ", ".join(sorted(unknown_ops))
+            raise ValueError(f"Unknown comparison operator(s): {unknown}. Supported: {supported}")
+
         for op, target in kwargs.items():
-            if op in ops:
-                target_val = get_value(target)
-                value_checks.append(ops[op](target_val))
+            target_val = get_value(target)
+            value_checks.append(ops[op](target_val))
 
         # Apply all checks with AND logic
         filtered = [
@@ -1041,9 +1134,14 @@ class ObservableCollection(PandasExportMixin):
             and all(chk(samp.full_sample_value) for chk in value_checks)
         ]
 
-        return self._fast_load(filtered, self._return_type)
+        return self._view(filtered)
 
-    def find_data(self, mode, target=None, key=None) -> SigmondSampling | None:
+    def find_data(
+        self,
+        mode: Literal["min", "max", "closest"],
+        target: Any = None,
+        key: str | Callable[[CollectionItem], Any] | None = None,
+    ) -> CollectionItem | None:
         """
         Find a single sampling based on data value criteria.
 
@@ -1084,7 +1182,7 @@ class ObservableCollection(PandasExportMixin):
             def key_func(s):
                 return s.full_sample_value
         elif callable(key):
-            key_func = key
+            key_func = cast(Callable[[CollectionItem], Any], key)
         else:
 
             def key_func(s):
@@ -1098,11 +1196,19 @@ class ObservableCollection(PandasExportMixin):
             if target is None:
                 raise ValueError("target must be provided for mode='closest'")
             target_val = get_value(target)
-            return min(self._data, key=lambda s: abs(key_func(s) - target_val))
+
+            def distance(sampling: CollectionItem) -> float:
+                return float(abs(key_func(sampling) - target_val))
+
+            return min(self._data, key=distance)
         else:
             raise ValueError(f"Unknown mode '{mode}'. Options: 'min', 'max', 'closest'")
 
-    def sort_data(self: T, key="full_sample_value", reverse=False) -> T:
+    def sort_data(
+        self: T,
+        key: str | Callable[[CollectionItem], Any] = "full_sample_value",
+        reverse: bool = False,
+    ) -> T:
         """
         Sort collection by data values.
 
@@ -1131,20 +1237,13 @@ class ObservableCollection(PandasExportMixin):
             # Method chaining
             collection.filter_data(gt=0.5).sort_data()
         """
-        if callable(key):
-            sort_key = key
-        else:
+        if not callable(key):
             valid_keys = ["full_sample_value", "mean", "std", "error"]
             if key not in valid_keys:
                 raise ValueError(f"key must be one of {valid_keys} or a callable function")
+        return self.sort(key=key, reverse=reverse)
 
-            def sort_key(s):
-                return getattr(s, key)
-
-        new_data = sorted(self._data, key=sort_key, reverse=reverse)
-        return self._fast_load(new_data, self._return_type)
-
-    def to_list(self) -> list[SigmondSampling]:
+    def to_list(self) -> list[CollectionItem]:
         """Return list of SigmondSampling objects."""
         return self._data[:]
 
@@ -1167,9 +1266,13 @@ class ObservableCollection(PandasExportMixin):
             )
         return np.array([np.asarray(samp.data) for samp in self._data])
 
-    # TODO: would like a better updating mechanism. Want to be able to 'update' or 'append'.
     def to_hdf5(
-        self, filename: str, overwrite: bool = False, group: str = "data"
+        self,
+        filename: str,
+        overwrite: bool = False,
+        group: str = "data",
+        mode: Literal["a", "w"] = "a",
+        create_backups: bool = True,
     ) -> None:
         """
         Export collection data to HDF5 file in Sigmond format.
@@ -1180,21 +1283,28 @@ class ObservableCollection(PandasExportMixin):
 
         Args:
             filename: Path to output HDF5 file
-            overwrite: If True, overwrite existing file (default: False)
+            overwrite: In ``"w"`` mode, replace an existing file. In ``"a"``
+                mode, replace colliding observables.
             group: HDF5 root group to store data under (default: "data")
+            mode: ``"w"`` writes a new file; ``"a"`` appends to an existing
+                file, creating it when needed.
+            create_backups: Create a numbered backup before changing an existing file.
         """
         from .bins import SigmondBins
-        from .ensemble_collection import SingleEnsembleCollection
         from .io.writer import SigmondWriter
 
         # Validate single-ensemble / shared sampling
         try:
-            SingleEnsembleCollection(self._data)
+            self.shared_attr(lambda item: item.ensemble_info, strict=True, cache=False)
+            self.shared_attr(lambda item: item.sampling_info, strict=True, cache=False)
         except ValueError:
             raise ValueError(
                 "All observables must belong to the same ensemble and have compatible "
                 "sampling metadata to export to HDF5."
             )
+
+        if not self._data:
+            raise ValueError("Cannot export an empty collection to HDF5")
 
         all_bins = all(isinstance(s, SigmondBins) for s in self._data)
         all_samplings = all(isinstance(s, SigmondSampling) for s in self._data)
@@ -1204,16 +1314,24 @@ class ObservableCollection(PandasExportMixin):
                 "to a single HDF5 file."
             )
 
-        writer = SigmondWriter(create_backups=True)
+        writer = SigmondWriter(create_backups=create_backups)
         if all_bins:
-            writer.write_bins_hdf5(filename, self._data, group=group, overwrite=overwrite)
+            bins = cast(list[SigmondBins], self._data)
+            writer.write_bins_hdf5(
+                filename, bins, group=group, overwrite=overwrite, mode=mode
+            )
         else:
-            writer.write_hdf5(filename, self._data, group=group, overwrite=overwrite)
-            
-    def to_stats(self) -> 'SamplingStats':
+            samplings = cast(list[SigmondSampling], self._data)
+            writer.write_hdf5(filename, samplings, group=group, overwrite=overwrite, mode=mode)
+
+    def to_stats(self) -> "SamplingStats":
         """Return statistics for the collection."""
         from .stats import SamplingStats
-        return SamplingStats(self._data)
+
+        if not all(isinstance(item, SigmondSampling) for item in self._data):
+            raise TypeError("SamplingStats requires SigmondSampling items, not raw bins")
+        samplings = cast(list[SigmondSampling], self._data)
+        return SamplingStats(samplings)
 
     def __iter__(self):
         """Iterate over SigmondSampling objects."""
@@ -1223,13 +1341,22 @@ class ObservableCollection(PandasExportMixin):
         """Return number of observables in collection."""
         return len(self._data)
 
-    def __getitem__(self: T, key) -> SigmondSampling | T:
+    @overload
+    def __getitem__(self, key: int) -> CollectionItem: ...
+
+    @overload
+    def __getitem__(self: T, key: slice | list[Any] | tuple[Any, ...] | np.ndarray) -> T: ...
+
+    def __getitem__(
+        self: T,
+        key: int | slice | list[Any] | tuple[Any, ...] | np.ndarray,
+    ) -> CollectionItem | T:
         """
         Get sampling by integer index or slice.
         """
         if isinstance(key, slice):
             # Return new collection for slices via fast path
-            return self._fast_load(self._data[key], self._return_type)
+            return self._view(self._data[key])
 
         if isinstance(key, (list, tuple, np.ndarray)):
             mask = None
@@ -1257,8 +1384,10 @@ class ObservableCollection(PandasExportMixin):
                     raise IndexError("Boolean mask length must match collection length")
                 data = [s for s, keep in zip(self._data, mask) if keep]
             else:
+                if indices is None:
+                    raise TypeError("Index sequence could not be interpreted")
                 data = [self._data[i] for i in indices]
-            return self._fast_load(data, self._return_type)
+            return self._view(data)
 
         return self._data[key]
 

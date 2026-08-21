@@ -5,8 +5,7 @@ import sigmondsamplings as ss
 
 def test_lazy_stub_exposes_public_submodules():
     assert isinstance(ss.sampling, types.ModuleType)
-    assert isinstance(ss.fit, types.ModuleType)
-    assert isinstance(ss.model_func, types.ModuleType)
+    assert isinstance(ss.fitting, types.ModuleType)
     assert isinstance(ss.io, types.ModuleType)
 
 
@@ -14,11 +13,13 @@ def test_lazy_stub_exposes_current_public_names():
     for name in [
         "SigmondSampling",
         "SamplingFit",
-        "FitAtResamp",
+        "FitResult",
         "Chi2Scan",
         "SigmondModelFunc",
+        "ParamSetSpec",
+        "ParamSetResolved",
         "ParamSpec",
-        "Minimizer",
+        "MinimizerConfig",
         "SigmondLoader",
         "SigmondWriter",
         "rcparams",
