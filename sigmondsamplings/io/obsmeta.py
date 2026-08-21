@@ -5,9 +5,10 @@ Historically each observable component dataset carried its energy annotation as
 individual HDF5 attributes, costing one metadata read per attribute (thousands
 per file, dominating load time). Instead we write a single ``ObsMeta`` dataset
 beside ``Values``: a 1-D variable-length UTF-8 array holding one JSON object per
-component, recording the dataset ``key``, its sample ``shape`` and ``dtype``, and
-any energy attrs. One read recovers everything, and the lazy index reports shapes
-without opening a single dataset.
+component, recording the dataset ``key``, its sample ``shape`` and ``dtype``,
+plus optional annotations such as energy attrs or explicit LaTeX labels. One
+read recovers everything, and the lazy index reports shapes without opening a
+single dataset.
 
 Files predating this table (and real Sigmond files) simply lack ``ObsMeta``;
 :func:`read` returns an empty mapping so callers fall back to per-dataset attrs.
@@ -22,8 +23,9 @@ import numpy as np
 DATASET = "ObsMeta"
 
 # Reserved JSON keys. ``shape``/``dtype`` describe the component array; ``key``
-# is the join back to its ``Values`` dataset. None collide with energy attr names
-# (obs_kind, irrep, psq, energy_type, level_index, ref_particle, ni_pairs).
+# is the join back to its ``Values`` dataset. None collide with annotation names
+# (obs_kind, irrep, psq, energy_type, level_index, ref_particle, ni_pairs,
+# latex_str).
 _KEY = "key"
 _SHAPE = "shape"
 _DTYPE = "dtype"

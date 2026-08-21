@@ -1,4 +1,4 @@
-"""Write-side commands for the ``ss`` CLI: ``convert``, ``combine``, ``energy-tag``.
+"""Write-side commands for the ``ss`` CLI: ``convert`` and ``combine``.
 
 Thin typer wrappers over the library functions in ``sigmondsamplings.io``;
 shared option definitions and the input/output guards live in ``_common``.
@@ -12,7 +12,6 @@ import typer
 
 from ..io.combine import combine_files
 from ..io.convert import convert_to_hdf5
-from ..io.energy_tag import add_energy_attrs
 from ._common import (
     guard_output,
     in_group_option,
@@ -62,36 +61,3 @@ def combine(
     except Exception as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Combined {len(files)} files -> {result}")
-
-
-def energy_tag(
-    file: Path = typer.Argument(..., help="Input Sigmond samplings file (.smp or .hdf5)."),
-    output: Path = typer.Argument(..., help="Output HDF5 file."),
-    ni_yml: Path | None = typer.Option(
-        None, "--ni-yml", help="PyCalQ YAML with non-interacting pair assignments."
-    ),
-    ref_particle: str | None = typer.Option(
-        None, "--ref-particle", help="Reference particle for reference-mode levels (E/M_ref)."
-    ),
-    in_group: str | None = in_group_option(),
-    out_group: str | None = out_group_option(default=None),
-    overwrite: bool = overwrite_option(),
-) -> None:
-    """Tag energy observables with self-describing attrs (and optional NI pairs)."""
-    require_input(file)
-    if ni_yml is not None:
-        require_input(ni_yml)
-    guard_output(file, output, overwrite)
-    try:
-        result = add_energy_attrs(
-            str(file),
-            str(output),
-            ni_yml=str(ni_yml) if ni_yml else None,
-            ref_particle=ref_particle,
-            in_group=in_group,
-            out_group=out_group,
-            overwrite=overwrite,
-        )
-    except Exception as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"Tagged energy attrs {file} -> {result}")

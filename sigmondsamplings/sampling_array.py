@@ -519,7 +519,7 @@ class SigmondSamplingArray:
         used directly), a scalar (broadcast across the resampling axis), or
         ``None`` (zero-fill with a warning).
         """
-        from .obervable_collection import ObservableCollection  # local import
+        from .observable_collection import ObservableCollection  # local import
 
         if isinstance(source, ObservableCollection):
             collection = source

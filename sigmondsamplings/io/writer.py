@@ -11,8 +11,10 @@ import logging
 import os
 import shutil
 import xml.etree.ElementTree as ET
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, cast
 
 import h5py
 import numpy as np
@@ -31,16 +33,29 @@ from .loader import (
 logger = logging.getLogger(__name__)
 
 HDF5_EXTENSIONS = {".h5", ".hdf5"}
+WriteMode = Literal["a", "w"]
+FileKind = Literal["samplings", "bins"]
+DatasetRow = tuple[str, np.ndarray, dict | None]
+
+
+@dataclass(frozen=True)
+class _HDF5WritePayload:
+    group: str
+    kind: FileKind
+    observables: tuple[SigmondSampling | SigmondBins, ...]
+    header_xml: str
+    dataset_rows: tuple[tuple[DatasetRow, ...], ...]
+    component_keys: tuple[frozenset[str], ...]
 
 
 class SigmondWriter:
     """
     Writer for Sigmond samplings and bins files, in HDF5 format.
 
-    Writing is always HDF5: ``write_hdf5``/``write_bins_hdf5`` create new files,
-    while ``append_to_file`` and ``modify_observable`` edit an existing HDF5 file
-    in place (fstream input is first converted to a sibling ``.hdf5``). Optional
-    numbered backups protect files before they are overwritten or modified.
+    Writing is always HDF5. ``write_hdf5``/``write_bins_hdf5`` support new-file
+    (``mode="w"``) and append (``mode="a"``) behavior, while ``append_to_file``
+    and ``modify_observable`` provide explicit in-place editing operations.
+    Optional numbered backups protect files before they are overwritten or modified.
     """
 
     def __init__(self, create_backups: bool = True):
@@ -183,7 +198,10 @@ class SigmondWriter:
     def _append_mcbins_info(self, root: ET.Element, ensemble_info: EnsembleInfo) -> None:
         """Append the shared ``<MCBinsInfo>`` block (ensemble + optional tweaks) to ``root``."""
         bins_elem = ET.SubElement(root, "MCBinsInfo")
-        ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.name
+        # Keep lattice geometry self-contained when it is known.  Writing only
+        # ``name`` would discard the extents and make a file that loaded without
+        # a known-ensembles database impossible to reconstruct faithfully.
+        ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.short_str
         ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(ensemble_info.num_measurements)
         ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
         if ensemble_info.tweak_info:
@@ -276,25 +294,20 @@ class SigmondWriter:
         Self-describing dataset attrs for an observable, or None for plain ones.
 
         Duck-typed: any ObservableInfo exposing ``to_attrs`` (currently the energy
-        types) gets its metadata persisted; the loader reverses this on read.
+        types) gets its metadata persisted; explicit display labels are preserved
+        via ``latex_str``, except for types that regenerate their own label from
+        those attrs (``_reconstructs_own_label``), where storing it is redundant.
         """
+        attrs = {}
         to_attrs = getattr(observable_info, "to_attrs", None)
-        return to_attrs() if to_attrs else None
+        if to_attrs:
+            attrs.update(to_attrs())
 
-    def _write_value_datasets(self, values_group: h5py.Group, items) -> dict[str, dict]:
-        """
-        Create every component dataset for ``items`` and return their ObsMeta fields.
+        latex_str = getattr(observable_info, "_latex_str", None)
+        if latex_str and not getattr(observable_info, "_reconstructs_own_label", False):
+            attrs["latex_str"] = latex_str
 
-        ``items`` yields ``(observable_info, data, is_complex)``; the returned
-        ``{dataset_key: fields}`` mapping is ready for :func:`obsmeta.write`. Energy
-        annotations live in the table rather than per-dataset attrs.
-        """
-        meta: dict[str, dict] = {}
-        for observable_info, data, is_complex in items:
-            for key, arr, attrs in self._observable_datasets(observable_info, data, is_complex):
-                values_group.create_dataset(key, data=arr)
-                meta[key] = obsmeta.fields_for(arr, attrs)
-        return meta
+        return attrs or None
 
     def _observable_datasets(
         self, observable_info: ObservableInfo, data: np.ndarray, is_complex: bool
@@ -341,6 +354,13 @@ class SigmondWriter:
         self._fixed_str_dataset(info_group, "FIdentifier", fidentifier)
         self._fixed_str_dataset(info_group, "Endianness", "L")
 
+        return self._write_data_group_skeleton(hdf5_file, group_name, header_xml)
+
+    def _write_data_group_skeleton(
+        self, hdf5_file: h5py.File, group_name: str, header_xml: str
+    ) -> h5py.Group:
+        """Create one Sigmond data group and return its empty ``Values`` group."""
+
         data_group = hdf5_file.create_group(group_name)
         self._fixed_str_dataset(data_group, "Header", header_xml)
         self._fixed_str_dataset(data_group, "IncludeCKS", "N")
@@ -354,6 +374,228 @@ class SigmondWriter:
                     f"File {filename} already exists. Use overwrite=True to overwrite."
                 )
             self._create_numbered_backup(filename)
+
+    @staticmethod
+    def _validate_write_mode(mode: str) -> WriteMode:
+        if mode not in {"a", "w"}:
+            raise ValueError(f"Unsupported write mode {mode!r}; expected 'a' or 'w'")
+        return cast(WriteMode, mode)
+
+    def _component_keys_for_observable(self, observable_info: ObservableInfo) -> frozenset[str]:
+        """All possible component keys for one logical observable."""
+        return frozenset(
+            {
+                self._dataset_key_for_observable(observable_info, "re"),
+                self._dataset_key_for_observable(observable_info, "im"),
+            }
+        )
+
+    def _prepare_payload(
+        self,
+        observables: Sequence[SigmondSampling] | Sequence[SigmondBins],
+        group: str,
+        kind: FileKind,
+    ) -> _HDF5WritePayload:
+        """Validate and normalize one data group before touching its output file."""
+        if not observables:
+            noun = "samplings" if kind == "samplings" else "bins"
+            raise ValueError(f"No {noun} provided")
+
+        group_name = clean_group(group)
+        if not group_name:
+            raise ValueError("HDF5 group must not be empty")
+        first = observables[0]
+        ensemble_info = first.observable_info.ensemble_info
+
+        if kind == "samplings":
+            if not isinstance(first, SigmondSampling):
+                raise TypeError(f"Item 0 is a {type(first).__name__}, expected SigmondSampling")
+            sampling_info = first.sampling_info
+            header_xml = self._generate_header_xml(ensemble_info, sampling_info)
+        else:
+            if not isinstance(first, SigmondBins):
+                raise TypeError(f"Item 0 is a {type(first).__name__}, expected SigmondBins")
+            num_bins = first.num_bins
+            header_xml = self._generate_bins_header_xml(ensemble_info)
+
+        dataset_rows: list[tuple[DatasetRow, ...]] = []
+        component_keys: list[frozenset[str]] = []
+        incoming_component_keys: set[str] = set()
+        normalized: list[SigmondSampling | SigmondBins] = []
+
+        for i, observable in enumerate(observables):
+            expected_type = SigmondSampling if kind == "samplings" else SigmondBins
+            if not isinstance(observable, expected_type):
+                raise TypeError(
+                    f"Item {i} is a {type(observable).__name__}, "
+                    f"expected {expected_type.__name__}"
+                )
+            if observable.observable_info.ensemble_info != ensemble_info:
+                raise ValueError(f"Item {i} has incompatible ensemble info")
+            if kind == "samplings" and observable.sampling_info != sampling_info:
+                raise ValueError(f"Sampling {i} has incompatible sampling info")
+            if kind == "bins" and observable.num_bins != num_bins:
+                raise ValueError(f"Bins {i} has {observable.num_bins} bins; expected {num_bins}")
+
+            observable_component_keys = self._component_keys_for_observable(
+                observable.observable_info
+            )
+            if incoming_component_keys.intersection(observable_component_keys):
+                raise ValueError(
+                    f"Duplicate logical observable {observable.observable_info.name!r} "
+                    "in write batch"
+                )
+            incoming_component_keys.update(observable_component_keys)
+            component_keys.append(observable_component_keys)
+            data = observable.data if kind == "samplings" else observable._as_numpy()
+            dataset_rows.append(
+                tuple(
+                    self._observable_datasets(
+                        observable.observable_info, data, observable.is_complex
+                    )
+                )
+            )
+            normalized.append(observable)
+
+        return _HDF5WritePayload(
+            group_name,
+            kind,
+            tuple(normalized),
+            header_xml,
+            tuple(dataset_rows),
+            tuple(component_keys),
+        )
+
+    @staticmethod
+    def _fidentifier_for_kind(kind: FileKind) -> str:
+        return "Sigmond--SamplingsFile" if kind == "samplings" else "Sigmond--BinsFile"
+
+    def _validate_existing_group(self, filename: str, payload: _HDF5WritePayload) -> None:
+        existing = SigmondLoader(filename=filename, group=payload.group).observables
+        first = payload.observables[0]
+        if payload.kind == "samplings":
+            if existing.sampling_info != first.sampling_info:
+                raise ValueError("New samplings have incompatible sampling info with file")
+            if existing.ensemble_info != first.observable_info.ensemble_info:
+                raise ValueError("New samplings have incompatible ensemble info with file")
+        else:
+            existing_first = existing[0]
+            if existing_first.observable_info.ensemble_info != first.observable_info.ensemble_info:
+                raise ValueError("New bins have incompatible ensemble info with file")
+            if existing_first.num_bins != first.num_bins:
+                raise ValueError("New bins have an incompatible number of bins with file")
+
+    def _preflight_append(
+        self, filename: str, payloads: Sequence[_HDF5WritePayload], overwrite: bool
+    ) -> set[str]:
+        """Validate an append completely and return the existing data-group paths."""
+        is_valid, file_kind, available_groups = verify_sigmond_hdf5(filename)
+        if not is_valid:
+            raise ValueError(f"File {filename} is not a valid Sigmond HDF5 file")
+        expected_kind = payloads[0].kind
+        if file_kind != expected_kind:
+            raise ValueError(f"Cannot append {expected_kind} to a {file_kind} file")
+
+        existing_groups = set(available_groups or [])
+        with h5py.File(filename, "r") as hdf5_file:
+            for payload in payloads:
+                if payload.group in hdf5_file and payload.group not in existing_groups:
+                    raise ValueError(f"Values group not found in root group {payload.group}")
+                if payload.group not in existing_groups:
+                    continue
+                if overwrite:
+                    continue
+                values_group = hdf5_file[payload.group]["Values"]
+                for keys in payload.component_keys:
+                    collisions = keys.intersection(values_group.keys())
+                    if collisions:
+                        raise FileExistsError(
+                            f"Observable dataset {next(iter(collisions))!r} already exists. "
+                            "Use overwrite=True to replace it."
+                        )
+        for payload in payloads:
+            if payload.group in existing_groups:
+                self._validate_existing_group(filename, payload)
+        return existing_groups
+
+    def _write_payload_to_group(
+        self,
+        hdf5_file: h5py.File,
+        payload: _HDF5WritePayload,
+        *,
+        group_exists: bool,
+        overwrite: bool,
+    ) -> None:
+        if group_exists:
+            data_group = hdf5_file[payload.group]
+            values_group = data_group["Values"]
+            meta = obsmeta.read(data_group)
+        else:
+            values_group = self._write_data_group_skeleton(
+                hdf5_file, payload.group, payload.header_xml
+            )
+            data_group = values_group.parent
+            meta = {}
+
+        for keys, rows in zip(payload.component_keys, payload.dataset_rows, strict=True):
+            if overwrite:
+                for key in keys:
+                    if key in values_group:
+                        del values_group[key]
+                    meta.pop(key, None)
+            for key, arr, attrs in rows:
+                values_group.create_dataset(key, data=arr)
+                meta[key] = obsmeta.fields_for(arr, attrs)
+        obsmeta.write(data_group, meta)
+
+    def _write_payloads(
+        self,
+        filename: str,
+        payloads: Sequence[_HDF5WritePayload],
+        *,
+        overwrite: bool,
+        mode: WriteMode,
+    ) -> None:
+        """Commit one or more prevalidated groups with one backup and file open."""
+        if not payloads:
+            raise ValueError("No HDF5 groups provided")
+        kinds = {payload.kind for payload in payloads}
+        if len(kinds) != 1:
+            raise ValueError("Cannot mix bins and samplings in one HDF5 file")
+        groups = [payload.group for payload in payloads]
+        if len(groups) != len(set(groups)):
+            raise ValueError("Duplicate HDF5 group in write batch")
+
+        append_existing = mode == "a" and Path(filename).exists()
+        if append_existing:
+            existing_groups = self._preflight_append(filename, payloads, overwrite)
+            self._create_numbered_backup(filename)
+            with h5py.File(filename, "r+") as hdf5_file:
+                for payload in payloads:
+                    self._write_payload_to_group(
+                        hdf5_file,
+                        payload,
+                        group_exists=payload.group in existing_groups,
+                        overwrite=overwrite,
+                    )
+            return
+
+        self._prepare_output(filename, overwrite)
+        with h5py.File(filename, "w") as hdf5_file:
+            first, *remaining = payloads
+            self._write_sigmond_skeleton(
+                hdf5_file,
+                first.group,
+                self._fidentifier_for_kind(first.kind),
+                first.header_xml,
+            )
+            self._write_payload_to_group(
+                hdf5_file, first, group_exists=True, overwrite=overwrite
+            )
+            for payload in remaining:
+                self._write_payload_to_group(
+                    hdf5_file, payload, group_exists=False, overwrite=overwrite
+                )
 
     @staticmethod
     def hdf5_output_path(input_filename: str | Path, output_filename: str | Path) -> Path:
@@ -384,6 +626,7 @@ class SigmondWriter:
         samplings: list[SigmondSampling],
         group: str = DEFAULT_GROUP,
         overwrite: bool = False,
+        mode: WriteMode = "w",
     ) -> Path:
         """
         Write samplings to an HDF5 file.
@@ -391,7 +634,7 @@ class SigmondWriter:
         Returns the path actually written.
         """
         outpath = self.hdf5_output_path(filename, filename)
-        self.write_hdf5(str(outpath), samplings, group, overwrite)
+        self.write_hdf5(str(outpath), samplings, group, overwrite, mode)
         return outpath
 
     def write_hdf5(
@@ -400,6 +643,7 @@ class SigmondWriter:
         samplings: list[SigmondSampling],
         group: str = DEFAULT_GROUP,
         overwrite: bool = False,
+        mode: WriteMode = "w",
     ) -> None:
         """
         Write samplings to an HDF5 samplings file in Sigmond format.
@@ -408,34 +652,17 @@ class SigmondWriter:
             filename: Output file path.
             samplings: SigmondSampling objects (all sharing ensemble/sampling info).
             group: HDF5 root group; may be nested (e.g. "isotriplet/P0A1g").
-            overwrite: Overwrite (and back up) an existing file.
+            overwrite: In ``"w"`` mode, replace an existing file. In ``"a"``
+                mode, replace colliding observable datasets.
+            mode: ``"w"`` creates a new file; ``"a"`` preserves an existing
+                file and appends to (or creates) ``group``.
         """
-        self._prepare_output(filename, overwrite)
-        if not samplings:
-            raise ValueError("No samplings provided")
-
-        group_name = clean_group(group)
-        ensemble_info = samplings[0].observable_info.ensemble_info
-        sampling_info = samplings[0].sampling_info
-
-        for i, sampling in enumerate(samplings):
-            if sampling.sampling_info != sampling_info:
-                raise ValueError(f"Sampling {i} has incompatible sampling info")
-            if sampling.observable_info.ensemble_info != ensemble_info:
-                raise ValueError(f"Sampling {i} has incompatible ensemble info")
-
-        header_xml = self._generate_header_xml(ensemble_info, sampling_info)
-        with h5py.File(filename, "w") as hdf5_file:
-            values_group = self._write_sigmond_skeleton(
-                hdf5_file, group_name, "Sigmond--SamplingsFile", header_xml
-            )
-            meta = self._write_value_datasets(
-                values_group,
-                ((s.observable_info, s.data, s.is_complex) for s in samplings),
-            )
-            obsmeta.write(values_group.parent, meta)
-
-        logger.info(f"Wrote {len(samplings)} samplings to {filename} at path '/{group_name}/'")
+        mode = self._validate_write_mode(mode)
+        payload = self._prepare_payload(samplings, group, "samplings")
+        self._write_payloads(filename, [payload], overwrite=overwrite, mode=mode)
+        logger.info(
+            f"Wrote {len(samplings)} samplings to {filename} at path '/{payload.group}/'"
+        )
 
     def write_bins_hdf5(
         self,
@@ -443,6 +670,7 @@ class SigmondWriter:
         bins_list: list[SigmondBins],
         group: str = DEFAULT_GROUP,
         overwrite: bool = False,
+        mode: WriteMode = "w",
     ) -> None:
         """
         Write a collection of ``SigmondBins`` to an HDF5 bins file.
@@ -453,36 +681,37 @@ class SigmondWriter:
         into Re/Im datasets. CorrT/raw-XML names round-trip verbatim because keys
         are built from the observable name (see ``_dataset_key_for_observable``).
         """
-        self._prepare_output(filename, overwrite)
-        if not bins_list:
-            raise ValueError("No bins provided")
-
-        group_name = clean_group(group)
-        ensemble_info = bins_list[0].observable_info.ensemble_info
-        num_bins = bins_list[0].num_bins
-
-        for i, b in enumerate(bins_list):
-            if not isinstance(b, SigmondBins):
-                raise TypeError(f"Item {i} is a {type(b).__name__}, expected SigmondBins")
-            if b.observable_info.ensemble_info != ensemble_info:
-                raise ValueError(f"Bins {i} has incompatible ensemble info")
-            if b.num_bins != num_bins:
-                raise ValueError(f"Bins {i} has {b.num_bins} bins; expected {num_bins}")
-
-        header_xml = self._generate_bins_header_xml(ensemble_info)
-        with h5py.File(filename, "w") as hdf5_file:
-            values_group = self._write_sigmond_skeleton(
-                hdf5_file, group_name, "Sigmond--BinsFile", header_xml
-            )
-            meta = self._write_value_datasets(
-                values_group,
-                ((b.observable_info, b._as_numpy(), b.is_complex) for b in bins_list),
-            )
-            obsmeta.write(values_group.parent, meta)
-
+        mode = self._validate_write_mode(mode)
+        payload = self._prepare_payload(bins_list, group, "bins")
+        self._write_payloads(filename, [payload], overwrite=overwrite, mode=mode)
         logger.info(
-            f"Wrote {len(bins_list)} bins observables to {filename} at path '/{group_name}/'"
+            f"Wrote {len(bins_list)} bins observables to {filename} "
+            f"at path '/{payload.group}/'"
         )
+
+    def write_groups_hdf5(
+        self,
+        filename: str,
+        groups: Mapping[
+            str, Sequence[SigmondSampling] | Sequence[SigmondBins]
+        ],
+        overwrite: bool = False,
+        mode: WriteMode = "w",
+    ) -> None:
+        """Write multiple HDF5 data groups as one validated operation."""
+        mode = self._validate_write_mode(mode)
+        payloads: list[_HDF5WritePayload] = []
+        for group, observables in groups.items():
+            if not observables:
+                raise ValueError(f"No observables provided for group {group!r}")
+            if all(isinstance(observable, SigmondSampling) for observable in observables):
+                kind: FileKind = "samplings"
+            elif all(isinstance(observable, SigmondBins) for observable in observables):
+                kind = "bins"
+            else:
+                raise TypeError(f"Group {group!r} contains mixed observable types")
+            payloads.append(self._prepare_payload(observables, group, kind))
+        self._write_payloads(filename, payloads, overwrite=overwrite, mode=mode)
 
     # ──────────────────────────────────────────────────────────────────────
     # In-place editing
@@ -516,89 +745,14 @@ class SigmondWriter:
             raise FileNotFoundError(f"File {filename} does not exist")
 
         hdf5_filename, group = self._ensure_hdf5_format(filename, group)
-        self._create_numbered_backup(hdf5_filename)
-        self._append_to_hdf5(hdf5_filename, new_samplings, overwrite, group)
+        self.write_hdf5(
+            str(hdf5_filename),
+            new_samplings,
+            group=group,
+            overwrite=overwrite,
+            mode="a",
+        )
         return Path(hdf5_filename)
-
-    def _append_to_hdf5(
-        self,
-        filename: str | Path,
-        new_samplings: list[SigmondSampling],
-        overwrite: bool,
-        group: str | None = None,
-    ) -> None:
-        if not new_samplings:
-            raise ValueError("No samplings provided")
-
-        # Resolve and validate the target root group (read-only pass).
-        with h5py.File(filename, "r") as f:
-            if group is None:
-                root_groups = [key for key in f.keys() if key != "Info"]
-                if not root_groups:
-                    raise ValueError("No data groups found in HDF5 file")
-                group = root_groups[0]
-            if group not in f:
-                raise ValueError(f"Root group {group} not found in file")
-            if "Values" not in f[group]:
-                raise ValueError(f"Values group not found in root group {group}")
-
-        # Compatibility check runs with the file closed to avoid locking issues.
-        self._validate_samplings_compatibility(str(filename), new_samplings, group)
-
-        with h5py.File(filename, "r+") as f:
-            data_group = f[group]
-            values_group = data_group["Values"]
-            # Merge new rows into any existing table; datasets the file already had
-            # without a row keep their per-dataset attrs and are read via fallback.
-            meta = obsmeta.read(data_group)
-            for sampling in new_samplings:
-                oi = sampling.observable_info
-                for key, arr, attrs in self._observable_datasets(
-                    oi, sampling.data, sampling.is_complex
-                ):
-                    if key in values_group:
-                        if not overwrite:
-                            raise FileExistsError(
-                                f"Observable {oi.name}[{oi.index}] already exists. "
-                                f"Use overwrite=True to replace it."
-                            )
-                        del values_group[key]
-                    values_group.create_dataset(key, data=arr)
-                    meta[key] = obsmeta.fields_for(arr, attrs)
-            obsmeta.write(data_group, meta)
-
-    def _validate_samplings_compatibility(
-        self, filename: str, new_samplings: list[SigmondSampling], group: str | None = None
-    ) -> None:
-        """
-        Ensure ``new_samplings`` share the existing file's ensemble and sampling info.
-
-        Raises ValueError on any mismatch (with the file or among themselves).
-        """
-        if not new_samplings:
-            return
-
-        loader = SigmondLoader(filename=filename, group=group)
-        existing = loader.observables
-        if not existing:
-            raise ValueError(f"No existing samplings found in {filename}")
-
-        try:
-            ref_ensemble = existing.ensemble_info
-            ref_sampling_info = existing.sampling_info
-        except Exception as e:
-            raise ValueError(f"Failed to read existing file for compatibility check: {e}")
-
-        first_new = new_samplings[0]
-        for i, samp in enumerate(new_samplings):
-            if samp.sampling_info != ref_sampling_info:
-                raise ValueError(f"New sampling {i} has incompatible sampling info with file")
-            if samp.observable_info.ensemble_info != ref_ensemble:
-                raise ValueError(f"New sampling {i} has incompatible ensemble info with file")
-            if samp.sampling_info != first_new.sampling_info:
-                raise ValueError(f"New sampling {i} has inconsistent sampling info")
-            if samp.observable_info.ensemble_info != first_new.observable_info.ensemble_info:
-                raise ValueError(f"New sampling {i} has inconsistent ensemble info")
 
     def modify_observable(
         self,
@@ -624,8 +778,6 @@ class SigmondWriter:
             raise FileNotFoundError(f"File {filename} does not exist")
 
         hdf5_filename, group = self._ensure_hdf5_format(filename, group)
-        self._create_numbered_backup(str(hdf5_filename))
-
         loader = SigmondLoader()
         loader.load_file(str(hdf5_filename), group=group)
 
@@ -640,12 +792,13 @@ class SigmondWriter:
                 f"Available observables: {available}..."
             )
 
-        # Replace just this observable's dataset(s) in place (overwrite=True), so
-        # write_hdf5's truncating "w" mode never wipes sibling root groups.
+        # Replace just this observable's dataset(s) in place, preserving sibling groups.
         modified = SigmondSampling(
             new_data, original.observable_info, original.sampling_info, original.is_complex
         )
-        self._append_to_hdf5(hdf5_filename, [modified], overwrite=True, group=group)
+        self.write_hdf5(
+            str(hdf5_filename), [modified], overwrite=True, group=group, mode="a"
+        )
         return Path(hdf5_filename)
 
     def convert_format(

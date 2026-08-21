@@ -1,7 +1,7 @@
 """Typer entry point for the unified ``ss`` CLI.
 
 Two areas: ``ss query …`` (read/inspect Sigmond files) and the write commands
-``ss convert`` / ``ss combine`` / ``ss energy-tag`` (defined in :mod:`.io`).
+``ss convert`` / ``ss combine`` / ``ss edit``.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from pathlib import Path
 
 import typer
 
+from .edit import edit
 from .plot import GENERIC_PLOT_METHODS
 from .query import (
     ENERGY_DEFAULT_SORT,
@@ -21,7 +22,7 @@ from .query import (
     run_query_view,
 )
 from .render import render_records
-from .write import combine, convert, energy_tag
+from .write import combine, convert
 
 app = typer.Typer(
     help="Inspect, convert, and combine Sigmond sampling and bins files.",
@@ -38,7 +39,7 @@ app.add_typer(query_app, name="query")
 # Write-side commands share the root app alongside the query group.
 app.command()(convert)
 app.command()(combine)
-app.command(name="energy-tag")(energy_tag)
+app.command()(edit)
 
 
 @query_app.command()
@@ -71,6 +72,7 @@ def obs(
     no_gui: bool = typer.Option(False, "--no-gui", help="Do not display the plot GUI."),
     plot_obs_index: int | None = typer.Option(None, "--plot-obs-index", min=0, help="Observable index for histogram/summary plots."),
     plot_panels: str | None = typer.Option(None, "--plot-panels", help="Comma-separated summary panels."),
+    plot_backend: str | None = typer.Option(None, "--plot-backend", help="Plotting backend: matplotlib (default) or plotly."),
     latex: bool = typer.Option(False, "--latex", help="Render plot text with matplotlib's LaTeX engine."),
     columns: str | None = typer.Option(None, "--columns", help="Comma-separated display columns."),
     exclude: str | None = typer.Option(None, "--exclude", help="Comma-separated ObservableInfo attrs to omit from automatic columns."),
@@ -97,6 +99,7 @@ def obs(
         no_gui=no_gui,
         plot_obs_index=plot_obs_index,
         plot_panels=plot_panels,
+        plot_backend=plot_backend,
         latex=latex,
         columns=columns,
         exclude=exclude,
@@ -122,6 +125,7 @@ def energy(
     no_gui: bool = typer.Option(False, "--no-gui", help="Do not display the plot GUI."),
     plot_obs_index: int | None = typer.Option(None, "--plot-obs-index", min=0, help="Observable index for histogram/summary plots."),
     plot_panels: str | None = typer.Option(None, "--plot-panels", help="Comma-separated summary panels."),
+    plot_backend: str | None = typer.Option(None, "--plot-backend", help="Plotting backend: matplotlib (default) or plotly."),
     latex: bool = typer.Option(False, "--latex", help="Render plot text with matplotlib's LaTeX engine."),
     columns: str | None = typer.Option(None, "--columns", help="Comma-separated display columns."),
     exclude: str | None = typer.Option(None, "--exclude", help="Comma-separated ObservableInfo attrs to omit from automatic columns."),
@@ -149,6 +153,7 @@ def energy(
         no_gui=no_gui,
         plot_obs_index=plot_obs_index,
         plot_panels=plot_panels,
+        plot_backend=plot_backend,
         latex=latex,
         columns=columns,
         exclude=exclude,
@@ -177,6 +182,7 @@ def _query_view(
     no_gui: bool,
     plot_obs_index: int | None,
     plot_panels: str | None,
+    plot_backend: str | None,
     latex: bool,
     columns: str | None,
     exclude: str | None,
@@ -212,7 +218,8 @@ def _query_view(
             no_gui=no_gui,
             plot_obs_index=plot_obs_index,
             plot_panels=plot_panels,
-            latex=latex,
+            plot_backend=plot_backend,
+                latex=latex,
             columns=columns,
             exclude=exclude,
             fmt=fmt,

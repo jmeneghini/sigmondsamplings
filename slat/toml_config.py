@@ -4,27 +4,29 @@ toml_config.py
 Shared TOML configuration utilities for the Sigmond and Luscher Analysis Toolkit.
 
 Provides the low-level ``load_toml``/``load_toml_file``/``dump_toml`` helpers
-(including the ``false`` <-> ``None`` sentinel used because TOML has no null
-type) and :class:`TomlConfigModel`, a Pydantic base that adds TOML
-round-tripping under a canonical section tag. These are consumed by downstream
-packages (e.g. ``kbfit``) so config-serialization logic lives in one place.
+and :class:`TomlConfigModel`, a Pydantic base that adds TOML round-tripping
+under a canonical section tag. TOML has no null type, so ``None`` values are
+simply omitted on dump (absent key reads back as ``None``); pass
+``comment_unset=True`` to advertise unset optionals as commented ``# key =``
+lines instead. These are consumed by downstream packages (e.g. ``kbfit``) so
+config-serialization logic lives in one place.
 """
 
 from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Any, ClassVar, get_args
+from typing import Any, ClassVar
 
 import tomlkit
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict
 
 __all__ = [
     "load_toml",
     "load_toml_file",
     "dump_toml",
-    "coerce_false_to_none",
     "TomlConfigModel",
+    "StrictModel",
     "USE_TOML_TAG",
 ]
 
@@ -73,16 +75,39 @@ def load_toml_file(path: str | PathLike, table: str | None = None) -> dict:
         return _select_table(tomlkit.load(f).unwrap(), table)
 
 
-def _none_to_false(obj: Any) -> Any:
-    # TOML has no null type; the configs encode ``None`` as ``false`` so a
-    # field whose default is *not* ``None`` (e.g. ``fast_zeta``) can still be
-    # explicitly disabled and round-trip. ``coerce_false_to_none`` is the
-    # inverse, applied on load.
-    if isinstance(obj, dict):
-        return {key: _none_to_false(value) for key, value in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_none_to_false(value) for value in obj]
-    return False if obj is None else obj
+def _to_toml_value(value: Any, *, comment_unset: bool) -> Any:
+    # Convert a non-``None`` JSON value into its tomlkit counterpart, recursing
+    # into tables and arrays-of-tables so nested ``None`` is handled uniformly.
+    if isinstance(value, dict):
+        return _to_toml_container(value, comment_unset=comment_unset)
+    if isinstance(value, (list, tuple)):
+        if value and all(isinstance(item, dict) for item in value):
+            aot = tomlkit.aot()
+            for item in value:
+                aot.append(_to_toml_container(item, comment_unset=comment_unset))
+            return aot
+        # Scalar array: TOML has no null, and silently dropping a ``None``
+        # element would change the array's length/positions, so fail loudly.
+        if any(item is None for item in value):
+            raise ValueError("TOML arrays cannot hold None")
+        return list(value)
+    return value
+
+
+def _to_toml_container(mapping: dict, *, comment_unset: bool, _top: bool = False):
+    # Build a tomlkit document/table from a plain mapping. TOML has no null
+    # type, so ``None`` values are dropped; with ``comment_unset`` they are
+    # emitted as commented ``# key =`` lines instead, so the document advertises
+    # which optional keys exist while still reading back as ``None`` (the key is
+    # absent to the parser).
+    container = tomlkit.document() if _top else tomlkit.table()
+    for key, value in mapping.items():
+        if value is None:
+            if comment_unset:
+                container.add(tomlkit.comment(f"{key} ="))
+            continue
+        container[key] = _to_toml_value(value, comment_unset=comment_unset)
+    return container
 
 
 def dump_toml(
@@ -90,13 +115,13 @@ def dump_toml(
     dest: str | bytes | PathLike | None = None,
     *,
     table: str | None = None,
+    comment_unset: bool = False,
 ) -> str:
     """
     Serialize a plain mapping to a TOML string (and optionally write it).
 
-    Counterpart to :func:`load_toml`. ``None`` values are encoded as ``false``
-    (recursively) because TOML has no null type; :func:`coerce_false_to_none`
-    reverses this on load for nullable, non-boolean fields.
+    Counterpart to :func:`load_toml`. TOML has no null type, so ``None`` values
+    are omitted; an absent key reads back as ``None`` (the field default).
 
     Parameters
     ----------
@@ -108,41 +133,18 @@ def dump_toml(
         Optional top-level key to nest the document under, mirroring the
         ``table`` argument of :func:`load_toml` so several configs can share one
         file under named sections.
+    comment_unset:
+        When ``True``, ``None`` values are written as commented ``# key =``
+        lines instead of being dropped, so the document advertises which
+        optional keys exist (used for the resolved-run snapshot). The commented
+        line is absent to the parser, so it still reads back as ``None``.
     """
     payload = {table: dict(data)} if table is not None else dict(data)
-    text = tomlkit.dumps(_none_to_false(payload))
+    document = _to_toml_container(payload, comment_unset=comment_unset, _top=True)
+    text = tomlkit.dumps(document)
     if dest is not None:
         Path(dest).write_text(text)
     return text
-
-
-def _allows_none_excludes_bool(annotation: Any) -> bool:
-    # True for unions like ``str | None`` / ``FastZetaConfig | None`` but not for
-    # a plain ``bool`` field, so the ``false`` sentinel is only re-read as
-    # ``None`` where ``None`` is actually a valid value.
-    args = get_args(annotation)
-    return bool(args) and type(None) in args and bool not in args
-
-
-def coerce_false_to_none(cls, data: Any) -> Any:
-    """
-    Pydantic ``mode="before"`` helper: map the ``false`` TOML sentinel to ``None``.
-
-    Intended for use in a ``model_validator(mode="before")`` on configs loaded
-    from TOML (see :func:`dump_toml`). Only fields whose annotation admits
-    ``None`` and is not a plain ``bool`` are converted, leaving genuine boolean
-    fields untouched. Non-dict inputs are returned unchanged.
-    """
-    if not isinstance(data, dict):
-        return data
-    fields = getattr(cls, "model_fields", {})
-    out = dict(data)
-    for name, field in fields.items():
-        alias = getattr(field, "alias", None)
-        key = name if name in out else (alias if alias and alias in out else None)
-        if key is not None and out[key] is False and _allows_none_excludes_bool(field.annotation):
-            out[key] = None
-    return out
 
 
 class _UseTomlTag:
@@ -176,18 +178,14 @@ class TomlConfigModel(BaseModel):
     section, or ``table=None`` to write/read a flat document with no nesting.
     A subclass that leaves ``__toml_tag__`` as ``None`` round-trips flat.
 
-    Also installs the ``false``-sentinel ``None`` coercion (see
-    :func:`coerce_false_to_none`) shared by every TOML-loaded config.
+    TOML has no null type, so ``None`` fields are omitted on dump and read back
+    as ``None`` from their absence; nullable fields should therefore default to
+    ``None`` (a non-``None`` default cannot round-trip an explicit ``None``).
     """
 
     # Default section for to_toml/from_toml; ``None`` means write/read flat.
     __toml_tag__: ClassVar[str | None] = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_false_to_none(cls, data: Any) -> Any:
-        # Accept the TOML ``false`` sentinel as ``None`` for nullable fields.
-        return coerce_false_to_none(cls, data)
+    __toml_dict__: ClassVar[dict | None] = None
 
     @classmethod
     def _validate_section(cls, doc: dict, table: Any):
@@ -220,7 +218,11 @@ class TomlConfigModel(BaseModel):
         return cls._validate_section(load_toml_file(path), table)
 
     def to_toml(
-        self, dest: str | bytes | PathLike | None = None, *, table: Any = USE_TOML_TAG
+        self,
+        dest: str | bytes | PathLike | None = None,
+        *,
+        table: Any = USE_TOML_TAG,
+        comment_unset: bool = False,
     ) -> str:
         """
         Serialize to a TOML string, optionally writing it to *dest*.
@@ -228,8 +230,22 @@ class TomlConfigModel(BaseModel):
         With the default ``table``, the document is nested under the model's
         ``__toml_tag__`` (flat if that is ``None``). Pass an explicit section
         name to override, or ``None`` to force a flat document. ``None`` fields
-        are written as the ``false`` sentinel (TOML has no null) and read back
-        as ``None`` by :meth:`from_toml`.
+        are omitted (TOML has no null) and read back as ``None`` by
+        :meth:`from_toml`; pass ``comment_unset=True`` to instead advertise them
+        as commented ``# key =`` lines.
         """
         tag = type(self).__toml_tag__ if table is USE_TOML_TAG else table
-        return dump_toml(self.model_dump(mode="json"), dest, table=tag)
+        # Dump *with* None (no exclude_none): ``comment_unset`` needs to see
+        # which keys are unset to advertise them, so None-stripping is a
+        # rendering choice made by dump_toml, not a model-level exclusion.
+        out_dict = self.__toml_dict__ or self.model_dump(mode="json")
+        return dump_toml(
+            out_dict, dest, table=tag, comment_unset=comment_unset
+        )
+
+
+class StrictModel(TomlConfigModel):
+    """Shared base for all project-layer configs: unknown keys are load-time
+    errors, so typos in hand-edited TOML fail with a field-level message."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)

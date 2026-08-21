@@ -22,6 +22,7 @@ import pytest
 from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.io.loader import DEFAULT_GROUP, SigmondLoader
 from sigmondsamplings.io.writer import SigmondWriter
+from sigmondsamplings.observable_collection import ObservableCollection
 from sigmondsamplings.sampling import SigmondSampling
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -279,6 +280,72 @@ class TestEnergyAttrsRoundTrip:
         oi = list(SigmondLoader(str(out)).observables)[0].observable_info
         assert type(oi) is ObservableInfo
 
+    @pytest.mark.parametrize("lazy", [False, True])
+    def test_plain_observable_latex_override_roundtrips(self, tmp_path, lazy):
+        from sigmondsamplings.sampling import ObservableInfo, SamplingInfo
+
+        si = SamplingInfo("jackknife", 10)
+        plain = ObservableInfo("myop", 0, "n", "re", latex_str=r"\mathcal{O}")
+        out = tmp_path / "plain_latex_rt.hdf5"
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(out), [SigmondSampling(np.arange(11.0), plain, si, False)],
+            group="samplings", overwrite=True,
+        )
+
+        oi = list(SigmondLoader(str(out), lazy=lazy).observables)[0].observable_info
+        assert type(oi) is ObservableInfo
+        assert oi._latex_str == r"\mathcal{O}"
+        assert oi.latex_str == r"\mathcal{O}"
+
+    def test_plain_observable_default_latex_is_not_persisted(self, tmp_path):
+        from sigmondsamplings.sampling import ObservableInfo, SamplingInfo
+
+        si = SamplingInfo("jackknife", 10)
+        plain = ObservableInfo("myop", 0, "n", "re")
+        out = tmp_path / "plain_default_latex_rt.hdf5"
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(out), [SigmondSampling(np.arange(11.0), plain, si, False)],
+            group="samplings", overwrite=True,
+        )
+
+        oi = list(SigmondLoader(str(out)).observables)[0].observable_info
+        assert oi._latex_str is None
+        assert oi.latex_str == r"\text{myop}"
+
+    def test_obs_kind_dispatch_accepts_the_short_alias(self, tmp_path):
+        # ``energy_sh`` is registered as an alias, so a file written with it (by hand
+        # or by an older/other tool) still rebuilds the single hadron class.
+        from sigmondsamplings.energy_levels import SHEnergyObsInfo
+        from sigmondsamplings.io import obsmeta
+
+        out = self._write(tmp_path)
+        with h5py.File(str(out), "r+") as handle:
+            group = handle["samplings"]
+            meta = obsmeta.read(group)
+            for fields in meta.values():
+                if fields.get("obs_kind") == "energy_single_hadron":
+                    fields["obs_kind"] = "energy_sh"
+            obsmeta.write(group, meta)
+
+        by_name = _by_name(SigmondLoader(str(out)).observables)
+        assert isinstance(by_name["PSQ0_pi"].observable_info, SHEnergyObsInfo)
+
+    def test_unknown_obs_kind_falls_back_to_the_parsed_type(self, tmp_path):
+        # A tag from a newer writer must not abort the read.
+        from sigmondsamplings.io import obsmeta
+
+        out = self._write(tmp_path)
+        with h5py.File(str(out), "r+") as handle:
+            group = handle["samplings"]
+            meta = obsmeta.read(group)
+            for fields in meta.values():
+                if "obs_kind" in fields:
+                    fields["obs_kind"] = "energy_from_the_future"
+            obsmeta.write(group, meta)
+
+        loaded = _by_name(SigmondLoader(str(out)).observables)
+        assert set(loaded) == {"PSQ0_A1g_delab_0", "PSQ0_pi"}
+
 
 class TestBinsRoundTrip:
     def test_corrt_bins_roundtrip(self, tmp_path):
@@ -332,6 +399,228 @@ def _clone_with_name(sampling: SigmondSampling, new_name: str) -> SigmondSamplin
     return SigmondSampling(
         sampling.data.copy(), new_info, sampling.sampling_info, is_complex=sampling.is_complex
     )
+
+
+class TestWriteMode:
+    @staticmethod
+    def _sampling(name: str, value: float = 1.0) -> SigmondSampling:
+        from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
+
+        ensemble = EnsembleInfo("append-test", num_measurements=4, num_bins=4)
+        return SigmondSampling(
+            np.full(5, value),
+            ObservableInfo(name, ensemble_info=ensemble),
+            SamplingInfo("jackknife", 4),
+        )
+
+    @staticmethod
+    def _bins(name: str) -> SigmondBins:
+        from sigmondsamplings.info import EnsembleInfo, ObservableInfo
+
+        ensemble = EnsembleInfo("append-test", num_measurements=4, num_bins=4)
+        return SigmondBins(
+            np.arange(4.0), ObservableInfo(name, ensemble_info=ensemble)
+        )
+
+    def test_collection_append_preserves_existing_observables(self, tmp_path):
+        f = tmp_path / "append.hdf5"
+        original = self._sampling("original")
+        appended = self._sampling("appended")
+        ObservableCollection([original]).to_hdf5(str(f), group="samplings")
+
+        ObservableCollection([appended]).to_hdf5(
+            str(f), group="samplings", mode="a"
+        )
+
+        reloaded = SigmondLoader(str(f), group="samplings").observables
+        assert len(reloaded) == 2
+        assert reloaded.find(name="original") is not None
+        assert reloaded.find(name="appended") is not None
+
+    def test_append_can_create_a_new_group(self, tmp_path):
+        f = tmp_path / "new_group.hdf5"
+        donor = self._sampling("shared")
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(f), [donor], group="samplings"
+        )
+
+        SigmondWriter(create_backups=False).write_hdf5(
+            str(f), [donor], group="other", mode="a"
+        )
+
+        assert len(SigmondLoader(str(f), group="samplings").observables) == 1
+        assert len(SigmondLoader(str(f), group="other").observables) == 1
+
+    def test_append_collision_uses_overwrite_parameter(self, tmp_path):
+        f = tmp_path / "collision.hdf5"
+        existing = self._sampling("collision")
+        writer = SigmondWriter(create_backups=False)
+        writer.write_hdf5(str(f), [existing], group="samplings")
+
+        with pytest.raises(FileExistsError, match="overwrite=True"):
+            writer.write_hdf5(
+                str(f), [existing], group="samplings", mode="a"
+            )
+
+        replacement = self._sampling("collision", value=7.0)
+        writer.write_hdf5(
+            str(f), [replacement], group="samplings", mode="a", overwrite=True
+        )
+        reloaded = SigmondLoader(str(f), group="samplings").observables.find(
+            name=existing.observable_info.name, index=existing.observable_info.index
+        )
+        np.testing.assert_allclose(reloaded.data, replacement.data)
+
+    def test_overwrite_removes_stale_complex_component(self, tmp_path):
+        f = tmp_path / "complex_to_real.hdf5"
+        original = self._sampling("representation_change")
+        original.data = original.data.astype(complex) + 3.0j
+        original.is_complex = True
+        replacement = self._sampling("representation_change", value=7.0)
+        writer = SigmondWriter(create_backups=False)
+        writer.write_hdf5(str(f), [original], group="samplings")
+
+        writer.write_hdf5(
+            str(f), [replacement], group="samplings", mode="a", overwrite=True
+        )
+
+        reloaded = SigmondLoader(str(f), group="samplings").observables[0]
+        assert not reloaded.is_complex
+        np.testing.assert_allclose(reloaded.data, replacement.data)
+
+    def test_duplicate_logical_observable_rejected_before_write(self, tmp_path):
+        f = tmp_path / "duplicates.hdf5"
+        duplicate_a = self._sampling("duplicate", value=1.0)
+        duplicate_b = self._sampling("duplicate", value=2.0)
+
+        with pytest.raises(ValueError, match="Duplicate logical observable"):
+            SigmondWriter(create_backups=False).write_hdf5(
+                str(f), [duplicate_a, duplicate_b]
+            )
+
+        assert not f.exists()
+
+    def test_bins_support_append_mode(self, tmp_path):
+        f = tmp_path / "bins_append.hdf5"
+        original = self._bins("original_bins")
+        appended = self._bins("appended_bins")
+        ObservableCollection([original]).to_hdf5(str(f), group="bins")
+        ObservableCollection([appended]).to_hdf5(str(f), group="bins", mode="a")
+
+        reloaded = SigmondLoader(str(f), group="bins").observables
+        assert len(reloaded) == 2
+        assert reloaded.find(name="appended_bins") is not None
+
+    def test_legacy_append_api_uses_shared_write_engine(self, tmp_path):
+        f = tmp_path / "legacy_append.hdf5"
+        writer = SigmondWriter(create_backups=False)
+        writer.write_hdf5(str(f), [self._sampling("original")])
+
+        writer.append_to_file(
+            str(f), [self._sampling("appended")], overwrite=False, group="data"
+        )
+
+        reloaded = SigmondLoader(str(f), group="data").observables
+        assert len(reloaded) == 2
+        assert reloaded.find(name="appended") is not None
+
+    def test_modify_observable_uses_shared_write_engine(self, tmp_path):
+        f = tmp_path / "modify.hdf5"
+        writer = SigmondWriter(create_backups=False)
+        writer.write_hdf5(str(f), [self._sampling("modified")])
+
+        writer.modify_observable(
+            str(f), "modified", 0, np.full(5, 9.0), group="data"
+        )
+
+        reloaded = SigmondLoader(str(f), group="data").observables[0]
+        np.testing.assert_allclose(reloaded.data, 9.0)
+
+    def test_multi_ensemble_collection_writes_separate_groups(self, tmp_path):
+        from sigmondsamplings.ensemble_collection import MultiEnsembleCollection
+        from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
+
+        sampling_info = SamplingInfo("jackknife", 4)
+        samplings = [
+            SigmondSampling(
+                np.arange(5.0),
+                ObservableInfo(
+                    f"obs_{name}",
+                    ensemble_info=EnsembleInfo(name, num_measurements=4, num_bins=4),
+                ),
+                sampling_info,
+            )
+            for name in ("a", "b")
+        ]
+        out = tmp_path / "multi_ensemble.hdf5"
+
+        MultiEnsembleCollection(samplings).to_hdf5(str(out), group="data")
+
+        assert len(SigmondLoader(str(out), group="data_a").observables) == 1
+        assert len(SigmondLoader(str(out), group="data_b").observables) == 1
+
+    def test_multi_ensemble_append_preflights_all_groups(self, tmp_path):
+        from sigmondsamplings.ensemble_collection import MultiEnsembleCollection
+        from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
+
+        sampling_info = SamplingInfo("jackknife", 4)
+
+        def sampling(ensemble_name: str, observable_name: str) -> SigmondSampling:
+            return SigmondSampling(
+                np.arange(5.0),
+                ObservableInfo(
+                    observable_name,
+                    ensemble_info=EnsembleInfo(
+                        ensemble_name, num_measurements=4, num_bins=4
+                    ),
+                ),
+                sampling_info,
+            )
+
+        out = tmp_path / "multi_preflight.hdf5"
+        original = MultiEnsembleCollection(
+            [sampling("a", "original_a"), sampling("b", "original_b")]
+        )
+        original.to_hdf5(str(out), group="data", create_backups=False)
+
+        update = MultiEnsembleCollection(
+            [sampling("a", "new_a"), sampling("b", "original_b")]
+        )
+        with pytest.raises(FileExistsError):
+            update.to_hdf5(
+                str(out), group="data", mode="a", create_backups=False
+            )
+
+        assert (
+            SigmondLoader(str(out), group="data_a").observables.find(name="new_a")
+            is None
+        )
+
+    def test_multi_ensemble_append_creates_one_backup(self, tmp_path):
+        from sigmondsamplings.ensemble_collection import MultiEnsembleCollection
+        from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
+
+        sampling_info = SamplingInfo("jackknife", 4)
+
+        def sampling(ensemble_name: str, observable_name: str) -> SigmondSampling:
+            ensemble = EnsembleInfo(ensemble_name, num_measurements=4, num_bins=4)
+            return SigmondSampling(
+                np.arange(5.0),
+                ObservableInfo(observable_name, ensemble_info=ensemble),
+                sampling_info,
+            )
+
+        out = tmp_path / "multi_backup.hdf5"
+        MultiEnsembleCollection(
+            [sampling("a", "original_a"), sampling("b", "original_b")]
+        ).to_hdf5(str(out), group="data", create_backups=False)
+
+        MultiEnsembleCollection(
+            [sampling("a", "new_a"), sampling("b", "new_b")]
+        ).to_hdf5(str(out), group="data", mode="a", create_backups=True)
+
+        assert Path(f"{out}.backup_001").exists()
+        assert not Path(f"{out}.backup_002").exists()
 
 
 class TestAppendInPlace:
@@ -391,16 +680,16 @@ class TestModifyInPlace:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-class TestMultiRootPathHDF5:
-    def test_no_path_with_multiple_paths_raises(self, multi_path_hdf5):
-        with pytest.raises(ValueError, match="Multiple paths found"):
+class TestMultiRootGroupHDF5:
+    def test_no_group_with_multiple_groups_raises(self, multi_path_hdf5):
+        with pytest.raises(ValueError, match="Multiple groups found"):
             SigmondLoader(str(multi_path_hdf5))
 
-    def test_unknown_path_raises_and_lists_available(self, multi_path_hdf5):
+    def test_unknown_group_raises_and_lists_available(self, multi_path_hdf5):
         with pytest.raises(ValueError, match="not found"):
             SigmondLoader(str(multi_path_hdf5), group="does_not_exist")
 
-    def test_each_path_loads_its_own_group(self, multi_path_hdf5):
+    def test_each_group_loads_its_own_group(self, multi_path_hdf5):
         corr = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH)
         levels = SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH)
 
@@ -412,7 +701,7 @@ class TestMultiRootPathHDF5:
         assert all(o.is_complex for o in corr.observables)
         assert not any(o.is_complex for o in levels.observables)
 
-    def test_path_load_matches_standalone_fixture(self, multi_path_hdf5):
+    def test_group_load_matches_standalone_fixture(self, multi_path_hdf5):
         from_multi = SigmondLoader(str(multi_path_hdf5), group=CORR_PATH).observables
         standalone = SigmondLoader(str(CORR_HDF5)).observables
         _assert_samplings_roundtrip(list(standalone), list(from_multi))

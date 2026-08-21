@@ -16,13 +16,11 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Topic :: Scientific :: Physics",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     'numpy>=1.20.0',
     'scipy>=1.7.0',
@@ -37,11 +35,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+fitting = [
+    "optimagic",
+    "threadpoolctl",
+    "tqdm",
+]
+plot = [
+    "matplotlib>=3.7",
+    "plotly>=5.15"
+]
 dev = [
-    "pytest>=6.0",
-    "black",
-    "ruff",
-    "mypy",
+    "pytest>=7.0",
+    "ruff>=0.15",
+    "sigmondsamplings[fitting,plot]"
 ]
 
 [project.urls]
@@ -77,8 +83,3 @@ ignore = ["E501"]
 
 # Allow auto-fixing for all enabled rules (when `--fix` is passed)
 fixable = ["ALL"]
-
-
-[tool.ty.environment]
-root = [".",]
-python-version = "3.11"

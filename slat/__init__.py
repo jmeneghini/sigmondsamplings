@@ -35,6 +35,7 @@ from .constants import (
     get_irrep_unicode_str,
     get_particle_latex_str,
     get_particle_unicode_str,
+    is_particle_name,
     get_qc_matrix_latex_str,
     get_qc_matrix_unicode_str,
     get_qc_type_latex_str,
@@ -44,12 +45,13 @@ from .constants import (
     get_spectro_unicode_str,
     get_twoJ_L_twoS_from_spectro,
     latex_to_unicode,
+    resolve_particle_name,
     wrap_str_in_determinant,
 )
 from .toml_config import (
     USE_TOML_TAG,
+    StrictModel,
     TomlConfigModel,
-    coerce_false_to_none,
     dump_toml,
     load_toml,
     load_toml_file,
@@ -57,8 +59,8 @@ from .toml_config import (
 
 __all__ = [
     "TomlConfigModel",
+    "StrictModel",
     "USE_TOML_TAG",
-    "coerce_false_to_none",
     "dump_toml",
     "load_toml",
     "load_toml_file",
@@ -85,6 +87,8 @@ __all__ = [
     "latex_to_unicode",
     "get_energy_type_latex_str",
     "get_energy_type_unicode_str",
+    "resolve_particle_name",
+    "is_particle_name",
     "get_particle_latex_str",
     "get_particle_unicode_str",
     "get_all_particle_latex_mappings",

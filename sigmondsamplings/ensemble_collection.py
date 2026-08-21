@@ -6,13 +6,15 @@ This module provides collection classes that maintain ensemble separation:
 - MultiEnsembleCollection: Observables from multiple ensembles, stored separately
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import (
+    Literal,
     TypeVar,
-    Union,
+    cast,
+    overload,
 )
 
-from .obervable_collection import ObservableCollection
+from .observable_collection import ObservableCollection
 from .sampling import EnsembleInfo, SamplingInfo, SigmondSampling
 
 __all__ = [
@@ -75,6 +77,7 @@ class SingleEnsembleCollection(ObservableCollection):
         instance._data = data
         instance._return_type = return_type
         instance._shared_attr_cache = {}
+        instance._mutation_version = [0]
 
         instance._validate_ens_and_samp_info()
         return instance
@@ -124,7 +127,7 @@ class SingleEnsembleCollection(ObservableCollection):
         )
         sampling_str = str(self._sampling_info)
         return (
-            f"SingleEnsembleCollection("
+            f"{type(self).__name__}("
             f"n_obs={len(self._data)}, "
             f"ensemble='{ensemble_id}', "
             f"sampling='{sampling_str}'"
@@ -134,7 +137,7 @@ class SingleEnsembleCollection(ObservableCollection):
 
 def group_by_ensemble_and_sampling(
     collection: ObservableCollection,
-) -> dict[tuple, SingleEnsembleCollection]:
+) -> dict[tuple[EnsembleInfo, SamplingInfo], SingleEnsembleCollection]:
     """
     Group an ObservableCollection into SingleEnsembleCollections by ensemble and sampling.
 
@@ -168,8 +171,11 @@ def group_by_ensemble_and_sampling(
         return {}
 
     # Use inherited group_by with tuple key for (ensemble_info, sampling_info)
-    groups = collection.group_by(
-        values=list(zip(collection.obs.ensemble_info, collection.val.sampling_info))
+    groups = cast(
+        dict[tuple[EnsembleInfo, SamplingInfo], ObservableCollection],
+        collection.group_by(
+            values=list(zip(collection.obs.ensemble_info, collection.val.sampling_info))
+        ),
     )
 
     # Convert each group to SingleEnsembleCollection
@@ -218,9 +224,11 @@ class MultiEnsembleCollection(ObservableCollection):
 
     # No extra slots - uses parent's _data and _return_type
 
+    single_ensemble_collection_type = SingleEnsembleCollection
+
     def __init__(
         self,
-        data: Iterable[SigmondSampling] | dict[EnsembleInfo, SingleEnsembleCollection],
+        data: Iterable[SigmondSampling] | Mapping[EnsembleInfo, SingleEnsembleCollection],
         return_type: str = "numpy",
     ):
         """
@@ -236,10 +244,11 @@ class MultiEnsembleCollection(ObservableCollection):
         return_type : str
             Return type for attribute accessors ('list', 'dict', or 'numpy')
         """
-        if isinstance(data, dict):
+        if isinstance(data, Mapping):
             # Flatten dict of collections into single list
             flat_data = []
-            for collection in data.values():
+            collections = cast(Mapping[EnsembleInfo, SingleEnsembleCollection], data)
+            for collection in collections.values():
                 flat_data.extend(collection)
             super().__init__(flat_data, return_type)
         else:
@@ -259,6 +268,7 @@ class MultiEnsembleCollection(ObservableCollection):
         instance._data = data
         instance._return_type = return_type
         instance._shared_attr_cache = {}
+        instance._mutation_version = [0]
         return instance
 
     # -------------------------------------------------------------------------
@@ -282,13 +292,50 @@ class MultiEnsembleCollection(ObservableCollection):
 
         This is computed on-demand from the flat internal storage.
         """
-        groups = self.group_by(values=self.obs.ensemble_info)
+        groups = cast(
+            dict[EnsembleInfo, MultiEnsembleCollection],
+            self.group_by(values=self.obs.ensemble_info),
+        )
 
-        # Convert each group to SingleEnsembleCollection
+        # Convert each group through the subclass hook.
         return {
-            ens: SingleEnsembleCollection(group, return_type=self._return_type)
+            ens: self.single_ensemble_collection_type(group, return_type=self._return_type)
             for ens, group in groups.items()
         }
+
+    def to_hdf5(
+        self,
+        filename: str,
+        overwrite: bool = False,
+        group: str = "data",
+        mode: Literal["a", "w"] = "w",
+        create_backups: bool = True,
+    ) -> None:
+        """Export to HDF5, writing each ensemble to a separate group for multi-ensemble data.
+
+        For single-ensemble collections delegates to the parent implementation.
+        For multi-ensemble collections writes each ensemble under ``{group}_{ensemble_name}``
+        (or ``{group}_{i}`` when ensemble names are empty).
+        """
+        ensembles = self.ensembles
+        if len(ensembles) == 1:
+            super().to_hdf5(
+                filename,
+                overwrite=overwrite,
+                group=group,
+                mode=mode,
+                create_backups=create_backups,
+            )
+        else:
+            from .io.writer import SigmondWriter
+
+            grouped_observables = {
+                f"{group}_{ens.name}" if ens.name else f"{group}_{i}": list(sub)
+                for i, (ens, sub) in enumerate(self.by_ensemble.items())
+            }
+            SigmondWriter(create_backups=create_backups).write_groups_hdf5(
+                filename, grouped_observables, overwrite=overwrite, mode=mode
+            )
 
     def reduced(self):
         """Collapse to the lone ``SingleEnsembleCollection`` when one ensemble is present.
@@ -309,9 +356,18 @@ class MultiEnsembleCollection(ObservableCollection):
     # Dict-like Access by Ensemble
     # -------------------------------------------------------------------------
 
+    @overload
+    def __getitem__(self, key: EnsembleInfo) -> SingleEnsembleCollection: ...
+
+    @overload
+    def __getitem__(self, key: int) -> SigmondSampling: ...
+
+    @overload
+    def __getitem__(self: M, key: slice) -> M: ...
+
     def __getitem__(
-        self, key: EnsembleInfo | int | slice
-    ) -> Union[SingleEnsembleCollection, "MultiEnsembleCollection", SigmondSampling]:
+        self: M, key: EnsembleInfo | int | slice
+    ) -> SingleEnsembleCollection | M | SigmondSampling:
         """
         Access by EnsembleInfo, index, or slice.
 
@@ -324,12 +380,9 @@ class MultiEnsembleCollection(ObservableCollection):
         """
         if isinstance(key, EnsembleInfo):
             return self.by_ensemble[key]
-        else:
-            # Delegate to parent for int/slice
-            result = super().__getitem__(key)
-            if isinstance(key, slice):
-                return self._fast_load(list(result._data), self._return_type)
-            return result
+        if isinstance(key, slice):
+            return self._fast_load(self._data[key], self._return_type)
+        return self._data[key]
 
     def items(self):
         """Iterate over (EnsembleInfo, SingleEnsembleCollection) pairs."""
@@ -346,4 +399,4 @@ class MultiEnsembleCollection(ObservableCollection):
     def __repr__(self):
         n_ensembles = len(self.ensembles)
         total = len(self)
-        return f"MultiEnsembleCollection(ensembles={n_ensembles}, total_obs={total})"
+        return f"{type(self).__name__}(ensembles={n_ensembles}, total_obs={total})"

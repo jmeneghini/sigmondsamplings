@@ -448,7 +448,9 @@ def markersize_to_ydata(ax, ms):
     return dy
 
 
-def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, markersize=None, ax=None):
+def stacked_positions(
+    y, yerr, x=None, width=0.16, pad=0.0, marker_extent=None, markersize=None, ax=None
+):
     """Compute jittered x-positions that stack overlapping data points into columns.
 
     Only points whose y-intervals (y ± yerr) overlap with at least one other
@@ -474,11 +476,15 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, markersize=None, ax=
     pad : float
         Extra padding added to each side of a y-interval before overlap testing,
         increasing the separation required before two points share a column.
+    marker_extent : float or None
+        Marker height already expressed in y-data units. Half of it is added to
+        each side of every y-interval, so overlap testing accounts for marker
+        area in addition to ``yerr`` and ``pad``. Obtain it from
+        ``slat.plotting.Axes.marker_extent``; this keeps the function free of
+        any backend dependency.
     markersize : float or None
-        Optional marker size in points. When given together with ``ax``, half
-        the marker's height in y-data units is added to each side of every
-        y-interval, so overlap testing accounts for marker area in addition to
-        ``yerr`` and ``pad``.
+        Deprecated matplotlib-only spelling of the above: a marker size in
+        points, converted using ``ax``. Ignored when ``marker_extent`` is given.
     ax : matplotlib Axes or None
         Axes used to convert ``markersize`` into y-data units. Required when
         ``markersize`` is provided; ignored otherwise.
@@ -495,7 +501,9 @@ def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, markersize=None, ax=
         yerr = np.full_like(y, yerr)
 
     # Optional marker-size contribution to the per-point vertical extent
-    if markersize is not None:
+    if marker_extent is not None:
+        marker_half = marker_extent / 2
+    elif markersize is not None:
         if ax is None:
             raise ValueError("ax must be provided when markersize is given")
         marker_half = markersize_to_ydata(ax, markersize) / 2

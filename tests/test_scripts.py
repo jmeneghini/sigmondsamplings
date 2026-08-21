@@ -1,6 +1,6 @@
 """
-Tests for the I/O operation functions in sigmondsamplings/io/ (convert, combine,
-energy_tag) that back the ``ss`` CLI write commands.
+Tests for the I/O operation functions in sigmondsamplings/io/ (convert, combine)
+that back the ``ss`` CLI write commands.
 
 These exercise the library-level functions directly against the fixtures in
 tests/data/. fstream inputs are gated on sigmond_query.
@@ -25,7 +25,6 @@ from sigmondsamplings.io.combine import (
     validate_compatibility,
 )
 from sigmondsamplings.io.convert import convert_to_hdf5
-from sigmondsamplings.io.energy_tag import add_energy_attrs
 from sigmondsamplings.io.loader import SigmondLoader
 from sigmondsamplings.sampling import SigmondSampling
 
@@ -187,26 +186,3 @@ class TestCombineFiles:
         out.write_text("placeholder")
         with pytest.raises(FileExistsError):
             combine_files([str(ENERGY_HDF5)], str(out), overwrite=False)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# io.energy_tag.add_energy_attrs
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-class TestAddEnergyAttrs:
-    def test_h5_output_extension_preserved(self, tmp_path):
-        out = tmp_path / "energy_attrs.h5"
-        result = add_energy_attrs(str(ENERGY_HDF5), str(out), in_group="samplings")
-        assert Path(result) == out
-        assert out.exists()
-
-    def test_missing_output_extension_inherits_input_h5_extension(self, tmp_path):
-        input_h5 = tmp_path / "energy_input.h5"
-        shutil.copy2(ENERGY_HDF5, input_h5)
-        out = tmp_path / "energy_attrs"
-
-        result = add_energy_attrs(str(input_h5), str(out), in_group="samplings")
-
-        assert Path(result) == tmp_path / "energy_attrs.h5"
-        assert Path(result).exists()

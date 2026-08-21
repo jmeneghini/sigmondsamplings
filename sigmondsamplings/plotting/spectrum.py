@@ -5,21 +5,30 @@ Provides a base `SpectrumPlotter` that renders columns of energy levels grouped
 either via a `group_by` key (attribute name or callable) or via explicit
 user-supplied collections. A preset `SectorSpectrumPlotter` reproduces the
 PSQ -> irrep layout.
+
+Ported onto :mod:`slat.plotting`, so the same plot renders on matplotlib or
+plotly. On plotly each level carries hover text naming its irrep, momentum and
+level index.
 """
 
+from __future__ import annotations
+
+import logging
 from collections.abc import Callable, Hashable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
+
+import slat.plotting as slp
 from slat import COLORS, IndexedCycle, get_irrep_latex_str
 
-from .energy_level_collection import SingleEnsembleEnergyCollection
-from .sampling import SigmondSampling
-from .utils import stacked_positions
+from ..energy_level_collection import SingleEnsembleEnergyCollection
+from ..sampling import SigmondSampling
+from ..utils import stacked_positions
+from ._util import resolve_axes
 
-__all__ = ["SpectrumPlotter", "SectorSpectrumPlotter", "SpectrumStyle", "HMarker"]
+__all__ = ["HMarker", "SectorSpectrumPlotter", "SpectrumPlotter", "SpectrumStyle"]
 
 
 GroupKey = str | Callable[[SigmondSampling], Hashable]
@@ -42,7 +51,7 @@ class HMarker:
             spans only the columns of that outer group. When None, the
             line spans the full plot width.
         color: Line color.
-        linestyle: Matplotlib linestyle string.
+        linestyle: Line style string (``"-"``, ``"--"``, ``":"``, ``"-."``).
         linewidth: Line width in points.
         alpha: Line and label transparency.
     """
@@ -60,8 +69,8 @@ class HMarker:
 class SpectrumStyle:
     """Styling configuration for SpectrumPlotter.
 
-    Any value left as None falls back to the corresponding matplotlib rcParam
-    where applicable.
+    Any value left as None falls back to the backend's own default where
+    applicable.
     """
 
     col_spacing: float = 1.0
@@ -126,13 +135,13 @@ class SpectrumPlotter:
             return lambda _s: False
         if callable(excluded_levels):
             return excluded_levels
-            
+
         spec_set = set()
         for entry in excluded_levels:
             psq, irrep, level_or_levels = entry
-            
+
             # Check if the third element is a collection of levels (like a list)
-            if isinstance(level_or_levels, (list, tuple, set)):
+            if isinstance(level_or_levels, list | tuple | set):
                 for level in level_or_levels:
                     spec_set.add((psq, irrep, level))
             else:
@@ -156,9 +165,11 @@ class SpectrumPlotter:
         outer_label_fn: LabelFn | None = None,
         markers: list[HMarker] | None = None,
         energy_type: str | None = None,
-        ax: plt.Axes | None = None,
+        axes: slp.Axes | None = None,
         figsize: tuple[float, float] | None = None,
-    ) -> plt.Axes:
+        backend: str | None = None,
+        ax: Any = None,
+    ) -> slp.Axes:
         """
         Plot the spectrum.
 
@@ -178,11 +189,13 @@ class SpectrumPlotter:
                 span only the columns of that outer group.
             energy_type: Restrict y-axis label to one energy type when the
                 collection mixes types.
-            ax: Axes to draw on (creates figure if None).
+            axes: Axes to draw on (creates a figure if None).
             figsize: Figure size (adaptive default if None).
+            backend: Backend for this call (uses the active one if None).
+            ax: Deprecated alias for ``axes``.
 
         Returns:
-            Matplotlib Axes object.
+            The Axes drawn on.
         """
         if (group_by is None) == (groups is None):
             raise ValueError("Provide exactly one of `group_by` or `groups`")
@@ -196,23 +209,23 @@ class SpectrumPlotter:
 
         columns, outer_midpoints, outer_ranges, x_end = self._layout(nested)
 
-        if ax is None:
+        if axes is None and ax is None:
             fig_w = max(6.0, len(columns) * 1.2)
             figsize = figsize or (fig_w, 6.0)
-            _, ax = plt.subplots(figsize=figsize, constrained_layout=True)
+        axes = resolve_axes(axes, ax, figsize=figsize, backend=backend)
 
-        self._seed_axes_limits(ax, columns, x_end)
-        self._draw_columns(ax, columns)
-        self._draw_xticks(ax, columns, column_label_fn)
-        self._draw_outer_labels(ax, outer_midpoints, outer_label_fn)
+        self._seed_axes_limits(axes, columns, x_end)
+        self._draw_columns(axes, columns)
+        self._draw_xticks(axes, columns, column_label_fn)
+        self._draw_outer_labels(axes, outer_midpoints, outer_label_fn)
         if markers:
-            self._draw_markers(ax, markers, outer_ranges, x_end)
-        self._set_ylabel(ax, energy_type)
+            self._draw_markers(axes, markers, outer_ranges, x_end)
+        self._set_ylabel(axes, energy_type)
 
-        ax.set_xlim(-self.style.col_spacing, x_end)
-        ax.grid(True, alpha=self.style.grid_alpha, axis="y")
+        axes.set(xlim=(-self.style.col_spacing, x_end))
+        axes.grid(True, alpha=self.style.grid_alpha, axis="y")
 
-        return ax
+        return axes
 
     def _resolve_groups(
         self,
@@ -282,7 +295,8 @@ class SpectrumPlotter:
             outer_ranges[outer_key] = (start, end)
         return columns, outer_midpoints, outer_ranges, x
 
-    def _seed_axes_limits(self, ax, columns, x_end) -> None:
+    def _seed_axes_limits(self, axes: slp.Axes, columns, x_end) -> None:
+        """Set limits up front: marker_extent needs a data range to work from."""
         all_ys = np.array([s.mean for _, _, _, sub in columns for s in sub])
         all_yerrs = np.array([s.error for _, _, _, sub in columns for s in sub])
         if len(all_ys) == 0:
@@ -290,25 +304,23 @@ class SpectrumPlotter:
         y_lo = float(np.min(all_ys - all_yerrs))
         y_hi = float(np.max(all_ys + all_yerrs))
         pad = self.style.ypad_frac * (y_hi - y_lo) if y_hi > y_lo else 1.0
-        ax.set_ylim(y_lo - pad, y_hi + pad)
-        ax.set_xlim(-self.style.col_spacing, x_end)
+        axes.set(ylim=(y_lo - pad, y_hi + pad), xlim=(-self.style.col_spacing, x_end))
 
     def _color_cycle(self):
-        from itertools import cycle
-
         if self.style.color_cycle is not None:
-            return cycle(self.style.color_cycle)
+            return IndexedCycle(self.style.color_cycle)
         return IndexedCycle(COLORS)
 
-    def _draw_columns(self, ax, columns) -> None:
-        eb_kwargs = {
-            "fmt": "o",
-            "capsize": self.style.capsize,
-            "capthick": self.style.capthick,
-            "linewidth": self.style.linewidth,
-            "markersize": self.style.markersize,
-        }
-        eb_kwargs.update(self.style.errorbar_kwargs)
+    @staticmethod
+    def _hover_text(sampling: SigmondSampling) -> str:
+        obs = sampling.observable_info
+        return (
+            f"{obs.irrep} d²={obs.psq} level {obs.level_index}<br>"
+            f"{sampling.mean:.6g} ± {sampling.error:.2g}"
+        )
+
+    def _draw_columns(self, axes: slp.Axes, columns) -> None:
+        marker_extent = axes.marker_extent(self.style.markersize)
 
         for _, _, x_center, sub in columns:
             ys = np.array([s.mean for s in sub])
@@ -318,34 +330,46 @@ class SpectrumPlotter:
                 yerrs,
                 x=x_center,
                 width=self.style.stack_width,
-                markersize=self.style.markersize,
-                ax=ax,
+                marker_extent=marker_extent,
             )
             color_cycle = self._color_cycle()
             for xi, yi, yerri, samp in zip(xs, ys, yerrs, sub):
                 cycled = next(color_cycle)
                 color = self.style.excluded_color if self._is_excluded(samp) else cycled
-                ax.errorbar(xi, yi, yerr=yerri, color=color, **eb_kwargs)
+                axes.errorbar(
+                    xi,
+                    yi,
+                    yerr=yerri,
+                    color=color,
+                    marker="o",
+                    capsize=self.style.capsize,
+                    width=self.style.linewidth,
+                    markersize=self.style.markersize,
+                    hover=[self._hover_text(samp)],
+                    native=self.style.errorbar_kwargs or None,
+                )
 
-    def _draw_xticks(self, ax, columns, column_label_fn) -> None:
+    def _draw_xticks(self, axes: slp.Axes, columns, column_label_fn) -> None:
         label_fn = column_label_fn or self._default_column_label
         positions = [x for _, _, x, _ in columns]
         labels = [label_fn(col_key) for _, col_key, _, _ in columns]
-        ax.set_xticks(positions)
-        ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=self.style.fontsize)
+        axes.ticks("x", positions, labels, rotation=45, fontsize=self.style.fontsize)
 
-    def _draw_outer_labels(self, ax, outer_midpoints, outer_label_fn) -> None:
+    def _draw_outer_labels(self, axes: slp.Axes, outer_midpoints, outer_label_fn) -> None:
         if all(k is None for k in outer_midpoints):
             return
         label_fn = outer_label_fn or self._default_outer_label
         fs = self.style.fontsize if self.style.fontsize is not None else 10
+        # The offset is in points below the axes; convert once to axes fraction
+        # so the label lands in the same place on either backend.
+        y = axes.point_size(self.style.outer_label_offset, "y", units="axes")
         for outer_key, mid_x in outer_midpoints.items():
-            ax.annotate(
+            axes.text(
+                mid_x,
+                y,
                 label_fn(outer_key),
-                xy=(mid_x, 0),
-                xycoords=("data", "axes fraction"),
-                xytext=(0, self.style.outer_label_offset),
-                textcoords="offset points",
+                # x in data units so the label tracks its columns, y below the axes.
+                coords=("data", "axes"),
                 ha="center",
                 va="top",
                 fontsize=fs,
@@ -353,14 +377,14 @@ class SpectrumPlotter:
 
     def _draw_markers(
         self,
-        ax: plt.Axes,
+        axes: slp.Axes,
         markers: list[HMarker],
         outer_ranges: dict[Hashable, tuple[float, float]],
         x_end: float,
     ) -> None:
         pad = self.style.marker_edge_pad
         label_fs = self.style.marker_label_fontsize or self.style.fontsize
-        label_pad = self.style.marker_label_pad
+        label_offset = axes.point_size(self.style.marker_label_pad, "x", units="data")
 
         for m in markers:
             if m.group is not None:
@@ -373,23 +397,22 @@ class SpectrumPlotter:
                 x_start = -self.style.col_spacing + pad
                 x_stop = x_end - self.style.col_spacing + pad
 
-            ax.hlines(
+            axes.hlines(
                 m.y,
                 x_start,
                 x_stop,
-                colors=m.color,
-                linestyles=m.linestyle,
-                linewidths=m.linewidth,
+                color=m.color,
+                style=m.linestyle,
+                width=m.linewidth,
                 alpha=m.alpha,
                 zorder=1,
             )
 
             if m.label is not None:
-                ax.annotate(
+                axes.text(
+                    x_stop + label_offset,
+                    m.y,
                     m.label,
-                    xy=(x_stop, m.y),
-                    xytext=(label_pad, 0),
-                    textcoords="offset points",
                     ha="left",
                     va="center",
                     fontsize=label_fs,
@@ -397,7 +420,7 @@ class SpectrumPlotter:
                     alpha=m.alpha,
                 )
 
-    def _set_ylabel(self, ax, energy_type: str | None) -> None:
+    def _set_ylabel(self, axes: slp.Axes, energy_type: str | None) -> None:
         energy_types = self.collection.energy_types
         if energy_type is not None:
             if energy_type not in energy_types:
@@ -411,14 +434,12 @@ class SpectrumPlotter:
                 include_particles=False,
                 include_level_index=False,
             )
-            ax.set_ylabel(f"${latex}$", fontsize=self.style.fontsize)
+            axes.set(ylabel=f"${latex}$")
         else:
-            import logging
-
             logging.warning(
                 f"Multiple energy types found ({energy_types}), using generic 'E' label"
             )
-            ax.set_ylabel("E", fontsize=self.style.fontsize)
+            axes.set(ylabel="E")
 
     @staticmethod
     def _default_column_label(key: Hashable) -> str:
@@ -442,17 +463,21 @@ class SectorSpectrumPlotter(SpectrumPlotter):
         *,
         markers: list[HMarker] | None = None,
         energy_type: str | None = None,
-        ax: plt.Axes | None = None,
+        axes: slp.Axes | None = None,
         figsize: tuple[float, float] | None = None,
-    ) -> plt.Axes:
+        backend: str | None = None,
+        ax: Any = None,
+    ) -> slp.Axes:
         return super().plot(
             group_by=("psq", "irrep"),
             column_label_fn=self._irrep_label,
             outer_label_fn=self._psq_label,
             markers=markers,
             energy_type=energy_type,
-            ax=ax,
+            axes=axes,
             figsize=figsize,
+            backend=backend,
+            ax=ax,
         )
 
     @staticmethod

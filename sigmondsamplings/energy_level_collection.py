@@ -1,22 +1,40 @@
-"""
-Energy-Level Collection Classes: Specialized collections for energy-level observables.
+"""Specialized collection types for energy-level observables.
 
-This module provides collection classes specifically designed for energy-level data:
-- EnergyLevelMixin: Provides energy-level-specific helpers (irreps, psqs, etc.)
-- SingleEnsembleEnergyCollection: Energy levels from one ensemble/sampling configuration
-- MultiEnsembleEnergyCollection: Energy levels from multiple ensembles
+Classes
+-------
+EnergyLevelMixin
+    Energy-specific discovery, grouping, filtering, mutation, and persistence helpers.
+SingleEnsembleEnergyCollection
+    Energy levels from one ensemble and sampling configuration.
+MultiEnsembleEnergyCollection
+    Energy levels spanning multiple ensembles.
 """
+
+from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import (
-    TypeVar,
-    Union,
+    TYPE_CHECKING,
+    cast,
+    overload,
 )
 
 from .energy_levels import EnergyObsInfo, Particle, SHEnergyObsInfo
 from .ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
 from .sampling import EnsembleInfo, SigmondSampling
+
+if TYPE_CHECKING:
+    from .observable_collection import ObservableCollection
+    from .spectrum_spec import SpectrumResolved
+
+    class _EnergyLevelCollectionBase(ObservableCollection):
+        """Collection API required by :class:`EnergyLevelMixin`."""
+
+else:
+
+    class _EnergyLevelCollectionBase:
+        """Keep the typing-only collection base out of the runtime MRO."""
 
 __all__ = [
     "EnergyLevelMixin",
@@ -24,205 +42,20 @@ __all__ = [
     "MultiEnsembleEnergyCollection",
 ]
 
-T = TypeVar("T", bound="SingleEnsembleEnergyCollection")
-M = TypeVar("M", bound="MultiEnsembleEnergyCollection")
+class EnergyLevelMixin(_EnergyLevelCollectionBase):
+    """Provide energy-level-specific collection helpers and validation.
 
-
-class EnergyLevelMixin:
-    """
-    Mixin providing energy-level specific helpers and validation.
-
-    This mixin adds energy-level discovery properties and convenience methods
-    to collection classes. It assumes the collection has the standard
-    ObservableCollection interface (obs accessor, filter, group_by, etc.).
+    Notes
+    -----
+    The host class must provide the standard :class:`ObservableCollection`
+    interface, including ``obs``, ``filter``, ``group_by``, and ``unique``.
     """
 
     # TODO: really need to consider if we want mutability here.
     _data: list[SigmondSampling]
 
     # -------------------------------------------------------------------------
-    # Discovery Properties
-    # -------------------------------------------------------------------------
-
-    @property
-    def irreps(self) -> list[str]:
-        """
-        All unique irreps in the collection, sorted.
-
-        Returns:
-            List[str]: Sorted list of irreducible representations
-        """
-        return self.unique("irrep")
-
-    @property
-    def psqs(self) -> Iterable[int]:
-        """
-        All unique PSQ (momentum squared) values in the collection, sorted.
-
-        Returns:
-            Iterable[int]: Sorted list/arr of momentum squared values
-        """
-        return self.unique("psq")
-
-    @property
-    def level_indexes(self) -> Iterable[int]:
-        """
-        All unique energy level indexes in the collection, sorted.
-
-        Returns:
-            Iterable[int]: Sorted list/arr of energy level indexes
-        """
-        return self.unique("level_index")
-
-    @property
-    def energy_types(self) -> list[str]:
-        """
-        All unique energy types in the collection, sorted.
-
-        Energy types include: 'elab', 'ecm', 'delab', 'decm'
-
-        Returns:
-            List[str]: Sorted list of energy types
-        """
-        return self.unique("energy_type")
-
-    @property
-    def ref_particles(self) -> list[str]:
-        """
-        All unique reference particle names in the collection, sorted.
-
-        Returns:
-            List[str]: Sorted list of reference particle names
-        """
-        return self.unique("ref_particle")
-
-    @property
-    def particles(self) -> list[str]:
-        """
-        All unique particle names in the single hadron collection, sorted.
-
-        Returns:
-            List[str]: Sorted list of particle names
-        """
-        return self.single_hadron_spectra.unique("particle")
-
-    @property
-    def sectors(self) -> list[tuple[int, str]]:
-        """
-        All unique momentum-irrep sectors in the collection.
-
-        Returns:
-            List[Tuple[int, str]]: Sorted list of ``(psq, irrep)`` pairs.
-        """
-        return self.unique("sector")
-
-    @property
-    def psq_irrep_pairs(self) -> list[tuple[int, str]]:
-        """
-        Get all unique (PSQ, irrep) combinations in the collection.
-
-        Returns:
-            List[Tuple[int, str]]: Sorted list of (psq, irrep) pairs
-        """
-        return self.sectors
-
-    def group_by_energy_type(self) -> dict[str, "EnergyLevelMixin"]:
-        """
-        Group collection by energy type.
-
-        Convenience wrapper around group_by() for energy type-based grouping.
-
-        Returns:
-            Dict[str, Collection]: Dictionary mapping energy type to collection
-        """
-        return self.group_by(key="energy_type")
-
-    def group_by_irrep(self) -> dict[str, "EnergyLevelMixin"]:
-        """
-        Group collection by irrep.
-
-        Convenience wrapper around group_by() for irrep-based grouping.
-
-        Returns:
-            Dict[str, Collection]: Dictionary mapping irrep to collection
-        """
-        return self.group_by(key="irrep")
-
-    def group_by_psq(self) -> dict[int, "EnergyLevelMixin"]:
-        """
-        Group collection by PSQ (momentum squared).
-
-        Convenience wrapper around group_by() for PSQ-based grouping.
-
-        Returns:
-            Dict[int, Collection]: Dictionary mapping psq to collection
-        """
-        return self.group_by(key="psq")
-
-    def group_by_level_index(self) -> dict[int, "EnergyLevelMixin"]:
-        """
-        Group collection by energy level index.
-
-        Convenience wrapper around group_by() for level index-based grouping.
-
-        Returns:
-            Dict[int, Collection]: Dictionary mapping level index to collection
-        """
-        return self.group_by(key="level_index")
-
-    def group_by_sector(self) -> dict[tuple[int, str], "EnergyLevelMixin"]:
-        """
-        Group collection by (PSQ, irrep) sector.
-
-        A sector is defined by the combination of momentum squared and irrep.
-
-        Returns:
-            Dict[Tuple[int, str], Collection]: Dictionary mapping (psq, irrep) to collection
-        """
-        return self.group_by(key="sector")
-
-    # -------------------------------------------------------------------------
-    # Organize Spectra - Filtering by Type
-    # -------------------------------------------------------------------------
-
-    @property
-    def interacting_spectra(self):
-        """
-        All interacting (multi-hadron) energy level spectra.
-
-        Filters for EnergyObsInfo that are not single hadron types.
-
-        Returns:
-            Collection of the same type with only interacting energy levels
-
-        Example:
-            >>> # Get all interacting levels in A1g irrep at rest
-            >>> interacting = collection.interacting_spectra.filter(irrep='A1g', psq=0)
-        """
-        return self.filter(
-            predicate=lambda obs_info: (
-                isinstance(obs_info, EnergyObsInfo) and not isinstance(obs_info, SHEnergyObsInfo)
-            )
-        )
-
-    @property
-    def single_hadron_spectra(self):
-        """
-        All single hadron energy level spectra.
-
-        Filters for SHEnergyObsInfo types only.
-
-        Returns:
-            Collection of the same type with only single hadron energy levels
-
-        Example:
-            >>> # Get all pion energy levels
-            >>> pions = collection.single_hadron_spectra.filter(particle='pi')
-        """
-        return self.filter(predicate=lambda obs_info: isinstance(obs_info, SHEnergyObsInfo))
-
-    # -------------------------------------------------------------------------
-    # Factory Method - Convert Observables to Energy Levels
+    # Construction and Validation
     # -------------------------------------------------------------------------
 
     @classmethod
@@ -232,48 +65,60 @@ class EnergyLevelMixin:
         skip_missing_particles: bool = True,
         return_type: str = "numpy",
     ):
-        """
-        Create an energy-level collection from generic observables.
+        """Create an energy-level collection from generic observables.
 
-        Converts each observable to an energy level using `as_energy_level()`,
+        Convert each observable using :meth:`SigmondSampling.as_energy_level`,
         filtering out incompatible observables.
 
-        Args:
-            observables: Iterable of SigmondSampling objects (may not be energy-level types)
-            skip_missing_particles: If True, skip single-hadron observables missing particle names
-            return_type: Return type for attribute access
+        Parameters
+        ----------
+        observables : Iterable[SigmondSampling]
+            Samplings that may or may not already carry energy-level metadata.
+        skip_missing_particles : bool, default=True
+            Skip single-hadron observables whose particle name is unavailable.
+        return_type : {"numpy", "list", "dict"}, default="numpy"
+            Representation used by collection attribute accessors.
 
-        Returns:
-            Energy-level collection of the same type as the class
+        Returns
+        -------
+        EnergyLevelMixin
+            An energy-level collection of the concrete class on which this
+            method was called.
 
-        Raises:
-            ValueError: If no valid energy-level observables remain after conversion
+        Raises
+        ------
+        ValueError
+            If no valid energy-level observables remain after conversion.
 
-        Example:
-            >>> # Convert generic observables to energy levels
-            >>> energy_coll = SingleEnsembleEnergyCollection.from_observables(
-            ...     generic_observables,
-            ...     skip_missing_particles=True
-            ... )
+        Examples
+        --------
+        >>> energy_coll = SingleEnsembleEnergyCollection.from_collection(
+        ...     generic_observables,
+        ...     skip_missing_particles=True,
+        ... )
         """
         energy_samplings = []
 
         for sampling in observables:
             try:
-                if isinstance(sampling.observable_info, (EnergyObsInfo, SHEnergyObsInfo)):
-                    # Already an energy level, use as is (with canonical name)
-                    sampling.observable_info.update_name()
-                    energy_samplings.append(sampling)
-                    continue
-                energy_sampling = sampling.as_energy_level()
+                if isinstance(sampling.observable_info, EnergyObsInfo):
+                    # Preserve the input while canonicalizing an independent metadata copy.
+                    energy_obs_info = sampling.observable_info.copy()
+                    energy_obs_info.update_name()
+                    energy_sampling = sampling.with_observable_info(energy_obs_info)
+                else:
+                    energy_sampling = sampling.as_energy_level()
                 obs = energy_sampling.observable_info
                 # Skip single hadrons missing particle name if requested
-                if skip_missing_particles:
-                    if isinstance(obs, SHEnergyObsInfo) and obs.particle is None:
-                        logging.warning(
-                            f"SHEnergyObsInfo for single hadron missing particle name: {obs}. Skipping."
-                        )
-                        continue
+                if (
+                    skip_missing_particles
+                    and isinstance(obs, SHEnergyObsInfo)
+                    and obs.particle is None
+                ):
+                    logging.warning(
+                        f"SHEnergyObsInfo for single hadron missing particle name: {obs}. Skipping."
+                    )
+                    continue
 
                 energy_samplings.append(energy_sampling)
             except (AttributeError, ValueError) as e:
@@ -289,372 +134,549 @@ class EnergyLevelMixin:
         return cls(energy_samplings, return_type=return_type)
 
     def _validate_energy_levels(self) -> None:
+        """Validate that every observable carries energy-level metadata.
+
+        Raises
+        ------
+        ValueError
+            If any observable is not represented by :class:`EnergyObsInfo` or
+            one of its subclasses.
         """
-        Validate that all observables in the collection are energy-level types.
-        """
-        obs_types = set([type(obs.observable_info) for obs in self])
-        invalid_types = obs_types - {EnergyObsInfo, SHEnergyObsInfo}
+        invalid_types = {
+            type(sampling.observable_info)
+            for sampling in self
+            if not isinstance(sampling.observable_info, EnergyObsInfo)
+        }
         if invalid_types:
             raise ValueError(
                 f"Collection contains non-energy-level observable types: {invalid_types}"
             )
 
     # -------------------------------------------------------------------------
-    # Reference and Shift Particle Setters (Mutable)
+    # Discovery Properties
     # -------------------------------------------------------------------------
 
-    def set_ref(self, particle_name: str) -> None:
+    @property
+    def irreps(self) -> list[str]:
+        """Return the unique irreducible representations in sorted order.
+
+        Returns
+        -------
+        list[str]
+            Sorted irreducible-representation names.
         """
-        Set reference particle for all observables with is_ref=True (mutable).
+        return cast(list[str], self.unique("irrep"))
 
-        This method mutates the observable_info in place for all energy levels
-        that have is_ref=True.
+    @property
+    def psqs(self) -> Iterable[int]:
+        """Return the unique momentum-squared values in sorted order.
 
-        Args:
-            particle_name: Name of the reference particle (e.g., 'L', 'pi')
-
-        Example:
-            >>> collection.set_ref('L')
-            >>> # All ref observables now have ref_particle='L'
+        Returns
+        -------
+        Iterable[int]
+            Sorted momentum-squared values.
         """
-        for sampling in self._data:
-            obs_info = sampling.observable_info
-            if hasattr(obs_info, "is_ref") and obs_info.is_ref:
-                obs_info.ref_particle = particle_name
+        return cast(Iterable[int], self.unique("psq"))
 
-    def create_ref(self, particle_samp: SigmondSampling) -> None:
+    @property
+    def level_indexes(self) -> Iterable[int]:
+        """Return the unique energy-level indices in sorted order.
+
+        Returns
+        -------
+        Iterable[int]
+            Sorted energy-level indices.
         """
-        Create reference observables for all observables without is_ref = True (mutable).
+        return cast(Iterable[int], self.unique("level_index"))
 
-        This method mutates the collection in place by creating new reference observables
-        for all viable energy levels, using the provided particle observable.
+    @property
+    def energy_types(self) -> list[str]:
+        """Return the unique energy types in sorted order.
 
-        Args:
-            particle_obs: SigmondSampling representing the particle to use as reference.
-            If of type SHEnergyObsInfo, its particle name will be used as the reference particle name,
-            otherwise the reference particle name will be set to 'ref'.
-        Example:
-            >>> # Create reference observables using a pion sampling
-            >>> pion_samp = SigmondSampling(..., observable_info=SHEnergyObsInfo(particle='pi', ...))
-            >>> collection.create_ref(pion_samp)
-            >>> # All ref observables now have ref_particle='pi' and new reference samplings created
+        Returns
+        -------
+        list[str]
+            Sorted energy types, such as ``"elab"``, ``"ecm"``, ``"delab"``,
+            and ``"decm"``.
         """
-        new_obs = []
-        particle_samp = particle_samp.copy()
-        for sampling in self._data:
-            obs_info = sampling.observable_info
-            if hasattr(obs_info, "is_ref") and not obs_info.is_ref:
-                new_ref = sampling.create_ref_sampling(particle_samp)
-                new_obs.append(new_ref)
-        self._data.extend(new_obs)
 
-    def set_shift_particles(
-        self, irrep_psq_levels_map: dict[tuple[str, int, int], list[Particle]]
-    ) -> None:
+        return cast(list[str], self.unique("energy_type"))
+
+    @property
+    def ref_particles(self) -> list[str]:
+        """Return the unique reference-particle names in sorted order.
+
+        Returns
+        -------
+        list[str]
+            Sorted reference-particle names.
         """
-        Set non-interacting particle names for shift-type observables (mutable).
+        return cast(list[str], self.unique("ref_particle"))
 
-        This method mutates the observable_info in place for shift-type energy levels.
+    @property
+    def particles(self) -> list[str]:
+        """Return unique single-hadron particle names in sorted order.
 
-        Args:
-            irrep_psq_levels_map: Dict mapping (irrep, psq, level_idx) to list of Particle objects
-
-        Example:
-            >>> mapping = {
-            ...     ('A1g', 0, 0): [Particle('pi', psq=0), Particle('pi', psq=1)],
-            ...     ('A1g', 0, 1): [Particle('rho', psq=0), Particle('pi', psq=0)],
-            ... }
-            >>> collection.set_shift_particles(mapping)
+        Returns
+        -------
+        list[str]
+            Sorted particle names from the single-hadron subset.
         """
-        for sampling in self._data:
-            obs_info = sampling.observable_info
-            if isinstance(obs_info, EnergyObsInfo) and obs_info.needs_ni_pair:
-                key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
-                if key in irrep_psq_levels_map:
-                    obs_info.particles = tuple(irrep_psq_levels_map[key])
+        return cast(list[str], self.single_hadron_spectra.unique("particle"))
 
-    def _parse_pycalq_yml(self, yml_path: str) -> dict[tuple[str, int, int], list[Particle]]:
+    @property
+    def sectors(self) -> list[tuple[int, str]]:
+        """Return the unique momentum-irrep sectors.
+
+        Returns
+        -------
+        list[tuple[int, str]]
+            Sorted ``(psq, irrep)`` pairs.
         """
-        Parse a PyCalQ YAML file and extract shift particle assignments.
+        return cast(list[tuple[int, str]], self.unique("sector"))
 
-        Args:
-            yml_path: Path to the PyCalQ YAML configuration file
+    @property
+    def psq_irrep_pairs(self) -> list[tuple[int, str]]:
+        """Return the unique momentum-irrep pairs.
 
-        Returns:
-            Dict mapping (irrep, psq, level_idx) to list of Particle objects
+        Returns
+        -------
+        list[tuple[int, str]]
+            Alias for :attr:`sectors`.
         """
-        import re
-
-        import yaml
-
-        with open(yml_path) as f:
-            config = yaml.safe_load(f)
-
-        # Build regex patterns from collection's irreps and psq values
-        irrep_pattern = (
-            "(" + "|".join(re.escape(irrep) for irrep in self.irreps if irrep is not None) + ")"
-        )
-
-        psq_pattern = (
-            "(" + "|".join(re.escape(str(psq)) for psq in self.psqs if psq is not None) + ")"
-        )
-
-        sector_pattern = rf"{irrep_pattern}\s+PSQ={psq_pattern}"
-
-        # Navigate down through YAML until we find sector data
-        current = config
-        while isinstance(current, dict):
-            keys = list(current.keys())
-
-            # Check if this is the sector level using collection's irreps/psq
-            if any(re.search(sector_pattern, k) for k in keys):
-                break
-
-            # Go down one level if there's only one key
-            if len(keys) != 1:
-                raise ValueError(f"Multiple branches at YAML level with keys: {keys}")
-            current = current[keys[0]]
-
-        # Build the irrep_psq_levels_map
-        irrep_psq_levels_map = {}
-
-        for sector_key, levels in current.items():
-            # Parse sector string using collection's pattern
-            irrep_match = re.search(sector_pattern, sector_key)
-            if not irrep_match:
-                continue
-
-            irrep = irrep_match.group(1)
-            psq = int(irrep_match.group(2))
-
-            # Parse levels
-            for level_idx, particle_pairs in enumerate(levels):
-                shift_particles = []
-                for particle_str in particle_pairs:
-                    shift_particles.append(Particle.from_string(particle_str))
-                irrep_psq_levels_map[(irrep, psq, level_idx)] = shift_particles
-
-        return irrep_psq_levels_map
-
-    def create_pycalq_yml_shift_particles(self, yml_path: str) -> None:
-        """
-        Create a PyCalQ YAML file with shift particle assignments based on the collection's
-        current shift-type observables.
-
-        Output format matches the PyCalQ non_interacting_levels YAML structure
-        expected by set_shift_particles_from_pycalq_yml / _parse_pycalq_yml.
-
-        Args:
-            yml_path: Path to write the PyCalQ YAML configuration file
-        """
-        import yaml
-
-        sectors = {}
-        for sampling in self._data:
-            obs_info = sampling.observable_info
-            if (
-                isinstance(obs_info, EnergyObsInfo)
-                and obs_info.is_shift_type
-                and obs_info.particles
-            ):
-                sector_key = f"{obs_info.irrep} PSQ={obs_info.psq}"
-                if sector_key not in sectors:
-                    sectors[sector_key] = {}
-                sectors[sector_key][obs_info.level_index] = [
-                    str(p) for p in obs_info.particles
-                ]
-
-        # Convert to sorted lists indexed by level (matching parser's enumerate expectation)
-        non_interacting_levels = {}
-        for sector_key, levels in sectors.items():
-            max_idx = max(levels.keys())
-            non_interacting_levels[sector_key] = [levels.get(i, []) for i in range(max_idx + 1)]
-
-        # Nest under wrapper keys to match PyCalQ YAML structure
-        output = {"fit_spectrum": {"non_interacting_levels": non_interacting_levels}}
-
-        with open(yml_path, "w") as f:
-            yaml.dump(output, f, default_flow_style=False)
+        return self.sectors
 
     # -------------------------------------------------------------------------
-    # Spec Filtering and Persistence
+    # Spectral Views
     # -------------------------------------------------------------------------
 
-    def filter_by_spec(
-        self,
-        spec: Iterable[tuple],
-    ):
+    @property
+    def interacting_spectra(self):
+        """Return the interacting, multi-hadron energy levels.
+
+        Returns
+        -------
+        EnergyLevelMixin
+            A collection of the same concrete type containing only
+            :class:`EnergyObsInfo` entries that are not single-hadron entries.
+
+        Examples
+        --------
+        >>> interacting = collection.interacting_spectra.filter(irrep="A1g", psq=0)
         """
-        Filter collection to only include observables matching the given spec.
-
-        Each entry in ``spec`` is a tuple of the form:
-        - ``(psq, irrep, n_levels)``       – number of levels [0, ..., N-1]
-        - ``(psq, irrep, [level_index, ...])`` – multiple levels (flattened)
-
-        Args:
-            spec: Iterable of (psq, irrep, n_levels_or_list) tuples
-
-        Returns:
-            Collection of the same type containing only matching observables
-
-        Example:
-            >>> result = coll.filter_by_spec([(0, 'A1g', 0), (1, 'E', [0, 1])])
-        """
-        allowed: set[tuple[int, str, int]] = set()
-        for entry in spec:
-            psq, irrep, level = entry
-            if isinstance(level, list):
-                for lvl in level:
-                    allowed.add((psq, irrep, lvl))
-            else:
-                allowed.add((psq, irrep, level))
-
         return self.filter(
             predicate=lambda obs_info: (
-                (
-                    obs_info.psq,
-                    obs_info.irrep,
-                    obs_info.level_index,
-                )
-                in allowed
+                isinstance(obs_info, EnergyObsInfo) and not isinstance(obs_info, SHEnergyObsInfo)
             )
         )
 
     @property
-    def spec(self) -> list[tuple[int, str, list[int]]]:
-        """
-        List the (psq, irrep, [level_indices]) spec of the current collection.
+    def single_hadron_spectra(self):
+        """Return the single-hadron energy levels.
 
-        Returns:
-            List[Tuple[int, str, List[int]]]: List of sectors with their embedded level indices.
+        Returns
+        -------
+        EnergyLevelMixin
+            A collection of the same concrete type containing only
+            :class:`SHEnergyObsInfo` entries.
 
-        Example:
-            >>> spec = coll.spec
-            >>> print(spec)
-            [(0, 'A1g', [0, 1]), (1, 'E', [0])]
+        Examples
+        --------
+        >>> pions = collection.single_hadron_spectra.filter(particle="pi")
         """
-        return [
-            (psq, irrep, sorted(set(obs.observable_info.level_index for obs in sub_coll)))
-            for (psq, irrep), sub_coll in sorted(
-                item for item in self.group_by_sector().items() if None not in item[0]
+        return self.filter(predicate=lambda obs_info: isinstance(obs_info, SHEnergyObsInfo))
+
+    # -------------------------------------------------------------------------
+    # Grouping
+    # -------------------------------------------------------------------------
+
+    def group_by_energy_type(self) -> dict[str, EnergyLevelMixin]:
+        """Group the collection by energy type.
+
+        Returns
+        -------
+        dict[str, EnergyLevelMixin]
+            Energy type mapped to a collection of the same concrete type.
+        """
+        return cast(dict[str, EnergyLevelMixin], self.group_by(key="energy_type"))
+
+    def group_by_irrep(self) -> dict[str, EnergyLevelMixin]:
+        """Group the collection by irrep.
+
+        Returns
+        -------
+        dict[str, EnergyLevelMixin]
+            Irrep name mapped to a collection of the same concrete type.
+        """
+        return cast(dict[str, EnergyLevelMixin], self.group_by(key="irrep"))
+
+    def group_by_psq(self) -> dict[int, EnergyLevelMixin]:
+        """Group the collection by momentum squared.
+
+        Returns
+        -------
+        dict[int, EnergyLevelMixin]
+            Momentum squared mapped to a collection of the same concrete type.
+        """
+        return cast(dict[int, EnergyLevelMixin], self.group_by(key="psq"))
+
+    def group_by_level_index(self) -> dict[int, EnergyLevelMixin]:
+        """Group the collection by energy-level index.
+
+        Returns
+        -------
+        dict[int, EnergyLevelMixin]
+            Level index mapped to a collection of the same concrete type.
+        """
+        return cast(dict[int, EnergyLevelMixin], self.group_by(key="level_index"))
+
+    def group_by_sector(self) -> dict[tuple[int, str], EnergyLevelMixin]:
+        """Group the collection by ``(psq, irrep)`` sector.
+
+        Returns
+        -------
+        dict[tuple[int, str], EnergyLevelMixin]
+            Sector mapped to a collection of the same concrete type.
+        """
+        return cast(dict[tuple[int, str], EnergyLevelMixin], self.group_by(key="sector"))
+
+    # -------------------------------------------------------------------------
+    # Spectrum Selection and Persistence
+    # -------------------------------------------------------------------------
+
+    def filter_by_spec(
+        self,
+        spec: Iterable[tuple[int, str, int | Iterable[int]]],
+    ):
+        """Filter the collection using a spectrum specification.
+
+        Each entry in ``spec`` is a tuple of the form:
+
+        - ``(psq, irrep, level_index)``         – a single level index
+        - ``(psq, irrep, [level_index, ...])``  – multiple level indices
+
+        Entries are resolved through
+        :class:`~sigmondsamplings.spectrum_spec.SectorSpec`. The same ``(psq, irrep)``
+        sector may appear in more than one entry; the selected indices are unioned.
+
+        Parameters
+        ----------
+        spec : Iterable[tuple[int, str, int | Iterable[int]]]
+            ``(psq, irrep, levels)`` entries, where ``levels`` is either one
+            index or an iterable of indices.
+
+        Returns
+        -------
+        EnergyLevelMixin
+            A collection of the same concrete type containing matching levels.
+
+        Examples
+        --------
+        >>> result = coll.filter_by_spec([(0, "A1g", 0), (1, "E", [0, 1])])
+        """
+        from .spectrum_spec import SectorSpec
+
+        allowed: set[tuple[int, str, int]] = set()
+        for psq, irrep, levels in spec:
+            level_list = [levels] if isinstance(levels, int) else list(levels)
+            sector = SectorSpec(psq=psq, irrep=irrep, levels=level_list).resolve()
+            allowed.update(sector.keys())
+
+        return self._filter_by_level_keys(allowed)
+
+    def _filter_by_level_keys(self, allowed: set[tuple[int, str, int]]):
+        """Filter against resolved ``(psq, irrep, level_index)`` keys.
+
+        Parameters
+        ----------
+        allowed : set[tuple[int, str, int]]
+            Exact level keys to retain.
+
+        Returns
+        -------
+        EnergyLevelMixin
+            A collection of the same concrete type containing allowed levels.
+        """
+        return self.filter(
+            predicate=lambda obs_info: (
+                isinstance(obs_info, EnergyObsInfo)
+                and (obs_info.psq, obs_info.irrep, obs_info.level_index) in allowed
             )
-        ]
+        )
 
-    def save_spec(self, toml_path: str) -> None:
+    def spectrum_spec(self) -> SpectrumResolved:
+        """Build the resolved spectrum specification for this collection.
+
+        Level indices are gathered per ``(psq, irrep)`` sector into a
+        :class:`~sigmondsamplings.spectrum_spec.SpectrumResolved`. Observables whose
+        psq, irrep, or level index is unset are skipped.
+
+        Returns
+        -------
+        SpectrumResolved
+            Canonical spectrum selection for the collection.
         """
-        Save the current collection's (psq, irrep, level_index) spec to a TOML file.
-
-        The TOML groups level indices by (psq, irrep) sector under a ``spectrum``
-        array of tables:
-
-        .. code-block:: toml
-
-            [[spectrum]]
-            psq = 0
-            irrep = "A1g"
-            levels = [0, 1, 2]
-
-            [[spectrum]]
-            psq = 1
-            irrep = "E"
-            levels = [0]
-
-        Args:
-            toml_path: Path to write the spec TOML file
-
-        Example:
-            >>> coll.save_spec('my_spec.toml')
-        """
-        import tomlkit
+        from .spectrum_spec import SectorResolved, SpectrumResolved
 
         sectors: dict[tuple[int, str], set[int]] = {}
         for sampling in self._data:
             obs_info = sampling.observable_info
+            if not isinstance(obs_info, EnergyObsInfo):
+                continue
+            if (
+                obs_info.psq is None
+                or obs_info.irrep is None
+                or obs_info.level_index is None
+            ):
+                continue
             key = (obs_info.psq, obs_info.irrep)
             sectors.setdefault(key, set()).add(obs_info.level_index)
 
-        spec_entries = tomlkit.aot()
-        for (psq, irrep), levels in sorted(
-            item for item in sectors.items() if None not in item[0]
-        ):
-            entry = tomlkit.table()
-            entry.add("psq", psq)
-            entry.add("irrep", irrep)
-            entry.add("levels", sorted(levels))
-            spec_entries.append(entry)
+        return SpectrumResolved(
+            spectrum=[
+                SectorResolved(psq=psq, irrep=irrep, levels=sorted(levels))
+                for (psq, irrep), levels in sorted(sectors.items())
+            ]
+        )
 
-        document = tomlkit.document()
-        document.add("spectrum", spec_entries)
+    def save_spec(self, toml_path: str) -> None:
+        """Save the current spectrum specification to TOML.
 
-        with open(toml_path, "w") as f:
-            tomlkit.dump(document, f)
+        Delegates serialization to
+        :class:`~sigmondsamplings.spectrum_spec.SpectrumSpec`, writing the level
+        indices grouped by (psq, irrep) sector under a ``spectrum`` array of tables.
+
+        Parameters
+        ----------
+        toml_path : str
+            Destination path for the TOML file.
+        """
+        self.spectrum_spec().to_spec().to_toml(toml_path)
 
     def filter_from_toml(self, toml_path: str):
+        """Load a spectrum specification from TOML and filter the collection.
+
+        Parameters
+        ----------
+        toml_path : str
+            Path to a spectrum-specification TOML file.
+
+        Returns
+        -------
+        EnergyLevelMixin
+            A collection of the same concrete type containing matching levels.
         """
-        Load a spec from a TOML file and filter this collection to match it.
+        from .spectrum_spec import SpectrumSpec
 
-        Reads a TOML file produced by :meth:`save_spec` and delegates to
-        :meth:`filter_by_spec`.
+        resolved = SpectrumSpec.from_file(toml_path).resolve()
+        return self._filter_by_level_keys(resolved.allowed_keys())
 
-        Args:
-            toml_path: Path to a spec TOML file
+    # -------------------------------------------------------------------------
+    # Reference and Shift-Particle Mutations
+    # -------------------------------------------------------------------------
 
-        Returns:
-            Collection of the same type filtered to the spec
+    def set_ref(self, particle_name: str) -> None:
+        """Set the reference particle for all reference-mode observables.
 
-        Example:
-            >>> filtered = coll.filter_from_toml('my_spec.toml')
+        Parameters
+        ----------
+        particle_name : str
+            Reference-particle name, such as ``"L"`` or ``"pi"``.
+
+        Notes
+        -----
+        This method mutates matching observable metadata in place, regenerates
+        canonical names, and invalidates cached shared attributes.
+
+        Examples
+        --------
+        >>> collection.set_ref("L")
         """
-        import tomlkit
+        changed = False
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if (
+                isinstance(obs_info, EnergyObsInfo)
+                and obs_info.is_ref
+                and obs_info.ref_particle != particle_name
+            ):
+                obs_info.ref_particle = particle_name
+                obs_info.update_name(strict=False)
+                changed = True
+        if changed:
+            self.clear_shared_attr_cache()
 
-        with open(toml_path) as f:
-            config = tomlkit.load(f)
+    def create_ref(self, particle_samp: SigmondSampling) -> list[SigmondSampling]:
+        """Create missing reference observables using a particle sampling.
 
-        spec = [(entry["psq"], entry["irrep"], entry["levels"]) for entry in config["spectrum"]]
-        return self.filter_by_spec(spec)
+        Parameters
+        ----------
+        particle_samp : SigmondSampling
+            Particle sampling used as the denominator. If it carries
+            :class:`SHEnergyObsInfo`, its particle name becomes the reference
+            particle; otherwise ``"ref"`` is used.
+
+        Returns
+        -------
+        list[SigmondSampling]
+            Reference samplings created and appended to this collection. The
+            list is empty if every reference observable already exists.
+
+        Notes
+        -----
+        The operation is idempotent. Existing reference observables are identified
+        using exact :class:`EnergyObsInfo` equality, including ``ref_particle``.
+
+        Examples
+        --------
+        >>> created = collection.create_ref(pion_samp)
+        """
+        existing = {samp.observable_info for samp in self._data}
+        new_obs = []
+        particle_samp = particle_samp.copy()
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if isinstance(obs_info, EnergyObsInfo) and not obs_info.is_ref:
+                # Predict the metadata first: skipping here avoids the division that
+                # create_ref_sampling would otherwise perform and then discard.
+                ref_info = sampling.ref_observable_info(particle_samp)
+                if ref_info in existing:
+                    continue
+                existing.add(ref_info)
+                new_obs.append(sampling.create_ref_sampling(particle_samp))
+        if new_obs:
+            self._data.extend(new_obs)
+            self.clear_shared_attr_cache()
+        return new_obs
+
+    def set_shift_particles(
+        self, irrep_psq_levels_map: dict[tuple[str, int, int], list[Particle]]
+    ) -> None:
+        """Set non-interacting particles for shift-compatible observables.
+
+        Parameters
+        ----------
+        irrep_psq_levels_map : dict[tuple[str, int, int], list[Particle]]
+            Map ``(irrep, psq, level_index)`` keys to particle lists.
+
+        Notes
+        -----
+        This method mutates matching observable metadata in place, regenerates
+        canonical names, and invalidates cached shared attributes.
+
+        Examples
+        --------
+        >>> assignments = {
+        ...     ("A1g", 0, 0): [Particle("pi", psq=0), Particle("pi", psq=1)],
+        ...     ("A1g", 0, 1): [Particle("rho", psq=0), Particle("pi", psq=0)],
+        ... }
+        >>> collection.set_shift_particles(assignments)
+        """
+        changed = False
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if isinstance(obs_info, EnergyObsInfo) and obs_info.needs_ni_pair:
+                if (
+                    obs_info.irrep is None
+                    or obs_info.psq is None
+                    or obs_info.level_index is None
+                ):
+                    continue
+                key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
+                if key in irrep_psq_levels_map:
+                    particles = tuple(irrep_psq_levels_map[key])
+                    if obs_info.particles != particles:
+                        obs_info.particles = particles
+                        obs_info.update_name(strict=False)
+                        changed = True
+        if changed:
+            self.clear_shared_attr_cache()
+
+    # -------------------------------------------------------------------------
+    # PyCalQ Import and Export
+    # -------------------------------------------------------------------------
 
     def set_shift_particles_from_pycalq_yml(self, yml_path: str) -> None:
-        """
-        Set non-interacting particle names from a PyCalQ YAML configuration file (mutable).
+        """Load PyCalQ particle assignments into this collection.
 
-        This method parses a PyCalQ YAML file and extracts shift particle assignments,
-        then applies them to the collection using set_shift_particles().
-
-        Args:
-            yml_path: Path to the PyCalQ YAML configuration file
-
-        Example:
-            >>> collection.set_shift_particles_from_pycalq_yml('config.yml')
+        Parameters
+        ----------
+        yml_path : str
+            Path to a PyCalQ YAML configuration.
         """
         self.set_shift_particles(self._parse_pycalq_yml(yml_path))
 
+    def create_pycalq_yml_shift_particles(self, yml_path: str) -> None:
+        """Write the collection's particle assignments as PyCalQ YAML.
+
+        Parameters
+        ----------
+        yml_path : str
+            Destination path for the YAML file.
+
+        Notes
+        -----
+        The output uses PyCalQ's ``non_interacting_levels`` structure and can be
+        loaded by :meth:`set_shift_particles_from_pycalq_yml`.
+        """
+        from .io.pycalq import ShiftParticleMap, write_shift_particles
+
+        assignments: ShiftParticleMap = {}
+        for sampling in self._data:
+            obs_info = sampling.observable_info
+            if (
+                isinstance(obs_info, EnergyObsInfo)
+                and obs_info.needs_ni_pair
+                and obs_info.particles
+                and obs_info.irrep is not None
+                and obs_info.psq is not None
+                and obs_info.level_index is not None
+            ):
+                assignments[(obs_info.irrep, obs_info.psq, obs_info.level_index)] = list(
+                    obs_info.particles
+                )
+
+        write_shift_particles(yml_path, assignments)
+
+    def _parse_pycalq_yml(self, yml_path: str) -> dict[tuple[str, int, int], list[Particle]]:
+        """Parse shift-particle assignments from a PyCalQ YAML file.
+
+        Parameters
+        ----------
+        yml_path : str
+            Path to a PyCalQ YAML configuration.
+
+        Returns
+        -------
+        dict[tuple[str, int, int], list[Particle]]
+            ``(irrep, psq, level_index)`` keys mapped to particle lists. Sectors
+            absent from this collection are omitted.
+        """
+        from .io.pycalq import read_shift_particles
+
+        allowed_sectors = {sector for sector in self.sectors if sector is not None}
+        return read_shift_particles(yml_path, allowed_sectors=allowed_sectors)
+
 
 class SingleEnsembleEnergyCollection(SingleEnsembleCollection, EnergyLevelMixin):
-    """
-    Energy-level observable collection from a single ensemble/sampling configuration.
+    """Energy-level observables from one ensemble and sampling configuration.
 
-    Extends SingleEnsembleCollection with energy-level specific helpers.
-    All observables must be EnergyObsInfo or SHEnergyObsInfo types.
+    Parameters
+    ----------
+    data : Iterable[SigmondSampling]
+        Energy-level samplings from one ensemble and sampling configuration.
+    return_type : {"numpy", "list", "dict"}, default="numpy"
+        Representation used by collection attribute accessors.
 
-    Provides:
-    - Energy-level validation
-    - Discovery properties (irreps, psq_values, energy_types, particles)
-    - Convenience grouping methods (group_by_irrep, group_by_psq, group_by_sector)
-    - All SingleEnsembleCollection features (filter, sort, etc.)
+    Notes
+    -----
+    Every sampling must carry :class:`EnergyObsInfo` or a subclass such as
+    :class:`SHEnergyObsInfo`. Filtering and grouping preserve the concrete
+    collection type.
 
-    Example:
+    Examples
     --------
-    >>> # Create from energy level samplings
     >>> coll = SingleEnsembleEnergyCollection(energy_samplings)
-    >>>
-    >>> # Discover available irreps and PSQs
-    >>> print(f"Irreps: {coll.irreps}")
-    >>> print(f"PSQs: {coll.psq_values}")
-    >>>
-    >>> # Get (psq, irrep) pairs
-    >>> sectors = coll.psq_irrep_pairs()
-    >>>
-    >>> # Group by irrep
     >>> by_irrep = coll.group_by_irrep()
     >>> a1g_levels = by_irrep["A1g"]
     """
@@ -664,16 +686,20 @@ class SingleEnsembleEnergyCollection(SingleEnsembleCollection, EnergyLevelMixin)
         data: Iterable[SigmondSampling],
         return_type: str = "numpy",
     ):
-        """
-        Initialize SingleEnsembleEnergyCollection with optional auto-conversion.
+        """Initialize a single-ensemble energy collection.
 
-        Args:
-            data: Iterable of SigmondSampling objects
-            return_type: Return type for attribute access - 'dict', 'list', or 'numpy'
+        Parameters
+        ----------
+        data : Iterable[SigmondSampling]
+            Energy-level samplings from one ensemble and sampling configuration.
+        return_type : {"numpy", "list", "dict"}, default="numpy"
+            Representation used by collection attribute accessors.
 
-        Raises:
-            ValueError: If observables have different ensemble_info/sampling_info,
-                       or if any observable is not an energy-level type and auto_convert=False
+        Raises
+        ------
+        ValueError
+            If samplings use different ensemble or sampling metadata, or if any
+            sampling does not carry energy-level metadata.
         """
         # Call parent to validate single ensemble/sampling
         super().__init__(data, return_type)
@@ -681,79 +707,51 @@ class SingleEnsembleEnergyCollection(SingleEnsembleCollection, EnergyLevelMixin)
         # Validate energy-level types (should always pass after conversion)
         self._validate_energy_levels()
 
-    def __repr__(self) -> str:
-        ensemble_id = (
-            self._ensemble_info.id
-            if hasattr(self._ensemble_info, "id")
-            else str(self._ensemble_info)
-        )
-        sampling_str = str(self._sampling_info)
-        return (
-            f"SingleEnsembleEnergyCollection("
-            f"n_obs={len(self._data)}, "
-            f"ensemble='{ensemble_id}', "
-            f"sampling='{sampling_str}'"
-            f")"
-        )
-
-
 class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
-    """
-    Energy-level observable collection from multiple ensembles.
+    """Energy-level observables spanning multiple ensembles.
 
-    Extends MultiEnsembleCollection with energy-level specific helpers.
-    All observables must be EnergyObsInfo or SHEnergyObsInfo types.
+    Parameters
+    ----------
+    data : Iterable[SigmondSampling] or Mapping[EnsembleInfo, SingleEnsembleEnergyCollection]
+        Energy-level samplings or pre-grouped single-ensemble collections.
+    return_type : {"numpy", "list", "dict"}, default="numpy"
+        Representation used by collection attribute accessors.
 
-    Provides:
-    - Energy-level validation
-    - Discovery properties (irreps, psq_values, energy_types, particles)
-    - Convenience grouping methods (group_by_irrep, group_by_psq, group_by_sector)
-    - All MultiEnsembleCollection features (filter, by_ensemble, etc.)
+    Notes
+    -----
+    Every sampling must carry :class:`EnergyObsInfo` or a subclass. The
+    :attr:`by_ensemble` view returns :class:`SingleEnsembleEnergyCollection`
+    instances, while slicing and filtering preserve this multi-ensemble type.
 
-    Type Consistency:
-    - `by_ensemble` returns Dict[EnsembleInfo, SingleEnsembleEnergyCollection]
-    - `__getitem__` with EnsembleInfo returns SingleEnsembleEnergyCollection
-    - Filter/sort operations return MultiEnsembleEnergyCollection
-
-    Example:
+    Examples
     --------
-    >>> # Create from mixed ensemble data
     >>> multi = MultiEnsembleEnergyCollection(all_energy_samplings)
-    >>>
-    >>> # Discover across all ensembles
-    >>> print(f"All irreps: {multi.irreps}")
-    >>> print(f"All PSQs: {multi.psq_values}")
-    >>>
-    >>> # Filter and maintain type
     >>> a1g_data = multi.filter(irrep="A1g", psq=0)
     >>> assert isinstance(a1g_data, MultiEnsembleEnergyCollection)
-    >>>
-    >>> # Access by ensemble (returns energy-level type)
-    >>> for ens_info, energy_coll in multi.by_ensemble.items():
-    ...     assert isinstance(energy_coll, SingleEnsembleEnergyCollection)
-    ...     print(f"{ens_info}: {energy_coll.irreps}")
     """
+
+    single_ensemble_collection_type = SingleEnsembleEnergyCollection
 
     def __init__(
         self,
-        data: Iterable[SigmondSampling] | dict[EnsembleInfo, SingleEnsembleEnergyCollection],
+        data: Iterable[SigmondSampling]
+        | Mapping[EnsembleInfo, SingleEnsembleEnergyCollection],
         return_type: str = "numpy",
     ):
-        """
-        Initialize MultiEnsembleEnergyCollection with optional auto-conversion.
+        """Initialize a multi-ensemble energy collection.
 
-        Parameters:
-        -----------
-        data : Union[Iterable[SigmondSampling], Dict, MultiEnsembleEnergyCollection]
-            Input data - can be:
-            - Iterable of SigmondSampling objects
-            - Dict mapping EnsembleInfo to SingleEnsembleEnergyCollection
-            - Another MultiEnsembleEnergyCollection (copy)
-        return_type : str
-            Return type for attribute accessors ('list', 'dict', or 'numpy')
+        Parameters
+        ----------
+        data : Iterable[SigmondSampling] or Mapping[EnsembleInfo, SingleEnsembleEnergyCollection]
+            Energy-level samplings or pre-grouped single-ensemble collections.
+        return_type : {"numpy", "list", "dict"}, default="numpy"
+            Representation used by collection attribute accessors.
 
-        Raises:
-            ValueError: If any observable is not an energy-level type and auto_convert=False
+        Raises
+        ------
+        ValueError
+            If samplings use incompatible sampling metadata or if any sampling
+            does not carry energy-level metadata.
         """
         # Call parent to validate single ensemble/sampling
         super().__init__(data, return_type)
@@ -767,60 +765,45 @@ class MultiEnsembleEnergyCollection(MultiEnsembleCollection, EnergyLevelMixin):
 
     @property
     def by_ensemble(self) -> dict[EnsembleInfo, SingleEnsembleEnergyCollection]:
+        """Return energy levels grouped by ensemble.
+
+        Returns
+        -------
+        dict[EnsembleInfo, SingleEnsembleEnergyCollection]
+            Ensemble metadata mapped to its energy-level collection.
         """
-        Group data by ensemble, returning Dict[EnsembleInfo, SingleEnsembleEnergyCollection].
-
-        Overrides parent to return SingleEnsembleEnergyCollection instead of
-        SingleEnsembleCollection for type consistency.
-
-        Returns:
-            Dict[EnsembleInfo, SingleEnsembleEnergyCollection]: Energy-level collections by ensemble
-        """
-        # Use inherited group_by to group by ensemble_info directly
-        groups = self.group_by(values=self.obs.ensemble_info)
-
-        # Convert each group to SingleEnsembleEnergyCollection (energy-level specific type)
-        return {
-            ens: SingleEnsembleEnergyCollection(group, return_type=self._return_type)
-            for ens, group in groups.items()
-        }
+        return cast(dict[EnsembleInfo, SingleEnsembleEnergyCollection], super().by_ensemble)
 
     # -------------------------------------------------------------------------
     # Override Dict-like Access to Return Energy-Level Types
     # -------------------------------------------------------------------------
 
+    @overload
+    def __getitem__(self, key: EnsembleInfo) -> SingleEnsembleEnergyCollection: ...
+
+    @overload
+    def __getitem__(self, key: int) -> SigmondSampling: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> MultiEnsembleEnergyCollection: ...
+
     def __getitem__(
         self, key: EnsembleInfo | int | slice
-    ) -> Union[SingleEnsembleEnergyCollection, "MultiEnsembleEnergyCollection", SigmondSampling]:
+    ) -> SingleEnsembleEnergyCollection | MultiEnsembleEnergyCollection | SigmondSampling:
+        """Return an ensemble group, sampling, or sliced collection.
+
+        Parameters
+        ----------
+        key : EnsembleInfo or int or slice
+            Ensemble metadata, sampling index, or collection slice.
+
+        Returns
+        -------
+        SingleEnsembleEnergyCollection or MultiEnsembleEnergyCollection or SigmondSampling
+            The ensemble group for an :class:`EnsembleInfo`, one sampling for an
+            integer, or a multi-ensemble collection for a slice.
         """
-        Access by EnsembleInfo, index, or slice.
-
-        Overrides parent to return energy-level collection types.
-
-        Parameters:
-        -----------
-        key : Union[EnsembleInfo, int, slice]
-            - EnsembleInfo: Get SingleEnsembleEnergyCollection for that ensemble
-            - int: Get sampling by index
-            - slice: Get subset as MultiEnsembleEnergyCollection
-
-        Returns:
-        --------
-        Union[SingleEnsembleEnergyCollection, MultiEnsembleEnergyCollection, SigmondSampling]
-            Appropriate type based on key
-        """
-        if isinstance(key, EnsembleInfo):
-            return self.by_ensemble[key]
-        else:
-            # Use parent's indexing logic
-            result = super(MultiEnsembleCollection, self).__getitem__(key)
-            if isinstance(key, slice):
-                # Return MultiEnsembleEnergyCollection for slices
-                return self._fast_load(result._data, self._return_type)
-            # Return individual SigmondSampling for int index
-            return result
-
-    def __repr__(self):
-        n_ensembles = len(self.ensembles)
-        total = len(self)
-        return f"MultiEnsembleEnergyCollection(ensembles={n_ensembles}, total_obs={total})"
+        return cast(
+            SingleEnsembleEnergyCollection | MultiEnsembleEnergyCollection | SigmondSampling,
+            super().__getitem__(key),
+        )

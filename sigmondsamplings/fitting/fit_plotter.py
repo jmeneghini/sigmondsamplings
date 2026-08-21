@@ -11,22 +11,21 @@ import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.patches import Ellipse
 
-from .colors import COLORS
-from .fit import (
+from ..colors import COLORS
+from ..observable_collection import ObservableCollection
+from ..rcparams import rc
+from ..sampling import SigmondSampling
+from ..stats import SamplingStats
+from ._execution import FitBackend, ProgressKind
+from .scan import (
     Chi2Scan,
-    FitBackend,
-    ProgressKind,
     evaluate_chi2_function_scan,
     evaluate_chi2_scan,
 )
-from .obervable_collection import ObservableCollection
-from .rcparams import rc
-from .sampling import SigmondSampling
-from .stats import SamplingStats
 
 if TYPE_CHECKING:
-    from .fit import SamplingFitResult
     from .model_func import SigmondModelFunc
+    from .result import FitResult
 
 
 _ANNOTATION_ANCHORS: dict[str, tuple[float, float, str, str]] = {
@@ -170,7 +169,7 @@ def _resolve_style(style: FitPlotStyle | None) -> _ResolvedStyle:
 def plot_fit_result(
     x_values: Iterable[float] | Iterable[SigmondSampling] | np.ndarray,
     model_func: SigmondModelFunc | Callable,
-    fit_result: SamplingFitResult | None = None,
+    fit_result: FitResult | None = None,
     *,
     x_fit_values: np.ndarray | None = None,
     ax: plt.Axes | None = None,
@@ -242,7 +241,7 @@ def plot_fit_result(
 
 def _resolve_model(
     model_func: SigmondModelFunc | Callable,
-    fit_result: SamplingFitResult | None,
+    fit_result: FitResult | None,
     *,
     model_latex_str: str | None,
     independent_var_latex: str | None,
@@ -276,7 +275,7 @@ def _as_x_samplings(
     if any(isinstance(x, SigmondSampling) for x in values):
         raise TypeError("x_values must be all numeric values or all SigmondSampling objects")
 
-    from .info import ObservableInfo
+    from ..info import ObservableInfo
 
     x_latex = independent_var_latex or model.independent_var_latex or "x"
     return ObservableCollection(
@@ -909,8 +908,7 @@ def plot_chi2_1d(
     backend: FitBackend = "serial",
     num_workers: int | str | None = "auto",
     progress: ProgressKind = False,
-    num_blas_threads: int | None = None,
-    num_openmp_threads: int | None = None,
+    blas_threads: int | None = None,
     worker_initializer: Callable | None = None,
     worker_initargs: tuple = (),
     figsize: tuple[float, float] | None = None,
@@ -955,8 +953,7 @@ def plot_chi2_1d(
         backend=backend,
         num_workers=num_workers,
         progress=progress,
-        num_blas_threads=num_blas_threads,
-        num_openmp_threads=num_openmp_threads,
+        blas_threads=blas_threads,
         worker_initializer=worker_initializer,
         worker_initargs=worker_initargs,
     )
@@ -988,8 +985,7 @@ def plot_chi2_function_1d(
     backend: FitBackend = "serial",
     num_workers: int | str | None = "auto",
     progress: ProgressKind = False,
-    num_blas_threads: int | None = None,
-    num_openmp_threads: int | None = None,
+    blas_threads: int | None = None,
     worker_initializer: Callable | None = None,
     worker_initargs: tuple = (),
     figsize: tuple[float, float] | None = None,
@@ -1008,8 +1004,7 @@ def plot_chi2_function_1d(
         backend=backend,
         num_workers=num_workers,
         progress=progress,
-        num_blas_threads=num_blas_threads,
-        num_openmp_threads=num_openmp_threads,
+        blas_threads=blas_threads,
         worker_initializer=worker_initializer,
         worker_initargs=worker_initargs,
     )
@@ -1093,8 +1088,7 @@ def plot_chi2_2d(
     backend: FitBackend = "serial",
     num_workers: int | str | None = "auto",
     progress: ProgressKind = False,
-    num_blas_threads: int | None = None,
-    num_openmp_threads: int | None = None,
+    blas_threads: int | None = None,
     worker_initializer: Callable | None = None,
     worker_initargs: tuple = (),
     ax: plt.Axes | None = None,
@@ -1123,8 +1117,7 @@ def plot_chi2_2d(
         backend=backend,
         num_workers=num_workers,
         progress=progress,
-        num_blas_threads=num_blas_threads,
-        num_openmp_threads=num_openmp_threads,
+        blas_threads=blas_threads,
         worker_initializer=worker_initializer,
         worker_initargs=worker_initargs,
     )
@@ -1156,8 +1149,7 @@ def plot_chi2_function_2d(
     backend: FitBackend = "serial",
     num_workers: int | str | None = "auto",
     progress: ProgressKind = False,
-    num_blas_threads: int | None = None,
-    num_openmp_threads: int | None = None,
+    blas_threads: int | None = None,
     worker_initializer: Callable | None = None,
     worker_initargs: tuple = (),
     ax: plt.Axes | None = None,
@@ -1177,8 +1169,7 @@ def plot_chi2_function_2d(
         backend=backend,
         num_workers=num_workers,
         progress=progress,
-        num_blas_threads=num_blas_threads,
-        num_openmp_threads=num_openmp_threads,
+        blas_threads=blas_threads,
         worker_initializer=worker_initializer,
         worker_initargs=worker_initargs,
     )

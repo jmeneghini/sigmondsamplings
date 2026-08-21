@@ -233,6 +233,16 @@ class SigmondBins:
         new.xp = self.xp
         return new
 
+    def copy(self) -> "SigmondBins":
+        """Return a copy with independent bin data and observable metadata."""
+        data = self.data.copy()
+        return SigmondBins(
+            data,
+            self.observable_info.copy(),
+            is_complex=self.is_complex,
+            use_dask=self.use_dask,
+        )
+
     def bounded(self, lower: float, upper: float) -> "SigmondBins":
         """Clip bins into [lower, upper]."""
         if lower >= upper:

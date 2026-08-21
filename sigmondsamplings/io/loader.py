@@ -4,20 +4,22 @@ Loader module for Sigmond samplings files.
 
 import logging
 import os
-import re
 import subprocess
 import xml.etree.ElementTree as ET
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TypeAlias
+from typing import TYPE_CHECKING, Self, TypeAlias, cast
+
+if TYPE_CHECKING:
+    from .spec import SamplingDataSourceResolved, SamplingDataResolved
 
 import h5py
 import numpy as np
 
 from ..bins import SigmondBins
 from ..ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
-from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo
+from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo, obs_kind_class
 from ..lazy import (
     HDF5ObservableRecord,
     LazySigmondBins,
@@ -120,8 +122,8 @@ class SigmondLoader:
 
     def __init__(
         self,
-        filename: str = None,
-        group: str = None,
+        filename: str | None = None,
+        group: str | None = None,
         lazy: bool = False,
     ):
         """
@@ -145,7 +147,15 @@ class SigmondLoader:
 
         # Load file if provided
         if filename:
-            self.load_file(filename, self._group, lazy=lazy)
+            self.load_file(str(filename), self._group, lazy=lazy)
+
+    @classmethod
+    def from_resolved(
+        cls,
+        resolved: "SamplingDataSourceResolved",
+        lazy: bool = False,
+    ) -> Self:
+        return cls(filename=str(resolved.file), group=resolved.group, lazy=lazy)
 
     @property
     def observables(self) -> SingleEnsembleCollection:
@@ -178,12 +188,6 @@ class SigmondLoader:
     def file_kind(self) -> str | None:
         """Return 'samplings' or 'bins' for the most recently loaded file."""
         return self._file_kind
-
-    # Thin instance wrappers around the module-level group helpers, kept for
-    # backward compatibility with existing callers.
-    _clean_group = staticmethod(clean_group)
-    _is_hdf5_file = staticmethod(is_hdf5_file)
-    _verify_hdf5_sigmond_file = staticmethod(verify_sigmond_hdf5)
 
     def _load_from_hdf5(self, filename: str, group: str = "samplings") -> SingleEnsembleCollection:
         """
@@ -292,15 +296,19 @@ class SigmondLoader:
         """
         Upgrade a name-parsed ObservableInfo using its dataset attrs, if present.
 
-        Datasets the writer tagged with an energy ``obs_kind`` are rebuilt as the
-        concrete energy type (including non-interacting pairs) so reads are
-        deterministic rather than relying on name heuristics. Untagged datasets
-        (old files, real Sigmond files, fstream) pass through unchanged.
+        Datasets the writer tagged with an ``obs_kind`` are rebuilt as the concrete
+        registered type (including non-interacting pairs) so reads are deterministic
+        rather than relying on name heuristics. Untagged datasets (old files, real
+        Sigmond files, fstream) pass through unchanged, keeping only an explicit
+        ``latex_str``.
         """
-        if str(attrs.get("obs_kind", "")).startswith("energy"):
-            from ..energy_levels import energy_obs_from_attrs
-
-            return energy_obs_from_attrs(obs_info, attrs)
+        cls = obs_kind_class(attrs.get("obs_kind"))
+        if cls is not None:
+            return cls.from_attrs(obs_info, attrs)
+        latex_str = attrs.get("latex_str")
+        if latex_str:
+            obs_info = obs_info.copy()
+            obs_info.latex_str = latex_str
         return obs_info
 
     def _read_hdf5_values(
@@ -318,7 +326,9 @@ class SigmondLoader:
 
     def _read_hdf5_index(
         self, filename: str, group: str
-    ) -> tuple[EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, str, tuple[int, ...]]]]:
+    ) -> tuple[
+        EnsembleInfo, SamplingInfo | None, list[tuple[ObservableInfo, str, tuple[int, ...]]]
+    ]:
         """
         Index phase for lazy loading: read header + ``Values`` dataset names and shapes only.
 
@@ -508,9 +518,9 @@ class SigmondLoader:
             SingleEnsembleCollection of loaded samplings
         """
         # Auto-detect file type
-        if self._is_hdf5_file(filename):
+        if is_hdf5_file(filename):
             # Verify it's a valid Sigmond HDF5 file
-            is_valid, file_kind, available_groups = self._verify_hdf5_sigmond_file(filename)
+            is_valid, file_kind, available_groups = verify_sigmond_hdf5(filename)
             if not is_valid:
                 raise ValueError(f"File {filename} is not a valid Sigmond HDF5 file")
 
@@ -527,7 +537,7 @@ class SigmondLoader:
                 else:
                     raise ValueError(f"No data groups found in HDF5 file {filename}")
             else:
-                group = self._clean_group(group)
+                group = clean_group(group)
                 if group not in available_groups:
                     raise ValueError(
                         f"Group '{group}' not found in HDF5 file. "
@@ -585,6 +595,50 @@ class SigmondLoader:
         samplings_list = self._build_samplings_list(observable_infos, all_data, sampling_info)
         return SingleEnsembleCollection(samplings_list)
 
+    @staticmethod
+    def _build_ensemble_info(
+        ensemble_element: ET.Element,
+        num_measurements: int,
+        num_bins: int,
+        tweak_info: dict,
+    ) -> EnsembleInfo:
+        """
+        Build an :class:`EnsembleInfo` from a header's ``<MCEnsembleInfo>``.
+
+        Three forms are accepted:
+
+        1. A bare ensemble id, ``<MCEnsembleInfo>clover_s24_t128_ud840_s743</...>``,
+           which is looked up in the configured known-ensembles XML file (falling
+           back to the header's own measurement count when unavailable).
+        2. A packed header string, ``<MCEnsembleInfo>id|Nmeas|Nstreams|Nx|Ny|Nz|Nt</...>``.
+        3. An expanded element carrying ``<Id>``, ``<NMeas>``, ``<NStreams>``,
+           ``<NSpace>``, ``<NTime>`` (and their synonyms); ``<Weighted/>`` is ignored.
+
+        Forms 2 and 3 are self-describing, so no database lookup is attempted.
+        """
+        text = (ensemble_element.text or "").strip()
+        if len(ensemble_element) > 0 or "|" in text:
+            return EnsembleInfo.from_xml_element(
+                ensemble_element,
+                num_bins=num_bins,
+                num_measurements=num_measurements,
+                tweak_info=tweak_info,
+            )
+
+        # Bare ensemble id: look it up in the config's ensembles XML file.
+        try:
+            return KnownEnsembles().get(
+                name=text, num_bins=num_bins, tweak_info=tweak_info
+            )
+        except (ValueError, KeyError, FileNotFoundError) as e:
+            logger.info(f"Ensemble '{text}' not resolved ({e}). Using basic ensemble info.")
+            return EnsembleInfo(
+                name=text,
+                num_bins=num_bins,
+                num_measurements=num_measurements,
+                tweak_info=tweak_info,
+            )
+
     def _parse_header_xml(self, xml_string: str) -> tuple[EnsembleInfo, SamplingInfo | None]:
         """
         Parse the header XML to extract ensemble (and sampling) info.
@@ -612,7 +666,9 @@ class SigmondLoader:
         if bins_info is None:
             raise ValueError("MCBinsInfo not found in header")
 
-        ensemble_name = bins_info.find("MCEnsembleInfo").text
+        ensemble_element = bins_info.find("MCEnsembleInfo")
+        if ensemble_element is None:
+            raise ValueError("MCEnsembleInfo not found in header")
         num_measurements = int(bins_info.find("NumberOfMeasurements").text)
         num_bins = int(bins_info.find("NumberOfBins").text)
 
@@ -623,22 +679,9 @@ class SigmondLoader:
             for child in tweak_element:
                 tweak_info[child.tag] = child.text
 
-        # Check for ensemble name in config's ensembles XML file
-        known_ensembles = KnownEnsembles()
-        try:
-            ensemble_info = known_ensembles.get(
-                name=ensemble_name, num_bins=num_bins, tweak_info=tweak_info
-            )
-        except (ValueError, KeyError) as e:
-            # Fallback to basic ensemble info
-            ensemble_info = EnsembleInfo(
-                name=ensemble_name,
-                num_bins=num_bins,
-                num_measurements=num_measurements,
-                tweak_info=tweak_info,
-            )
-            if e is ValueError:
-                logger.info(f"KnownEnsembles not configured: {e}. Using basic ensemble info.")
+        ensemble_info = self._build_ensemble_info(
+            ensemble_element, num_measurements, num_bins, tweak_info
+        )
 
         # Extract sampling info. Bins files don't have an MCSamplingInfo section;
         # return None in that case so the caller can dispatch accordingly.
@@ -868,7 +911,6 @@ class SigmondLoader:
             ),
         )
 
-    # Utility methods for backward compatibility
     def get_file_info(
         self, filename: str = None
     ) -> tuple[EnsembleInfo, SamplingInfo | None, list[ObservableInfo]]:
@@ -887,33 +929,27 @@ class SigmondLoader:
             raise ValueError("No observables loaded.")
 
         ensemble_info = self._all_samplings.ensemble_info
-        sampling_info = self._all_samplings.sampling_info if self._file_kind == "samplings" else None
+        sampling_info = (
+            self._all_samplings.sampling_info if self._file_kind == "samplings" else None
+        )
         observable_infos = [obs.observable_info for obs in self._all_samplings]
         return ensemble_info, sampling_info, observable_infos
-
-    @staticmethod
-    def get_name_and_index_from_dict_key(key: str) -> tuple[str, int]:
-        """Extract the (name, index) pair from keys like 'observable[3]'."""
-        m = re.match(r"^(.*)\[(\d+)\]$", key)
-        if not m:
-            raise ValueError(
-                f"Key '{key}' does not end with an integer in brackets (e.g. 'name[0]')."
-            )
-        name, index_str = m.groups()
-        return name, int(index_str)
 
 
 @dataclass(frozen=True)
 class SigmondFile:
     """A Sigmond file together with the HDF5 root group to read from it.
 
-    The two halves live in different namespaces and are kept apart on purpose:
+    The pieces live in different namespaces and are kept apart on purpose:
 
     * ``path`` is a filesystem path (coerced to :class:`pathlib.Path`).
     * ``group`` is an *in-file* HDF5 root group — one ensemble per group (see
       ``docs/sigmond_hdf5_structure.md``). ``None`` auto-detects, which only
       succeeds when the file holds a single root group. Leading/trailing slashes
       are stripped so ``"/samplings/"`` and ``"samplings"`` are equivalent.
+    * ``name`` is an optional, caller-chosen label used purely for dict-style
+      lookup in :class:`MultiSigmondLoader` (e.g. ``loader["c103"]``). It has no
+      effect on how the file is read.
 
     Construct directly, or via :meth:`coerce` from a bare path or a
     ``(path, group)`` pair.
@@ -921,6 +957,7 @@ class SigmondFile:
 
     path: Path
     group: str | None = None
+    name: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", Path(self.path))
@@ -928,14 +965,17 @@ class SigmondFile:
             object.__setattr__(self, "group", clean_group(self.group))
 
     @classmethod
-    def coerce(cls, spec: "SigmondFileSpec") -> "SigmondFile":
-        """Coerce a :class:`SigmondFile`, bare path, or ``(path, group)`` pair."""
+    def coerce(cls, spec: "SigmondFileSpec", *, name: str | None = None) -> "SigmondFile":
+        """Coerce a :class:`SigmondFile`, bare path, or ``(path, group)`` pair.
+
+        ``name`` attaches (or overrides) the lookup label on the result.
+        """
         if isinstance(spec, cls):
-            return spec
+            return spec if name is None else replace(spec, name=name)
         if isinstance(spec, (str, os.PathLike)):
-            return cls(spec)
+            return cls(spec, name=name)
         path, group = spec
-        return cls(path, group)
+        return cls(path, group, name=name)
 
 
 # Anything that names a Sigmond file to load: a SigmondFile, a bare path (root
@@ -948,9 +988,22 @@ class MultiSigmondLoader:
 
     Each file is read by its own :class:`SigmondLoader` (one ensemble per root
     group), and the results are concatenated into a
-    :class:`MultiEnsembleCollection`. The collection's constructor enforces that
-    every file shares the same ``sampling_info``, so a mismatched
-    bootstrap/jackknife configuration is rejected up front.
+    :class:`MultiEnsembleCollection`. Every file must share the same
+    ``sampling_info``; this is checked at construction, so a mismatched
+    bootstrap/jackknife configuration is rejected up front rather than on first
+    access to :attr:`observables`.
+
+    Files may be named for dict-style access. Either pass a mapping (keys become
+    names), or set ``name`` on individual :class:`SigmondFile` specs::
+
+        loader = MultiSigmondLoader({
+            "c103": SigmondFile("cls21_c103.h5", group="samplings"),
+            "d200": ("cls21_d200.h5", "samplings"),
+        })
+        c103 = loader["c103"]                    # the per-file SigmondLoader
+        "d200" in loader                         # True
+        for name, single in loader.loaders_by_name.items():
+            ...
 
     Example::
 
@@ -964,12 +1017,19 @@ class MultiSigmondLoader:
             ...
     """
 
-    def __init__(self, files: Sequence[SigmondFileSpec], *, lazy: bool = True):
+    def __init__(
+        self,
+        files: Sequence[SigmondFileSpec] | Mapping[str, SigmondFileSpec],
+        *,
+        lazy: bool = True,
+    ):
         """Build one :class:`SigmondLoader` per file.
 
         Args:
-            files: :class:`SigmondFile` specs (or anything :meth:`SigmondFile.coerce`
-                accepts: a bare path, or a ``(path, group)`` pair). A file with
+            files: Either a sequence of :class:`SigmondFile` specs (or anything
+                :meth:`SigmondFile.coerce` accepts: a bare path, or a
+                ``(path, group)`` pair), or a mapping of ``name -> spec`` where
+                each key becomes the file's lookup label. A file with
                 ``group=None`` auto-detects its HDF5 root group, which only
                 succeeds when the file holds a single root group.
             lazy: Defer reading each observable's sample array until first access
@@ -978,10 +1038,39 @@ class MultiSigmondLoader:
         if not files:
             raise ValueError("MultiSigmondLoader requires at least one file")
         self._lazy = lazy
-        self._files = [SigmondFile.coerce(entry) for entry in files]
-        self._loaders = [
-            SigmondLoader(str(f.path), group=f.group, lazy=lazy) for f in self._files
-        ]
+        if isinstance(files, Mapping):
+            named = cast(Mapping[str, SigmondFileSpec], files)
+            self._files = [SigmondFile.coerce(spec, name=name) for name, spec in named.items()]
+        else:
+            self._files = [SigmondFile.coerce(entry) for entry in files]
+        self._loaders = [SigmondLoader(str(f.path), group=f.group, lazy=lazy) for f in self._files]
+        self._by_name: dict[str, SigmondLoader] = {}
+        for f, loader in zip(self._files, self._loaders):
+            if f.name is None:
+                continue
+            if f.name in self._by_name:
+                raise ValueError(f"Duplicate file name: {f.name!r}")
+            self._by_name[f.name] = loader
+
+        # Reject mismatched sampling configurations up front, before any
+        # observables are concatenated into a MultiEnsembleCollection.
+        sampling_infos = [loader.observables.sampling_info for loader in self._loaders]
+        if len(set(sampling_infos)) > 1:
+            found = sorted({str(s) for s in sampling_infos})
+            raise ValueError(
+                "All files in a MultiSigmondLoader must share the same "
+                f"sampling_info; found {len(found)}: {found}"
+            )
+        self._sampling_info: SamplingInfo = sampling_infos[0]
+        
+    @classmethod
+    def from_resolved(
+        cls,
+        resolved: "SamplingDataResolved",
+        lazy: bool = True,
+    ) -> Self:
+        return cls(files={id: (str(src.file), src.group) for id, src in resolved.sources.items()},
+                   lazy=lazy)
 
     @property
     def files(self) -> list[SigmondFile]:
@@ -992,6 +1081,46 @@ class MultiSigmondLoader:
     def loaders(self) -> list[SigmondLoader]:
         """The per-file :class:`SigmondLoader` instances, in input order."""
         return list(self._loaders)
+
+    @property
+    def names(self) -> list[str | None]:
+        """The lookup label of each file (``None`` if unnamed), in input order."""
+        return [f.name for f in self._files]
+
+    @property
+    def sampling_info(self) -> SamplingInfo:
+        """The ``sampling_info`` shared by every loaded file."""
+        return self._sampling_info
+
+    @property
+    def ensembles(self) -> list[EnsembleInfo]:
+        """Distinct ensembles across all loaded files, in input order."""
+        return list(dict.fromkeys(loader.observables.ensemble_info for loader in self._loaders))
+
+    @property
+    def loaders_by_name(self) -> dict[str, SigmondLoader]:
+        """Named :class:`SigmondLoader` instances keyed by file name."""
+        return dict(self._by_name)
+
+    @property
+    def files_by_name(self) -> dict[str, SigmondFile]:
+        """Named :class:`SigmondFile` specs keyed by file name."""
+        return {f.name: f for f in self._files if f.name is not None}
+
+    def __getitem__(self, name: str) -> SigmondLoader:
+        """Return the :class:`SigmondLoader` for the file named ``name``."""
+        try:
+            return self._by_name[name]
+        except KeyError:
+            available = sorted(self._by_name)
+            raise KeyError(f"No file named {name!r}; available names: {available}") from None
+
+    def __contains__(self, name: object) -> bool:
+        return name in self._by_name
+
+    def get(self, name: str, default: SigmondLoader | None = None):
+        """Return the loader named ``name``, or ``default`` if there is none."""
+        return self._by_name.get(name, default)
 
     @property
     def file_kinds(self) -> list[str | None]:

@@ -17,7 +17,7 @@ from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
 from sigmondsamplings.io.loader import SigmondLoader
 from sigmondsamplings.io.writer import SigmondWriter
-from sigmondsamplings.obervable_collection import ObservableCollection
+from sigmondsamplings.observable_collection import ObservableCollection
 from sigmondsamplings.sampling import SigmondSampling
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -245,6 +245,16 @@ class TestCollection:
         coll = ObservableCollection([bins_a, bins_b])
         means = coll.val.mean
         assert len(means) == 2
+
+    def test_copy_has_independent_data_and_metadata(self, bins_a):
+        original = ObservableCollection([bins_a])
+
+        copied = original.copy()
+        copied[0].data[0] = -999
+        copied[0].observable_info.name = "copied"
+
+        assert original[0].data[0] != -999
+        assert original[0].observable_info.name == "obs_a"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -25,6 +25,7 @@ def render_generic_plot(
     obs_index: int | None = None,
     panels: str | None = None,
     latex: bool = False,
+    backend: str | None = None,
 ) -> None:
     """Render a generic SamplingPlotter method from a queried collection."""
     if method not in GENERIC_PLOT_METHODS:
@@ -33,12 +34,15 @@ def render_generic_plot(
             f"{', '.join(GENERIC_PLOT_METHODS)}"
         )
 
-    from sigmondsamplings.plotter import SamplingPlotter
+    import slat.plotting as slp
+    from sigmondsamplings.plotting import SamplingPlotter
 
-    with _latex_context(latex):
+    with _backend_context(backend), _latex_context(latex):
         plotter = SamplingPlotter(collection)
         if method == "histogram":
-            target = plotter.plot_sampling_histogram(sampling=0 if obs_index is None else obs_index)
+            target = plotter.plot_sampling_histogram(
+                sampling=0 if obs_index is None else obs_index
+            )
         elif method == "errorbar":
             target = plotter.plot_sampling_errorbar()
         elif method == "correlation":
@@ -53,6 +57,8 @@ def render_generic_plot(
         elif method == "bootstrap-intervals":
             target = plotter.plot_bootstrap_intervals()
         else:
+            if slp.current() != "matplotlib":
+                raise ValueError("The corner plot is only available on the matplotlib backend.")
             target = plotter.plot_corner()
 
         _finish_plot(target, output=output, show=show)
@@ -64,37 +70,61 @@ def render_spectrum_plot(
     output: Path | None = None,
     show: bool = True,
     latex: bool = False,
+    backend: str | None = None,
 ) -> None:
     """Render a SectorSpectrumPlotter plot from a queried energy collection."""
-    from sigmondsamplings.spectrum_plotter import SectorSpectrumPlotter
+    from sigmondsamplings.plotting import SectorSpectrumPlotter
 
-    with _latex_context(latex):
-        ax = SectorSpectrumPlotter(collection).plot()
-        _finish_plot(ax, output=output, show=show)
+    with _backend_context(backend), _latex_context(latex):
+        target = SectorSpectrumPlotter(collection).plot()
+        _finish_plot(target, output=output, show=show)
+
+
+@contextmanager
+def _backend_context(backend: str | None):
+    """Select the plotting backend for this render, if one was requested."""
+    import slat.plotting as slp
+
+    if backend is None:
+        yield
+        return
+    if backend not in slp.available():
+        raise ValueError(
+            f"Backend {backend!r} is not available here. Available: {slp.available()}"
+        )
+    with slp.backend(backend):
+        yield
 
 
 @contextmanager
 def _latex_context(latex: bool):
     """Render with matplotlib's TeX text engine when ``latex`` is set."""
-    import matplotlib.pyplot as plt
+    import slat.plotting as slp
 
     if not latex:
         yield
         return
+    if slp.current() != "matplotlib":
+        # text.usetex has no plotly analogue; MathJax already handles the math.
+        yield
+        return
+
+    import matplotlib.pyplot as plt
+
     with plt.rc_context({"text.usetex": True}):
         yield
 
 
 def _finish_plot(target, *, output: Path | None, show: bool) -> None:
-    import matplotlib.pyplot as plt
+    import slat.plotting as slp
 
-    fig = target.figure if hasattr(target, "figure") else target
+    fig = target.figure if isinstance(target, slp.Axes) else target
     if output is not None:
-        fig.savefig(output)
+        fig.save(output)
     if show:
-        plt.show()
+        fig.show()
     else:
-        plt.close(fig)
+        fig.close()
 
 
 def _parse_panels(panels: str | None) -> list[str] | None:

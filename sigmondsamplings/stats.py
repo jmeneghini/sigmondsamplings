@@ -2,7 +2,7 @@
 Statistical analysis tools for Sigmond samplings.
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from functools import cached_property
 from typing import TypeVar
 
@@ -11,7 +11,7 @@ import scipy.linalg
 from scipy.stats import chi2
 
 from .ensemble_collection import MultiEnsembleCollection
-from .obervable_collection import ObservableCollection
+from .observable_collection import ObservableCollection
 from .sampling import ObservableInfo, SigmondSampling
 
 T = TypeVar("T", bound="SamplingStats")
@@ -70,6 +70,7 @@ class SamplingStats(MultiEnsembleCollection):
         instance._data = tuple(data)  # Immutable tuple
         instance._return_type = "numpy"  # Always numpy for SamplingStats
         instance._shared_attr_cache = {}
+        instance._mutation_version = [0]
         instance.use_gvar = False
         instance._numpy_data = instance.to_numpy()
         instance._sampling_info = instance.sampling_info

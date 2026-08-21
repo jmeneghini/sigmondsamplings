@@ -2,7 +2,7 @@
 
 These factories keep the ``--group`` / ``--in-group`` / ``--out-group`` /
 ``--overwrite`` options (and the input/output guards) defined once instead of
-repeated across ``convert`` / ``combine`` / ``energy-tag``. Each factory returns
+repeated across ``convert`` / ``combine`` / ``edit``. Each factory returns
 a fresh ``typer.Option`` so it can be used directly as a parameter default.
 """
 

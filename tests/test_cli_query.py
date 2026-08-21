@@ -144,6 +144,7 @@ def test_cli_generic_plot_writes_queried_collection(tmp_path):
     result = runner.invoke(
         app,
         [
+            "query",
             "obs",
             str(ENERGY_HDF5),
             "--where",
@@ -169,6 +170,7 @@ def test_cli_energy_spectrum_plot_writes_queried_collection(tmp_path):
     result = runner.invoke(
         app,
         [
+            "query",
             "energy",
             str(ENERGY_HDF5),
             "--where",
@@ -189,6 +191,7 @@ def test_cli_rejects_plot_with_non_collection_output_mode():
     result = runner.invoke(
         app,
         [
+            "query",
             "energy",
             str(ENERGY_HDF5),
             "--unique",
@@ -206,6 +209,7 @@ def test_cli_reports_old_comma_tuple_syntax_as_parameter_error():
     result = runner.invoke(
         app,
         [
+            "query",
             "energy",
             str(ENERGY_HDF5),
             "-w",
@@ -223,6 +227,7 @@ def test_cli_reports_unknown_where_attr_with_suggestion():
     result = runner.invoke(
         app,
         [
+            "query",
             "energy",
             str(ENERGY_HDF5),
             "-w",
@@ -241,6 +246,7 @@ def test_cli_reports_empty_collection_before_plotting():
     result = runner.invoke(
         app,
         [
+            "query",
             "energy",
             str(ENERGY_HDF5),
             "-w",
