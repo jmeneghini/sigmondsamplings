@@ -9,8 +9,8 @@ the minimizer selection (:class:`MinimizerConfig`), and a least-squares
   with optional full SQLite logging. The low-level building block of the others.
 * :meth:`SamplingFit.fit_full_sample` — fit the full sample once, estimate the
   parameter covariance from the residual Jacobian (``inv(JᵀJ)``), and *synthesize*
-  pseudo-resamples drawn from ``N(θ̂, cov)`` so the uniform SigmondSampling output
-  reproduces ``sqrt(diag(cov))`` under the configured sampling method's error rule.
+  pseudo-resamples from the resulting Gaussian approximation. Hard parameter
+  bounds are respected by sampling from its box-truncated form.
 * :meth:`SamplingFit.fit_resampled` — fit the full sample for the shared initial
   value, then fit every resampling (parallel-capable) and collect the genuine
   spread of best-fit parameters.
@@ -29,6 +29,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ..analysis import analyzer_for
 from ..info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 from ..plotting import SamplingPlotter
 from ..sampling import SigmondSampling
@@ -47,6 +48,7 @@ from ._execution import (
     run_jobs,
     validate_backend,
 )
+from .batch import CentralFit, ResampleBatch
 from .minimizer import MinimizerConfig
 from .model import Model, predict_model
 from .objective import LeastSquaresObjective, Objective
@@ -100,16 +102,113 @@ def _draws_with_sample_cov(target_cov: np.ndarray, n: int, rng: np.random.Genera
     return whitened @ _sym_sqrt(target_cov)
 
 
-def _error_factor(method: str, n: int) -> float:
-    """SigmondSampling error multiplier on the resample std for ``method``.
+def _reflect_into_bounds(
+    values: np.ndarray, lower: np.ndarray, upper: np.ndarray
+) -> np.ndarray:
+    """Reflect values into a box without creating clipping point masses."""
+    reflected = np.asarray(values, dtype=float).copy()
+    for j, (lo, hi) in enumerate(zip(lower, upper)):
+        if np.isfinite(lo) and np.isfinite(hi):
+            width = hi - lo
+            if width == 0.0:
+                reflected[:, j] = lo
+                continue
+            offset = np.mod(reflected[:, j] - lo, 2.0 * width)
+            reflected[:, j] = lo + np.where(offset <= width, offset, 2.0 * width - offset)
+        elif np.isfinite(lo):
+            reflected[:, j] = lo + np.abs(reflected[:, j] - lo)
+        elif np.isfinite(hi):
+            reflected[:, j] = hi - np.abs(reflected[:, j] - hi)
+    return reflected
 
-    Mirrors :attr:`SigmondSampling.error`: bootstrap reports the plain std,
-    jackknife scales it by ``sqrt(n-1)``. The synthesized resamples are drawn so
-    that ``std * factor == sqrt(diag(cov))``.
+
+def _draws_within_bounds(
+    center: np.ndarray,
+    target_cov: np.ndarray,
+    lower: np.ndarray,
+    upper: np.ndarray,
+    n: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Draw from a multivariate Gaussian conditioned on hard box bounds.
+
+    Rejection sampling preserves the correlations of the Jacobian Gaussian. A
+    finite attempt budget keeps pathological, very narrow boxes from stalling a
+    fit; any remaining draws are reflected into the box as a robust fallback.
+    Equal hard bounds are treated as fixed for synthesis.
     """
-    if method == "jackknife":
-        return float(np.sqrt(max(n - 1, 1)))
-    return 1.0
+    p = center.size
+    if n <= 0:
+        return np.empty((0, p), dtype=float)
+
+    center = np.clip(np.asarray(center, dtype=float), lower, upper)
+    equal = np.isfinite(lower) & np.isfinite(upper) & (lower == upper)
+    active = ~equal
+    samples = np.tile(center, (n, 1))
+    samples[:, equal] = lower[equal]
+    if not np.any(active):
+        return samples
+
+    active_center = center[active]
+    active_cov = target_cov[np.ix_(active, active)]
+    active_lower = lower[active]
+    active_upper = upper[active]
+    accepted: list[np.ndarray] = []
+    n_accepted = 0
+    n_proposed = 0
+    max_proposals = max(10_000, 1_000 * n)
+
+    while n_accepted < n and n_proposed < max_proposals:
+        batch_size = min(max(4 * (n - n_accepted), 256), 4096)
+        batch_size = min(batch_size, max_proposals - n_proposed)
+        proposal = np.atleast_2d(
+            rng.multivariate_normal(active_center, active_cov, size=batch_size)
+        )
+        keep = np.all(
+            (proposal >= active_lower[None, :])
+            & (proposal <= active_upper[None, :]),
+            axis=1,
+        )
+        if np.any(keep):
+            selected = proposal[keep][: n - n_accepted]
+            accepted.append(selected)
+            n_accepted += selected.shape[0]
+        n_proposed += batch_size
+
+    if accepted:
+        active_samples = np.concatenate(accepted, axis=0)
+    else:
+        active_samples = np.empty((0, active_center.size), dtype=float)
+
+    if n_accepted < n:
+        missing = n - n_accepted
+        logger.warning(
+            "Only %d/%d bounded synthetic resamples were accepted after %d proposals; "
+            "reflecting the remaining draws into the parameter bounds.",
+            n_accepted,
+            n,
+            n_proposed,
+        )
+        proposal = np.atleast_2d(
+            rng.multivariate_normal(active_center, active_cov, size=missing)
+        )
+        fallback = _reflect_into_bounds(proposal, active_lower, active_upper)
+        active_samples = np.concatenate((active_samples, fallback), axis=0)
+
+    samples[:, active] = active_samples[:n]
+    return samples
+
+
+def _error_factor(sampling_info: SamplingInfo, n: int) -> float:
+    """SigmondSampling error multiplier on the ``ddof=1`` std of ``n`` resamples.
+
+    Mirrors :attr:`SigmondSampling.error` (see :mod:`sigmondsamplings.analysis`):
+    1 for bootstrap, ``(n-1)/sqrt(n)`` for jackknife. The synthesized resamples
+    are drawn so that ``std * factor == sqrt(diag(cov))``.
+    """
+    if n < 2:
+        return 1.0
+    return float(np.sqrt(analyzer_for(sampling_info).variance_scale(n)))
 
 
 # ---------------------------------------------------------------------------
@@ -291,8 +390,11 @@ class SamplingFit:
     param_set:
         Parameter description (start values, bounds, constraints).
     minimizer:
-        optimagic algorithm selection; defaults to :class:`MinimizerConfig`
-        (``scipy_lbfgsb``).
+        optimagic algorithm selection for the full sample; defaults to
+        :class:`MinimizerConfig` (``scipy_lbfgsb``).
+    resample_minimizer:
+        Algorithm selection for nonzero resampling indices. Defaults to
+        ``minimizer``.
     sampling_info:
         Sampling metadata for the output samplings. Inferred from the objective's
         ``SamplingStats`` when available; required for custom objectives.
@@ -306,12 +408,14 @@ class SamplingFit:
         param_set: ParamSetResolved,
         *,
         minimizer: MinimizerConfig | None = None,
+        resample_minimizer: MinimizerConfig | None = None,
         sampling_info: SamplingInfo | None = None,
         ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
     ):
         self.objective = objective
         self.param_set = param_set
         self.minimizer = minimizer or MinimizerConfig()
+        self.resample_minimizer = resample_minimizer or self.minimizer
         self.ensemble_info = ensemble_info
         if sampling_info is None:
             sampling_info = getattr(getattr(objective, "stats", None), "sampling_info", None)
@@ -330,6 +434,7 @@ class SamplingFit:
         param_set: ParamSetResolved,
         *,
         minimizer: MinimizerConfig | None = None,
+        resample_minimizer: MinimizerConfig | None = None,
         use_correlation: bool = True,
         sampling_info: SamplingInfo | None = None,
         ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
@@ -340,6 +445,7 @@ class SamplingFit:
             objective,
             param_set,
             minimizer=minimizer,
+            resample_minimizer=resample_minimizer,
             sampling_info=sampling_info,
             ensemble_info=ensemble_info,
         )
@@ -357,14 +463,16 @@ class SamplingFit:
     ) -> Any:
         """Run one optimagic fit at ``resamp_idx`` and return its ``OptimizeResult``.
 
+        Index zero uses :attr:`minimizer`; positive indices use
+        :attr:`resample_minimizer`.
+
         ``trace_path`` is a path to an SQLite database for optimagic's full
         per-iteration trace (``None`` disables it). This is the only entry point
         that supports optimagic's per-iteration SQLite logging — the resample loop
         is deliberately trace-free.
         """
-        return _run_minimize(
-            self.objective, self.param_set, self.minimizer, resamp_idx, x0, trace_path
-        )
+        minimizer = self.minimizer if resamp_idx == 0 else self.resample_minimizer
+        return _run_minimize(self.objective, self.param_set, minimizer, resamp_idx, x0, trace_path)
 
     def _run_full_sample_fit(
         self, x0: dict[str, float] | None, *, trace_path: str | None = None
@@ -423,12 +531,15 @@ class SamplingFit:
 
         Estimates the parameter covariance as ``inv(JᵀJ)`` of the whitened residual
         Jacobian (using ``result.jac`` when populated, else
-        :func:`optimagic.first_derivative`), then draws pseudo-resamples from
-        ``N(θ̂, cov)`` rescaled so the SigmondSampling error reproduces
-        ``sqrt(diag(cov))`` for the configured sampling method. The theory band is
-        obtained by **linear error propagation** through the model Jacobian (the
-        pseudo-resamples were never fit, so the model is not re-evaluated at each
-        one). The output is flagged :attr:`FitResult.is_synthetic`.
+        :func:`optimagic.first_derivative`), then draws pseudo-resamples from the
+        corresponding Gaussian approximation. When hard parameter bounds are
+        present, the Gaussian is conditioned on their box, so every synthetic
+        parameter estimate is valid. Unbounded draws are rescaled so the
+        SigmondSampling error reproduces ``sqrt(diag(cov))`` for the configured
+        sampling method; truncation can reduce that spread near a bound. The theory
+        band is obtained by **linear error propagation** through the model Jacobian
+        (the pseudo-resamples were never fit, so the model is not re-evaluated at
+        each one). The output is flagged :attr:`FitResult.is_synthetic`.
 
         Native threads are pinned for the whole central fit (the minimize and the
         Jacobian-covariance evaluations). There is no outer pool here — this is a
@@ -459,7 +570,7 @@ class SamplingFit:
 
             generator = np.random.default_rng(rng)
             n_resamp = self.sampling_info.num_resamplings
-            factor = _error_factor(self.sampling_info.method, n_resamp)
+            factor = _error_factor(self.sampling_info, n_resamp)
             param_matrix = self._synthesize_param_matrix(
                 theta, cov, free_idx, n_resamp, factor, generator
             )
@@ -609,14 +720,328 @@ class SamplingFit:
         resamples = np.tile(theta, (n_resamp, 1))  # (n_resamp, n_params)
         if free_idx:
             target = cov[np.ix_(free_idx, free_idx)] / (factor**2)
-            draws = _draws_with_sample_cov(target, n_resamp, rng)
-            resamples[:, free_idx] += draws
+            specs = list(self.param_set.values.values())
+            lower = np.array(
+                [
+                    -np.inf if specs[i].lower is None else float(specs[i].lower)
+                    for i in free_idx
+                ]
+            )
+            upper = np.array(
+                [
+                    np.inf if specs[i].upper is None else float(specs[i].upper)
+                    for i in free_idx
+                ]
+            )
+            gaussian = theta[free_idx] + _draws_with_sample_cov(target, n_resamp, rng)
+            within_bounds = np.all(
+                (gaussian >= lower[None, :]) & (gaussian <= upper[None, :])
+            )
+            if within_bounds:
+                # Preserve the exact target covariance when the finite sample does
+                # not actually encounter a hard bound.
+                resamples[:, free_idx] = gaussian
+            else:
+                resamples[:, free_idx] = _draws_within_bounds(
+                    theta[free_idx], target, lower, upper, n_resamp, rng
+                )
         param_matrix[:, 1:] = resamples.T
         return param_matrix
 
     # ------------------------------------------------------------------
     # full resample loop
     # ------------------------------------------------------------------
+
+    def prepare_resampled(
+        self,
+        *,
+        x0: dict[str, float] | None = None,
+        blas_threads: ThreadSetting = None,
+        omp_threads: ThreadSetting = "auto",
+        omp_width: int | None = None,
+        trace_path: str | None = None,
+    ) -> CentralFit:
+        """Fit the full sample once and return a portable resampling initializer."""
+        budget = plan_thread_budget(
+            1,
+            inner_cores=self.minimizer.n_opt_cores,
+            omp_width=omp_width,
+            num_workers=1,
+            omp_threads=omp_threads,
+            blas_threads=blas_threads,
+        )
+        with limit_native_threads(blas=budget.blas_threads, omp=budget.omp_threads):
+            _log_thread_budget("Full-sample (prologue) thread budget", budget, in_force=True)
+            result = self._run_full_sample_fit(x0, trace_path=trace_path)
+        theory = _theory_vector(self.objective, result.params, 0)
+        return CentralFit.from_result(
+            result,
+            self.param_set.names,
+            theory=theory,
+            trace_path=trace_path,
+            used_openmp=(budget.omp_threads or 1) > 1,
+            n_free=sum(not spec.fixed for spec in self.param_set.values.values()),
+        )
+
+    def fit_indices(
+        self,
+        indices,
+        *,
+        central: CentralFit,
+        keep: KeepPolicy = "summary",
+        backend: FitBackend = "serial",
+        num_workers: int | Literal["auto"] | None = "auto",
+        blas_threads: ThreadSetting = None,
+        omp_threads: ThreadSetting = "auto",
+        omp_width: int | None = None,
+        mp_context: str | Any | None = "auto",
+        progress: ProgressKind = True,
+        error_policy: ErrorPolicy = "record",
+        worker_initializer: Any = None,
+        worker_initargs: tuple = (),
+    ) -> ResampleBatch:
+        """Fit exactly *indices* from a prepared central fit.
+
+        The returned batch is independent of scheduler or filesystem policy and
+        can be serialized for later assembly. Indices must be unique, positive,
+        and within :attr:`sampling_info`.
+        """
+        backend = validate_backend(backend)
+        if keep not in ("none", "summary", "full"):
+            raise ValueError(f"unknown keep policy {keep!r}")
+        requested = tuple(int(i) for i in indices)
+        if not requested:
+            raise ValueError("fit_indices requires at least one resampling index")
+        if len(set(requested)) != len(requested):
+            raise ValueError("fit_indices requires unique resampling indices")
+        n_total = int(self.sampling_info.num_resamplings)
+        invalid = [i for i in requested if not 1 <= i <= n_total]
+        if invalid:
+            raise ValueError(f"resampling indices must be in [1, {n_total}], got {invalid}")
+        # Being inside the data's range is not enough: the objective carries one
+        # evaluator per index it can fit, and a sharded objective covers only its
+        # own shard. An index outside that set would otherwise be fit against
+        # whatever the objective substitutes and reported as a success.
+        covered = getattr(self.objective, "resampling_indices", None)
+        if covered is not None:
+            uncovered = sorted(i for i in requested if i not in covered)
+            if uncovered:
+                raise ValueError(
+                    "this SamplingFit's objective has no evaluator for resampling "
+                    f"index/indices {uncovered}"
+                )
+
+        names = list(self.param_set.names)
+        if set(central.params) != set(names):
+            raise ValueError("central-fit parameter names do not match this SamplingFit")
+        budget = plan_thread_budget(
+            len(requested),
+            inner_cores=self.resample_minimizer.n_opt_cores,
+            omp_width=omp_width,
+            num_workers=num_workers,
+            omp_threads=omp_threads,
+            blas_threads=blas_threads,
+        )
+        context = resolve_mp_context(
+            mp_context,
+            uses_openmp=central.used_openmp or (budget.omp_threads or 1) > 1,
+        )
+        worker = _ResampleWorker(
+            self.objective,
+            self.param_set,
+            self.resample_minimizer,
+            dict(central.params),
+            keep,
+        )
+
+        params = np.empty((len(names), len(requested)), dtype=float)
+        chi2 = np.full(len(requested), np.nan, dtype=float)
+        success = np.zeros(len(requested), dtype=bool)
+        messages = [""] * len(requested)
+        n_iterations = np.zeros(len(requested), dtype=np.int64)
+        theory = (
+            np.empty((central.theory.size, len(requested)), dtype=float)
+            if central.theory is not None
+            else None
+        )
+        optimize_results: dict[int, Any] | None = {} if keep == "full" else None
+        positions = {idx: position for position, idx in enumerate(requested)}
+
+        logger.info(
+            "Resample batch starting\n"
+            "  resamples : %d\n"
+            "  backend   : %s\n"
+            "  budget    : %s\n"
+            "  keep      : %s",
+            len(requested),
+            backend
+            if backend == "serial"
+            else f"{backend} ({context.get_start_method() if context is not None else 'default'})",
+            budget.summary(),
+            keep,
+        )
+        _log_thread_budget("Resample batch thread budget", budget, in_force=(backend == "serial"))
+        t0 = time.perf_counter()
+        with limit_native_threads(
+            blas=budget.blas_threads if backend == "serial" else None,
+            omp=budget.omp_threads if backend == "serial" else None,
+        ):
+            with executor_context(
+                backend,
+                max_workers=budget.workers,
+                worker_initializer=worker_initializer,
+                worker_initargs=worker_initargs,
+                blas_threads=budget.blas_threads,
+                omp_threads=budget.omp_threads,
+                mp_context=context,
+            ) as executor:
+                for idx, value, error in run_jobs(
+                    worker,
+                    requested,
+                    executor=executor,
+                    progress=progress,
+                    error_policy=error_policy,
+                    desc="Resample fits",
+                ):
+                    position = positions[idx]
+                    if error is not None or value is None:
+                        message = error or "fit returned no result"
+                        params[:, position] = [central.params[name] for name in names]
+                        messages[position] = message
+                        if theory is not None:
+                            theory[:, position] = central.theory
+                        logger.debug("resample %d FAILED: %s", idx, message)
+                        continue
+                    params[:, position] = value["params"]
+                    chi2[position] = value["chi2"]
+                    success[position] = bool(value["success"])
+                    messages[position] = str(value["message"])
+                    n_iterations[position] = int(value["n_iterations"])
+                    batch_theory = value.get("theory")
+                    if theory is not None:
+                        theory[:, position] = (
+                            batch_theory if batch_theory is not None else central.theory
+                        )
+                    native = value.get("result")
+                    if optimize_results is not None and native is not None:
+                        optimize_results[idx] = native
+                    logger.debug("resample %d done", idx)
+
+        elapsed = time.perf_counter() - t0
+        failed = int(np.count_nonzero(~success))
+        logger.info(
+            "Resample batch complete in %s\n"
+            "  succeeded : %d\n"
+            "  failed    : %d\n"
+            "  throughput: %.1f fits/s",
+            _fmt_duration(elapsed),
+            len(requested) - failed,
+            failed,
+            len(requested) / elapsed if elapsed > 0 else float("inf"),
+        )
+        return ResampleBatch(
+            indices=np.asarray(requested, dtype=np.int64),
+            names=tuple(names),
+            params=params,
+            chi2=chi2,
+            success=success,
+            messages=tuple(messages),
+            n_iterations=n_iterations,
+            theory=theory,
+            optimize_results=optimize_results,
+        )
+
+    def assemble_resampled(
+        self,
+        central: CentralFit,
+        batches,
+        *,
+        n_resamplings: int | None = None,
+        keep: KeepPolicy = "summary",
+    ) -> FitResult:
+        """Validate and deterministically assemble batches into one FitResult."""
+        if keep not in ("none", "summary", "full"):
+            raise ValueError(f"unknown keep policy {keep!r}")
+        batches = tuple(batches)
+        if not batches:
+            raise ValueError("assemble_resampled requires at least one batch")
+        n_total = int(self.sampling_info.num_resamplings)
+        n_resamp = n_total if n_resamplings is None else int(n_resamplings)
+        if not 1 <= n_resamp <= n_total:
+            raise ValueError(f"n_resamplings must be in [1, {n_total}], got {n_resamplings!r}")
+
+        names = list(self.param_set.names)
+        param_matrix = np.empty((len(names), n_resamp + 1), dtype=float)
+        param_matrix[:, 0] = [central.params[name] for name in names]
+        chisq_arr = np.full(n_resamp + 1, np.nan, dtype=float)
+        chisq_arr[0] = central.chi2
+        theory_matrix = None
+        if central.theory is not None:
+            theory_matrix = np.empty((central.theory.size, n_resamp + 1), dtype=float)
+            theory_matrix[:, 0] = central.theory
+        records: list[dict[str, Any]] = []
+        failures: dict[int, str] = {}
+        optimize_results: dict[int, Any] | None = (
+            {0: central.as_optimize_result()} if keep == "full" else None
+        )
+        seen: set[int] = set()
+
+        for batch in batches:
+            if tuple(batch.names) != tuple(names):
+                raise ValueError("batch parameter names do not match this SamplingFit")
+            for position, idx_value in enumerate(batch.indices):
+                idx = int(idx_value)
+                if idx > n_resamp:
+                    raise ValueError(f"batch contains unexpected resampling index {idx}")
+                if idx in seen:
+                    raise ValueError(f"duplicate resampling index {idx} across batches")
+                seen.add(idx)
+                param_matrix[:, idx] = batch.params[:, position]
+                chisq_arr[idx] = batch.chi2[position]
+                if theory_matrix is not None:
+                    theory_matrix[:, idx] = (
+                        batch.theory[:, position] if batch.theory is not None else central.theory
+                    )
+                message = batch.messages[position]
+                if not bool(batch.success[position]):
+                    failures[idx] = message
+                if keep in ("summary", "full"):
+                    records.append(
+                        {
+                            "resamp_idx": idx,
+                            "params": batch.params[:, position],
+                            "chi2": float(batch.chi2[position]),
+                            "success": bool(batch.success[position]),
+                            "n_iterations": int(batch.n_iterations[position]),
+                            "message": message,
+                        }
+                    )
+                if optimize_results is not None and batch.optimize_results:
+                    native = batch.optimize_results.get(idx)
+                    if native is not None:
+                        optimize_results[idx] = native
+
+        expected = set(range(1, n_resamp + 1))
+        if seen != expected:
+            raise ValueError(
+                f"resampling coverage mismatch: missing={sorted(expected - seen)}, "
+                f"unexpected={sorted(seen - expected)}"
+            )
+        records.sort(key=lambda record: record["resamp_idx"])
+        return self._build_result(
+            optimize_result=central.as_optimize_result(),
+            param_matrix=param_matrix,
+            chisq_arr=chisq_arr,
+            cov_source=None,
+            is_synthetic=False,
+            n_fits=n_resamp,
+            n_failed=len(failures),
+            failures=failures,
+            records=records if keep in ("summary", "full") else None,
+            optimize_results=optimize_results,
+            theory_matrix=theory_matrix,
+            trace_path=central.trace_path,
+        )
 
     def fit_resampled(
         self,
@@ -659,193 +1084,38 @@ class SamplingFit:
         ``omp_width`` and on BLAS underneath it. See
         :func:`~._execution.plan_thread_budget`.
         """
-        backend = validate_backend(backend)
-        names = self.param_set.names
-
-        loop_budget = plan_thread_budget(
-            n_resamplings if n_resamplings is not None else self.sampling_info.num_resamplings,
-            inner_cores=self.minimizer.n_opt_cores,
-            omp_width=omp_width,
-            num_workers=num_workers,
-            omp_threads=omp_threads,
-            blas_threads=blas_threads,
-        )
-        prologue_budget = plan_thread_budget(
-            1,
-            inner_cores=self.minimizer.n_opt_cores,
-            omp_width=omp_width,
-            num_workers=1,
-            omp_threads=full_sample_omp_threads,
-            blas_threads=blas_threads,
-        )
-
-        # Resolve the start method up front: the hazard is forking *after* the
-        # prologue has run an OpenMP region, so it is the prologue's width that
-        # decides, not the loop's.
-        context = resolve_mp_context(
-            mp_context,
-            uses_openmp=max(prologue_budget.omp_threads or 1, loop_budget.omp_threads or 1) > 1,
-        )
-
-        with limit_native_threads(
-            blas=prologue_budget.blas_threads, omp=prologue_budget.omp_threads
-        ):
-            _log_thread_budget(
-                "Full-sample (prologue) thread budget", prologue_budget, in_force=True
-            )
-            full = self._run_full_sample_fit(x0, trace_path=trace_path)
-        x0_vec = _params_vector(full, names)
-        x0_dict = {name: float(full.params[name]) for name in names}
-
         n_total = self.sampling_info.num_resamplings
         n_resamp = n_total if n_resamplings is None else int(n_resamplings)
         if not 1 <= n_resamp <= n_total:
             raise ValueError(f"n_resamplings must be in [1, {n_total}], got {n_resamplings!r}")
-
-        param_matrix = np.empty((len(names), n_resamp + 1))
-        param_matrix[:, 0] = x0_vec
-        chisq_arr = np.full(n_resamp + 1, np.nan)
-        chisq_arr[0] = float(full.fun)
-        theory_matrix = None
-        full_theory = _theory_vector(self.objective, full.params, 0)
-        if full_theory is not None:
-            theory_matrix = np.empty((full_theory.size, n_resamp + 1))
-            theory_matrix[:, 0] = full_theory
-        records: list[dict[str, Any]] = []
-        results: dict[int, Any] = {0: full}
-        failures: dict[int, str] = {}
-
-        worker = _ResampleWorker(self.objective, self.param_set, self.minimizer, x0_dict, keep)
-        workers = loop_budget.workers
-        indices = range(1, n_resamp + 1)
-
-        logger.info(
-            "Resample loop starting\n"
-            "  resamples : %d\n"
-            "  backend   : %s\n"
-            "  budget    : %s\n"
-            "  keep      : %s",
-            n_resamp,
-            backend
-            if backend == "serial"
-            else f"{backend} ({context.get_start_method() if context is not None else 'default'})",
-            loop_budget.summary(),
-            keep,
+        central = self.prepare_resampled(
+            x0=x0,
+            blas_threads=blas_threads,
+            omp_threads=full_sample_omp_threads,
+            omp_width=omp_width,
+            trace_path=trace_path,
         )
-        _log_thread_budget(
-            "Resample loop thread budget", loop_budget, in_force=(backend == "serial")
+        batch = self.fit_indices(
+            range(1, n_resamp + 1),
+            central=central,
+            keep=keep,
+            backend=backend,
+            num_workers=num_workers,
+            blas_threads=blas_threads,
+            omp_threads=omp_threads,
+            omp_width=omp_width,
+            mp_context=mp_context,
+            progress=progress,
+            error_policy=error_policy,
+            worker_initializer=worker_initializer,
+            worker_initargs=worker_initargs,
         )
-
-        t0 = time.perf_counter()
-        # Pooled backends pin their own workers in the initializer; the serial
-        # backend runs the jobs on this thread, so it is pinned here instead.
-        with limit_native_threads(
-            blas=loop_budget.blas_threads if backend == "serial" else None,
-            omp=loop_budget.omp_threads if backend == "serial" else None,
-        ):
-            with executor_context(
-                backend,
-                max_workers=workers,
-                worker_initializer=worker_initializer,
-                worker_initargs=worker_initargs,
-                blas_threads=loop_budget.blas_threads,
-                omp_threads=loop_budget.omp_threads,
-                mp_context=context,
-            ) as executor:
-                for idx, value, error in run_jobs(
-                    worker,
-                    indices,
-                    executor=executor,
-                    progress=progress,
-                    error_policy=error_policy,
-                    desc="Resample fits",
-                ):
-                    self._record_resample(
-                        idx,
-                        value,
-                        error,
-                        x0_vec=x0_vec,
-                        full_theory=full_theory,
-                        param_matrix=param_matrix,
-                        theory_matrix=theory_matrix,
-                        chisq_arr=chisq_arr,
-                        records=records,
-                        results=results,
-                        failures=failures,
-                        keep=keep,
-                    )
-                    logger.debug(
-                        "resample %d/%d done%s",
-                        idx,
-                        n_resamp,
-                        "" if error is None else f" FAILED: {error}",
-                    )
-        loop_dt = time.perf_counter() - t0
-
-        if failures:
-            logger.warning("%d/%d resample fits failed: %s", len(failures), n_resamp, failures)
-        rate = n_resamp / loop_dt if loop_dt > 0 else float("inf")
-        logger.info(
-            "Resample loop complete in %s\n"
-            "  succeeded : %d\n"
-            "  failed    : %d\n"
-            "  throughput: %.1f fits/s",
-            _fmt_duration(loop_dt),
-            n_resamp - len(failures),
-            len(failures),
-            rate,
+        return self.assemble_resampled(
+            central,
+            [batch],
+            n_resamplings=n_resamp,
+            keep=keep,
         )
-
-        return self._build_result(
-            optimize_result=full,
-            param_matrix=param_matrix,
-            chisq_arr=chisq_arr,
-            cov_source=None,
-            is_synthetic=False,
-            n_fits=n_resamp,
-            n_failed=len(failures),
-            failures=failures,
-            records=records if keep in ("summary", "full") else None,
-            optimize_results=results if keep == "full" else None,
-            theory_matrix=theory_matrix,
-        )
-
-    def _record_resample(
-        self,
-        idx: int,
-        value: dict[str, Any] | None,
-        error: str | None,
-        *,
-        x0_vec: np.ndarray,
-        full_theory: np.ndarray | None,
-        param_matrix: np.ndarray,
-        theory_matrix: np.ndarray | None,
-        chisq_arr: np.ndarray,
-        records: list[dict[str, Any]],
-        results: dict[int, Any],
-        failures: dict[int, str],
-        keep: KeepPolicy,
-    ) -> None:
-        """Store one resample outcome into the running matrices/records."""
-        if error is not None or value is None:
-            param_matrix[:, idx] = x0_vec
-            if theory_matrix is not None and full_theory is not None:
-                theory_matrix[:, idx] = full_theory
-            failures[idx] = error or "fit returned no result"
-            return
-        param_matrix[:, idx] = value["params"]
-        chisq_arr[idx] = value["chi2"]
-        theory = value.pop("theory", None)
-        if theory_matrix is not None:
-            theory_matrix[:, idx] = theory if theory is not None else full_theory
-        if not value["success"]:
-            failures[idx] = value["message"]
-        # keep the heavy OptimizeResult only in `results`, out of the summary record
-        result = value.pop("result", None)
-        if keep == "full" and result is not None:
-            results[idx] = result
-        if keep in ("summary", "full"):
-            records.append({"resamp_idx": idx, **value})
 
     # ------------------------------------------------------------------
     # output packaging

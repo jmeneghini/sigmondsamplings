@@ -1,4 +1,7 @@
+# ruff: noqa: I001
+
 from . import (
+    batch as batch,
     fit as fit,
     fit_plotter as fit_plotter,
     minimizer as minimizer,
@@ -10,6 +13,8 @@ from . import (
     scan as scan,
     whitening as whitening,
 )
+from .batch import CentralFit as CentralFit
+from .batch import ResampleBatch as ResampleBatch
 from .fit import SamplingFit as SamplingFit
 from .fit_plotter import (
     Chi2PlotStyle as Chi2PlotStyle,

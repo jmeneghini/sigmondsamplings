@@ -166,7 +166,8 @@ class FitResult:
     def cov(self) -> np.ndarray:
         """Parameter covariance from the fitted-parameter ``SamplingStats``.
 
-        For synthetic (jacobian) results this reproduces ``inv(JᵀJ)``; for genuine
+        For unbounded synthetic (jacobian) results this reproduces ``inv(JᵀJ)``;
+        hard bounds can reduce the covariance through truncation. For genuine
         resample fits it is the covariance of the per-resampling best fits. Either
         way the sampling-method scaling matches :attr:`standard_errors`.
         """

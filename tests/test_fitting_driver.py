@@ -12,11 +12,13 @@ om = pytest.importorskip("optimagic")
 from sigmondsamplings.fitting import (  # noqa: E402
     CallableModel,
     CallableObjective,
+    CentralFit,
     FitResult,
     LeastSquaresObjective,
     MinimizerConfig,
     ParamSetSpec,
     ParamSpec,
+    ResampleBatch,
     SamplingFit,
     evaluate_chi2_function_scan,
     evaluate_chi2_scan,
@@ -30,7 +32,7 @@ def _make_stats(method="bootstrap", n_resamp=400, seed=0, noise=0.02):
     """Synthetic exponential-decay SamplingStats with Gaussian resamples."""
     rng = np.random.default_rng(seed)
     info = SamplingInfo(method, n_resamp, seed=1)
-    factor = np.sqrt(n_resamp - 1) if method == "jackknife" else 1.0
+    factor = (n_resamp - 1) / np.sqrt(n_resamp) if method == "jackknife" else 1.0
     samps = []
     for i, ti in enumerate(T):
         mean = A_TRUE * np.exp(-E_TRUE * ti)
@@ -91,6 +93,26 @@ def test_fit_one_writes_sqlite_log(tmp_path):
     assert r.history is not None
 
 
+def test_full_sample_and_resampling_can_use_different_minimizers(monkeypatch):
+    central = MinimizerConfig(algorithm="scipy_ls_trf")
+    resample = MinimizerConfig(algorithm="scipy_lbfgsb")
+    fit = SamplingFit.from_model(
+        _make_stats(n_resamp=4),
+        _model(),
+        _param_set(),
+        minimizer=central,
+        resample_minimizer=resample,
+    )
+
+    monkeypatch.setattr(
+        "sigmondsamplings.fitting.fit._run_minimize",
+        lambda objective, param_set, minimizer, resamp_idx, x0, logging_path=None: minimizer,
+    )
+
+    assert fit.fit_one(0) is central
+    assert fit.fit_one(1) is resample
+
+
 # --- fit_full_sample (jacobian mode) ------------------------------------------
 
 
@@ -109,6 +131,81 @@ def test_full_sample_synthetic_error_matches_cov_jackknife():
     se = result.standard_errors
     for name in result.param_names:
         assert result.param(name).error == pytest.approx(se[name], rel=1e-9)
+
+
+@pytest.mark.parametrize("method", ["bootstrap", "jackknife"])
+def test_full_sample_synthetic_resamplings_respect_hard_bounds(method):
+    stats = _make_stats(method=method, n_resamp=120)
+    pset = ParamSetSpec(
+        values={
+            "A": ParamSpec(initial=1.25, lower=1.245, upper=1.255),
+            "E": ParamSpec(initial=0.31, lower=0.305, upper=0.315),
+        }
+    ).resolve()
+    fit = SamplingFit.from_model(
+        stats, _model(), pset, minimizer=MinimizerConfig(algorithm="scipy_ls_trf")
+    )
+
+    result = fit.fit_full_sample(rng=42)
+
+    assert np.all(result.param("A").resampled_values >= 1.245)
+    assert np.all(result.param("A").resampled_values <= 1.255)
+    assert np.all(result.param("E").resampled_values >= 0.305)
+    assert np.all(result.param("E").resampled_values <= 0.315)
+
+
+def test_full_sample_synthetic_resamplings_respect_one_sided_bounds():
+    stats = _make_stats(n_resamp=120)
+    pset = ParamSetSpec(
+        values={
+            "A": ParamSpec(initial=1.25, lower=1.249),
+            "E": ParamSpec(initial=0.31, upper=0.311),
+        }
+    ).resolve()
+    fit = SamplingFit.from_model(
+        stats, _model(), pset, minimizer=MinimizerConfig(algorithm="scipy_ls_trf")
+    )
+
+    result = fit.fit_full_sample(rng=42)
+
+    assert np.all(result.param("A").resampled_values >= 1.249)
+    assert np.all(result.param("E").resampled_values <= 0.311)
+
+
+def test_nonbinding_hard_bounds_preserve_jacobian_covariance():
+    stats = _make_stats(n_resamp=120)
+    pset = ParamSetSpec(
+        values={
+            "A": ParamSpec(initial=1.0, lower=0.0, upper=10.0),
+            "E": ParamSpec(initial=0.5, lower=0.0, upper=10.0),
+        }
+    ).resolve()
+    fit = SamplingFit.from_model(
+        stats, _model(), pset, minimizer=MinimizerConfig(algorithm="scipy_ls_trf")
+    )
+
+    result = fit.fit_full_sample(rng=42)
+
+    expected = np.linalg.inv(result.residual_jacobian.T @ result.residual_jacobian)
+    assert result.cov == pytest.approx(expected, rel=1e-8)
+
+
+def test_soft_bounds_do_not_truncate_synthetic_resamplings():
+    stats = _make_stats(n_resamp=120)
+    pset = ParamSetSpec(
+        values={
+            "A": ParamSpec(initial=1.0, soft_lower=A_TRUE, soft_upper=A_TRUE),
+            "E": ParamSpec(initial=0.5),
+        }
+    ).resolve()
+    fit = SamplingFit.from_model(
+        stats, _model(), pset, minimizer=MinimizerConfig(algorithm="scipy_ls_trf")
+    )
+
+    result = fit.fit_full_sample(rng=42)
+
+    assert np.any(result.param("A").resampled_values < A_TRUE)
+    assert np.any(result.param("A").resampled_values > A_TRUE)
 
 
 def test_full_sample_cov_source_is_numerical_jacobian():
@@ -463,6 +560,66 @@ def test_resampled_rejects_out_of_range_n():
     fit = _fit(n_resamp=40)
     with pytest.raises(ValueError, match="n_resamplings must be in"):
         fit.fit_resampled(progress=False, n_resamplings=1000)
+
+
+def test_resampled_is_composed_from_portable_batches():
+    fit = _fit("bootstrap", n_resamp=12)
+    central = fit.prepare_resampled()
+    odd = fit.fit_indices(range(1, 13, 2), central=central, progress=False)
+    even = fit.fit_indices(range(2, 13, 2), central=central, progress=False)
+
+    assembled = fit.assemble_resampled(central, [even, odd], n_resamplings=12)
+    direct = fit.fit_resampled(progress=False, n_resamplings=12)
+
+    assert np.allclose(assembled.params.array, direct.params.array)
+    assert np.allclose(assembled.chi_squared.data, direct.chi_squared.data)
+    assert [record["resamp_idx"] for record in assembled.records] == list(range(1, 13))
+
+
+def test_resampling_batch_round_trip(tmp_path):
+    fit = _fit("bootstrap", n_resamp=8)
+    central = fit.prepare_resampled()
+    batch = fit.fit_indices(range(1, 9), central=central, progress=False)
+    central_path = tmp_path / "central.json"
+    batch_path = tmp_path / "batch.npz"
+
+    central.write(central_path)
+    batch.write(batch_path)
+    loaded_central = CentralFit.read(central_path)
+    loaded_batch = ResampleBatch.read(batch_path)
+    result = fit.assemble_resampled(
+        loaded_central, [loaded_batch], n_resamplings=8, keep="summary"
+    )
+
+    assert np.allclose(result.params.array[:, 0], list(central.params.values()))
+    assert result.n_failed == 0
+    assert result.optimize_result.params == central.params
+
+
+def test_fit_indices_rejects_indices_the_objective_cannot_evaluate():
+    """A sharded objective must not silently substitute an evaluator it does hold."""
+    fit = _fit("bootstrap", n_resamp=8)
+    fit.objective.resampling_indices = frozenset({0, 1, 2})
+    central = fit.prepare_resampled()
+
+    # In range for the data, but outside what this objective was built to fit.
+    with pytest.raises(ValueError, match="no evaluator for resampling"):
+        fit.fit_indices([2, 5], central=central, progress=False)
+
+    batch = fit.fit_indices([1, 2], central=central, progress=False)
+    assert batch.indices.tolist() == [1, 2]
+
+
+def test_assemble_rejects_missing_or_duplicate_indices():
+    fit = _fit("bootstrap", n_resamp=4)
+    central = fit.prepare_resampled()
+    first = fit.fit_indices([1, 2], central=central, progress=False)
+    overlap = fit.fit_indices([2, 3, 4], central=central, progress=False)
+
+    with pytest.raises(ValueError, match="coverage mismatch"):
+        fit.assemble_resampled(central, [first], n_resamplings=4)
+    with pytest.raises(ValueError, match="duplicate resampling index 2"):
+        fit.assemble_resampled(central, [first, overlap], n_resamplings=4)
 
 
 # --- diagnostics / information criteria ---------------------------------------
