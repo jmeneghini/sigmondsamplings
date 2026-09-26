@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from sigmondsamplings.analysis import NonlinearBinsWarning
 from sigmondsamplings.bins import SigmondBins
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
 from sigmondsamplings.io.loader import SigmondLoader
@@ -158,7 +159,8 @@ class TestArithmetic:
         )
 
     def test_ratio_two_bins(self, bins_a, bins_b):
-        result = bins_a / bins_b
+        with pytest.warns(NonlinearBinsWarning):
+            result = bins_a / bins_b
         np.testing.assert_allclose(
             np.asarray(result.data),
             np.asarray(bins_a.data) / np.asarray(bins_b.data),
@@ -166,7 +168,8 @@ class TestArithmetic:
         )
 
     def test_np_log(self, bins_a):
-        result = np.log(bins_a)
+        with pytest.warns(NonlinearBinsWarning):
+            result = np.log(bins_a)
         assert isinstance(result, SigmondBins)
         np.testing.assert_allclose(
             np.asarray(result.data), np.log(np.asarray(bins_a.data)), rtol=1e-12

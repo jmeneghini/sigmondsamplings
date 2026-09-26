@@ -161,16 +161,6 @@ class LazySigmondSampling(LazyDataMixin, SigmondSampling):
             self.data, self.observable_info, self.sampling_info, is_complex=self.is_complex
         )
 
-    def with_observable_info(self, observable_info: ObservableInfo) -> "LazySigmondSampling":
-        """Return a lazy clone with updated observable metadata only."""
-        new = self.__class__.__new__(self.__class__)
-        new._record = self._record
-        new._data_cache = self._data_cache
-        new.observable_info = observable_info
-        new.sampling_info = self.sampling_info
-        new.is_complex = self.is_complex
-        return new
-
     def __repr__(self) -> str:
         if self.is_materialized:
             return super().__repr__()
@@ -191,10 +181,8 @@ class LazySigmondBins(LazyDataMixin, SigmondBins):
         self._record = record
         self._data_cache = None
         self.observable_info = record.observable_info
+        self.sampling_info = None
         self.is_complex = record.is_complex
-        # Deferred file I/O is orthogonal to the dask out-of-core path.
-        self.use_dask = False
-        self.xp = np
 
     @property
     def num_bins(self) -> int:
@@ -202,17 +190,6 @@ class LazySigmondBins(LazyDataMixin, SigmondBins):
 
     def _eager(self) -> SigmondBins:
         return SigmondBins(self.data, self.observable_info, is_complex=self.is_complex)
-
-    def with_observable_info(self, observable_info: ObservableInfo) -> "LazySigmondBins":
-        """Return a lazy clone with updated observable metadata only."""
-        new = self.__class__.__new__(self.__class__)
-        new._record = self._record
-        new._data_cache = self._data_cache
-        new.observable_info = observable_info
-        new.is_complex = self.is_complex
-        new.use_dask = self.use_dask
-        new.xp = self.xp
-        return new
 
     def __repr__(self) -> str:
         if self.is_materialized:

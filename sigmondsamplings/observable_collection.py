@@ -27,10 +27,10 @@ PANDAS_AVAILABLE = importlib.util.find_spec("pandas") is not None
 pd = lazy.load("pandas")
 
 if TYPE_CHECKING:
-    from .bins import SigmondBins
+    from .data import SigmondData
     from .stats import SamplingStats
 
-    CollectionItem: TypeAlias = SigmondSampling | SigmondBins
+    CollectionItem: TypeAlias = SigmondData
 else:
     CollectionItem: TypeAlias = Any
 
@@ -336,6 +336,10 @@ class ObservableCollection(PandasExportMixin):
         """
         # Deduplicate while preserving order
         self._data = list(dict.fromkeys(data))
+        if any(getattr(item, "ndim", 0) for item in self._data):
+            raise TypeError(
+                "collections hold single observables; call .to_collection() on an N-D array"
+            )
 
         # Validate and set return type
         if return_type not in ("dict", "list", "numpy"):

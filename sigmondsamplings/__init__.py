@@ -7,7 +7,7 @@ in both fstream and HDF5 formats using the sigmond_query tool.
 Public names are attached lazily (see ``__init__.pyi``) via ``lazy_loader`` so
 that importing the package -- or any single submodule, e.g. ``loader`` for the
 ``ss`` CLI -- does not eagerly drag in heavy optional dependencies
-(scipy, matplotlib, dask, ...). Each name imports its submodule on first access.
+(scipy, matplotlib, xarray, ...). Each name imports its submodule on first access.
 """
 
 import lazy_loader as lazy

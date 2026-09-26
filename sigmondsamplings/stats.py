@@ -10,6 +10,7 @@ import numpy as np
 import scipy.linalg
 from scipy.stats import chi2
 
+from .analysis import analyzer_for
 from .ensemble_collection import MultiEnsembleCollection
 from .observable_collection import ObservableCollection
 from .sampling import ObservableInfo, SigmondSampling
@@ -107,6 +108,12 @@ class SamplingStats(MultiEnsembleCollection):
             f"sampling='{self._sampling_info}')"
         )
 
+    def _variance_scale(self, n: int) -> float:
+        """Factor turning the ddof=1 covariance of ``n`` resamples into the sampling covariance."""
+        if self._sampling_info is None:
+            return 1.0
+        return analyzer_for(self._sampling_info).variance_scale(n)
+
     def values_at_index(self, index: int) -> np.ndarray:
         """
         Get values of all observables at a specific resampling index.
@@ -170,8 +177,7 @@ class SamplingStats(MultiEnsembleCollection):
 
             cov_arr = gvar.evalcov(gvar.dataset.avg_data(self.array[:, 1:].T, bstrap=True))
 
-        if self._sampling_info and self._sampling_info.method == "jackknife":
-            cov_arr = cov_arr * (resampled.shape[1] - 1)
+        cov_arr = cov_arr * self._variance_scale(resampled.shape[1])
 
         # Zero out entries between observables from different ensembles
         ensembles = [s.observable_info.ensemble_info for s in self._data]
@@ -243,12 +249,10 @@ class SamplingStats(MultiEnsembleCollection):
         data1 = sampling1.resampled_values
         data2 = sampling2.resampled_values
 
-        cov = np.cov(data1, data2, bias=bias)[0, 1]
-
-        # Apply jackknife correction if needed
-        if self._sampling_info and self._sampling_info.method == "jackknife":
-            n_samples = len(data1)
-            cov *= n_samples - 1
+        n_samples = len(data1)
+        cov = np.cov(data1, data2, ddof=1)[0, 1] * self._variance_scale(n_samples)
+        if bias:
+            cov *= (n_samples - 1) / n_samples
 
         return cov
 
@@ -315,8 +319,7 @@ class SamplingStats(MultiEnsembleCollection):
 
         cov = np.atleast_2d(np.cov(transformed, ddof=1))
 
-        if self._sampling_info and self._sampling_info.method == "jackknife":
-            cov *= resampled.shape[1] - 1
+        cov *= self._variance_scale(resampled.shape[1])
 
         # Zero out entries where the two rows draw exclusively from different ensembles
         ensembles = [s.observable_info.ensemble_info for s in self._data]
@@ -849,8 +852,10 @@ class SamplingStats(MultiEnsembleCollection):
         center_x = x_sampling.mean
         center_y = y_sampling.mean
 
-        # Calculate covariance matrix
-        cov_matrix = np.cov(x_data, y_data)
+        # Calculate covariance matrix of the estimates (jackknife-scaled if needed)
+        cov_matrix = np.cov(x_data, y_data, ddof=1) * analyzer_for(
+            x_sampling.sampling_info
+        ).variance_scale(len(x_data))
 
         # Get eigenvalues and eigenvectors
         eigenvals, eigenvecs = np.linalg.eigh(cov_matrix)

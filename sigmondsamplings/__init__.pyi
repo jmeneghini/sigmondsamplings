@@ -1,6 +1,8 @@
 from . import (
+    analysis as analysis,
     bins as bins,
     colors as colors,
+    data as data,
     energy_level_collection as energy_level_collection,
     energy_levels as energy_levels,
     ensemble_collection as ensemble_collection,
@@ -19,12 +21,14 @@ from . import (
     stats as stats,
     utils as utils,
 )
+from .analysis import NonlinearBinsWarning as NonlinearBinsWarning
 from .bins import SigmondBins as SigmondBins
 from .colors import (
     COLORS as COLORS,
     MARKERS as MARKERS,
     IndexedCycle as IndexedCycle,
 )
+from .data import SigmondData as SigmondData
 from .energy_level_collection import (
     EnergyLevelMixin as EnergyLevelMixin,
     MultiEnsembleEnergyCollection as MultiEnsembleEnergyCollection,
@@ -132,7 +136,8 @@ from .sampling import SigmondSampling as SigmondSampling
 from .sampling_array import (
     ArrayElementObsInfo as ArrayElementObsInfo,
     ArrayObsInfo as ArrayObsInfo,
-    AxisMeta as AxisMeta,
+    SigmondBinsArray as SigmondBinsArray,
+    SigmondDataArray as SigmondDataArray,
     SigmondSamplingArray as SigmondSamplingArray,
 )
 from .spectrum_spec import (

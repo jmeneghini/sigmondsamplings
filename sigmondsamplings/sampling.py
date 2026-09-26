@@ -2,27 +2,19 @@
 Core sampling classes for handling Sigmond samplings data.
 """
 
-import warnings
-from typing import Any, Union
-
 import numpy as np
 
-from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
-
-try:
-    from uncertainties import ufloat
-
-    UNCERTAINTIES_AVAILABLE = True
-except ImportError:
-    UNCERTAINTIES_AVAILABLE = False
+from .data import SigmondData
+from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo  # noqa: F401
 
 
-class SigmondSampling:
+class SigmondSampling(SigmondData):
     """
-    Wrapper around numpy array for Sigmond samplings data.
+    Jackknife/bootstrap samplings: one observable (0-d) or an N-D array of them.
 
-    The first element [0] contains the full sample value (mean).
-    Elements [1:] contain the resampled values (bootstrap/jackknife).
+    Along the sample axis (always last), element 0 is the full-sample value and
+    elements 1: are the resamples. Statistics, arithmetic, labels and formatting
+    live on :class:`SigmondData`.
     """
 
     def __init__(
@@ -70,110 +62,53 @@ class SigmondSampling:
         is_complex = np.iscomplexobj(value)
         return cls(data, observable_info, sampling_info, is_complex=is_complex)
 
-    @property
-    def ensemble_info(self) -> EnsembleInfo:
-        """Get ensemble info from the observable."""
-        return self.observable_info.ensemble_info
 
-    @ensemble_info.setter
-    def ensemble_info(self, value: EnsembleInfo):
-        """Set ensemble info for the observable."""
-        self.observable_info.ensemble_info = value
+    def _kind_key(self) -> tuple:
+        return (self.observable_info, self.sampling_info, self.is_complex)
 
     @property
-    def full_sample_value(self):
-        """The full sample value (mean of all measurements)."""
-        return self.data[0].item()
+    def num_resamplings(self) -> int:
+        return int(self.data.shape[-1]) - 1
 
     @property
     def resampled_values(self):
-        """The resampled values (bootstrap/jackknife samples)."""
-        return self.data[1:]
+        """The resampled values (bootstrap/jackknife samples), sample axis last."""
+        return self.data[..., 1:]
 
     @property
-    def mean(self):
-        """Mean of the resampled values (excluding full sample)."""
-        return np.mean(self.resampled_values).item()
-
-    @property
-    def _std(self):
-        """Standard deviation of the resampled values (excluding full sample)."""
-        return np.std(self.resampled_values, ddof=1)
-
-    @property
-    def error(self):
-        """Statistical error estimate."""
-        if self.sampling_info.method == "bootstrap":
-            res = self._std
-        elif self.sampling_info.method == "jackknife":
-            # Jackknife error correction
-            n = len(self.resampled_values)
-            res = self._std * np.sqrt(n - 1)
-        else:
-            res = self._std
-        return res.item()
-
-    @property
-    def bootstrap_bias(self) -> float:
+    def bootstrap_bias(self):
         """
-        Calculate bootstrap bias estimate.
-
-        Returns:
-            Bootstrap bias (mean of resamples - full sample value)
+        Bootstrap bias estimate: mean of the resamples minus the full-sample value.
 
         Raises:
             ValueError: If sampling method is not bootstrap
         """
-        if self.sampling_info.method != "bootstrap":
-            raise ValueError("Bootstrap bias is only available for bootstrap resampling")
-
-        return self.mean - self.full_sample_value
+        return self._stat(self._analyzer.bias)
 
     @property
-    def bias_corrected_mean(self) -> float:
+    def bias_corrected_mean(self):
         """
-        Calculate bias-corrected mean estimate.
-
-        Returns:
-            Bias-corrected mean (full sample - bootstrap bias)
+        Bias-corrected mean estimate: full sample minus the bootstrap bias.
 
         Raises:
             ValueError: If sampling method is not bootstrap
         """
         if self.sampling_info.method != "bootstrap":
             raise ValueError("Bias correction is only available for bootstrap resampling")
+        return self.full_sample_value - self.bootstrap_bias
 
-        bias = self.bootstrap_bias
-        return self.full_sample_value - bias
-
-    def to_ufloat(self, resamp_idx: int = 0) -> "ufloat":
+    def to_ufloat(self, resamp_idx: int = 0) -> "ufloat":  # noqa: F821
         """
         Convert to uncertainties.ufloat object for PDG formatting.
 
-        Returns:
-            uncertainties.ufloat: Object with value and uncertainty
+        Args:
             resamp_idx: Index of the data to use (default 0 = full sample)
 
         Raises:
             ImportError: If uncertainties package is not available
+            ValueError: If sampling is complex
         """
-        if not UNCERTAINTIES_AVAILABLE:
-            raise ImportError(
-                "uncertainties package is required for ufloat conversion. Install with: pip install uncertainties"
-            )
-
-        if self.is_complex:
-            raise ValueError(
-                "Complex samplings cannot be converted to ufloat. Use .to_real() first."
-            )
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="Using UFloat objects with std_dev==0 may give unexpected results.",
-                category=UserWarning,
-            )
-            return ufloat(self.data[resamp_idx], self.error)
+        return self._ufloat(self._require_scalar("to_ufloat").data[resamp_idx])
 
     def pdg_format(self, format_spec: str = ".2uS", resamp_idx=0) -> str:
         """
@@ -197,107 +132,6 @@ class SigmondSampling:
         """
         ufloat_obj = self.to_ufloat(resamp_idx=resamp_idx)
         return f"{ufloat_obj:{format_spec}}"
-
-    def confidence_interval(self, confidence_level: float = 0.68) -> tuple:
-        """
-        Calculate confidence interval for bootstrap resampling.
-
-        Args:
-            confidence_level: Confidence level (0.68 = 1σ, 0.95 = 2σ, etc.)
-
-        Returns:
-            Tuple of (lower_bound, upper_bound)
-
-        Raises:
-            ValueError: If sampling method is not bootstrap
-        """
-        if self.sampling_info.method != "bootstrap":
-            raise ValueError("Confidence intervals are only supported for bootstrap resampling")
-
-        # Calculate percentiles for the confidence interval
-        alpha = 1 - confidence_level
-        lower_percentile = 100 * alpha / 2
-        upper_percentile = 100 * (1 - alpha / 2)
-
-        # Calculate bounds from resampled values
-        lower_bound = np.percentile(self.resampled_values, lower_percentile).item()
-        upper_bound = np.percentile(self.resampled_values, upper_percentile).item()
-        return (lower_bound, upper_bound)
-
-    def bounded(self, lower: float, upper: float) -> "SigmondSampling":
-        """
-        Return a new SigmondSampling with resampled values clipped into [lower, upper].
-
-        Any resampling below the lower bound is set to the lower bound.
-        Any resampling above the upper bound is set to the upper bound.
-        The full-sample value [0] is unchanged.
-
-        Args:
-            lower: Lower bound
-            upper: Upper bound
-
-        Returns:
-            SigmondSampling: new instance with bounded resamples
-        """
-        if lower >= upper:
-            raise ValueError("Lower bound must be less than upper bound")
-
-        # Copy data so we don't mutate the original
-        bounded_data = self.data.copy()
-
-        # Only apply clipping to resamples, not full sample
-        bounded_data[1:] = np.clip(bounded_data[1:], lower, upper)
-
-        return SigmondSampling(
-            bounded_data,
-            self.observable_info,
-            self.sampling_info,
-            is_complex=self.is_complex,
-        )
-
-    def to_real(self):
-        """
-        Convert complex data to real part if the sampling is complex.
-
-        Returns:
-            SigmondSampling: A new instance with real data.
-        """
-        if not self.is_complex:
-            return self
-
-        real_data = self.data.real
-        return SigmondSampling(
-            real_data, self.observable_info, self.sampling_info, is_complex=False
-        )
-
-    def to_complex(self):
-        """
-        Convert real data to complex if the sampling is real.
-
-        Returns:
-            SigmondSampling: A new instance with complex data.
-        """
-        if self.is_complex:
-            return self
-
-        complex_data = self.data.astype(complex)
-        return SigmondSampling(
-            complex_data, self.observable_info, self.sampling_info, is_complex=True
-        )
-
-    def with_observable_info(self, observable_info: ObservableInfo) -> "SigmondSampling":
-        """
-        Return a metadata-only view with replaced observable info.
-
-        The sample array is shared with the original object. Lazy subclasses can
-        override this to preserve deferred reads.
-        """
-        new = self.__class__.__new__(self.__class__)
-        new.data = self.data
-        new.observable_info = observable_info
-        new.sampling_info = self.sampling_info
-        new.is_complex = self.is_complex
-        return new
 
     def as_energy_level(self, force_type: str = "auto", **manual_overrides):
         """
@@ -325,73 +159,6 @@ class SigmondSampling:
             ) from e
 
         return self.with_observable_info(new_obs_info)
-
-    def _check_compatible(self, others: set["SigmondSampling"]):
-        """
-        Check if a set of samplings are compatible with self for arithmetic operations.
-
-        This method validates that all provided `SigmondSampling` instances are
-        compatible with the current instance by checking for matching sampling
-        methods and data sizes. Different observables are allowed - compatibility
-        is based on sampling methodology, not observables.
-
-        Args:
-            others: A set of `SigmondSampling` instances to check for compatibility.
-
-        Raises:
-            ValueError: If any of the samplings are not compatible, specifying the
-                        reasons for each incompatible instance.
-        """
-        incompatible = {}
-        for other in others:
-            errors = []
-
-            if self.sampling_info != other.sampling_info:
-                errors.append("different sampling methods")
-
-            if len(self.data) != len(other.data):
-                errors.append("different data lengths")
-
-            if errors:
-                incompatible[other] = errors
-
-        if incompatible:
-            error_messages = []
-            for other, reasons in incompatible.items():
-                error_messages.append(f" - {other!r}: {', '.join(reasons)}")
-            raise ValueError("Incompatible samplings found:\n" + "\n".join(error_messages))
-
-        return True
-
-    def unwrap(self, discont=np.pi, axis=-1):
-        """
-        Unwrap phase angles by changing jumps greater than discont to their 2*pi complement.
-
-        Args:
-            discont: Maximum discontinuity between values (default: pi)
-            axis: Axis along which unwrap will operate (default: -1)
-
-        Returns:
-            SigmondSampling with unwrapped phase data
-        """
-        unwrapped_data = np.unwrap(self.data, discont=discont, axis=axis)
-        return SigmondSampling(
-            unwrapped_data, self.observable_info, self.sampling_info, self.is_complex
-        )
-
-    def copy(self) -> "SigmondSampling":
-        """Return a copy with an independent data array and observable_info.
-
-        sampling_info is shared (treated as immutable). data is copied so
-        in-place mutations don't bleed across; observable_info goes through
-        its own copy() to preserve subclass type.
-        """
-        new = self.__class__.__new__(self.__class__)
-        new.data = self.data.copy()
-        new.observable_info = self.observable_info.copy()
-        new.sampling_info = self.sampling_info
-        new.is_complex = self.is_complex
-        return new
 
     def ref_observable_info(self, samp: "SigmondSampling") -> ObservableInfo:
         """Observable metadata this sampling would carry as a ratio to *samp*.
@@ -424,154 +191,7 @@ class SigmondSampling:
         new_ref.observable_info = self.ref_observable_info(samp)
         return new_ref
 
-    @property
-    def latex_str(self):
-        return f"{self.observable_info.latex_str} = {self.pdg_format()}"
-
-    def __lt__(self, other):
-        return self.full_sample_value < (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __le__(self, other):
-        return self.full_sample_value <= (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __gt__(self, other):
-        return self.full_sample_value > (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __ge__(self, other):
-        return self.full_sample_value >= (
-            other.full_sample_value if isinstance(other, SigmondSampling) else other
-        )
-
-    def __eq__(self, other):
-        """Check equality based on observable_info, sampling_info, and is_complex."""
-        if not isinstance(other, SigmondSampling):
-            return False
-        return (
-            self.observable_info == other.observable_info
-            and self.sampling_info == other.sampling_info
-            and self.is_complex == other.is_complex
-        )
-
-    def __hash__(self):
-        """Make SigmondSampling hashable for use as dictionary keys."""
-        return hash(
-            (
-                self.observable_info,
-                self.sampling_info.method,
-                self.sampling_info.num_resamplings,
-                self.is_complex,
-            )
-        )
-
     def __repr__(self):
+        if self.ndim:
+            return self._array_repr()
         return f"SigmondSampling(name='{str(self.observable_info)}', full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
-
-    def __str__(self):
-        return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
-
-    def __array__(self, dtype=None, copy=None):
-        """NumPy array protocol — enables ``np.asarray(sampling)``."""
-        if dtype is not None:
-            return self.data.astype(dtype)
-        return self.data
-
-    def __array_ufunc__(
-        self, ufunc: np.ufunc, method: str, *inputs: Any, **kwargs: Any
-    ) -> Union["SigmondSampling", Any]:
-        """Implements NumPy ufunc protocol for SigmondSampling."""
-        if method != "__call__" or kwargs:
-            return NotImplemented
-
-        samplings = {arg for arg in inputs if isinstance(arg, SigmondSampling)}
-        other_samplings = samplings - {self}
-
-        self._check_compatible(other_samplings)
-
-        new_inputs = [arg.data if isinstance(arg, SigmondSampling) else arg for arg in inputs]
-
-        result_data = ufunc(*new_inputs)
-
-        if result_data is NotImplemented:
-            return NotImplemented
-
-        is_complex = (
-            any(s.is_complex for s in samplings)
-            or any(np.iscomplexobj(arg) for arg in new_inputs)
-            or np.iscomplexobj(result_data)
-        )
-
-        # Determine observable_info for result
-        if len(samplings) == 1:
-            # Only one sampling involved, use its observable_info
-            result_observable_info = self.observable_info
-        else:
-            # Multiple samplings - check if all have same observable_info
-            first_info = next(iter(samplings)).observable_info
-            # TODO: this shouldn't preserve observable_info. However, this may have significant downstream consequences, so we should consider how to handle this in a future PR. For now, we will preserve observable_info if all samplings have the same one, and otherwise create a new one with a mixed name.
-            if all(s.observable_info == first_info for s in samplings):
-                # All samplings have same observable_info
-                result_observable_info = first_info
-            elif all(
-                s.observable_info.ensemble_info == first_info.ensemble_info for s in samplings
-            ):
-                # Same ensemble_info - create a new observable_info with mixed name
-                result_observable_info = ObservableInfo(
-                    "mixed_operation", 0, "n", "re", first_info.ensemble_info
-                )
-            else:
-                # Mixed ensembles - use default ensemble
-                result_observable_info = ObservableInfo(
-                    "mixed_operation", 0, "n", "re", INDEP_ENSEMBLE
-                )
-
-        return SigmondSampling(
-            result_data,
-            result_observable_info,
-            self.sampling_info,
-            is_complex=is_complex,
-        )
-
-    def __add__(self, other):
-        return np.add(self, other)
-
-    def __radd__(self, other):
-        return np.add(other, self)
-
-    def __sub__(self, other):
-        return np.subtract(self, other)
-
-    def __rsub__(self, other):
-        return np.subtract(other, self)
-
-    def __mul__(self, other):
-        return np.multiply(self, other)
-
-    def __rmul__(self, other):
-        return np.multiply(other, self)
-
-    def __truediv__(self, other):
-        return np.true_divide(self, other)
-
-    def __rtruediv__(self, other):
-        return np.true_divide(other, self)
-
-    def __pow__(self, other):
-        return np.power(self, other)
-
-    def __rpow__(self, other):
-        return np.power(other, self)
-
-    def __neg__(self):
-        return np.negative(self)
-
-    def __pos__(self):
-        return np.positive(self)
-
-    def __abs__(self):
-        return np.absolute(self)
