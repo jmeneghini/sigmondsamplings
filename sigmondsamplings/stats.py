@@ -20,10 +20,10 @@ T = TypeVar("T", bound="SamplingStats")
 
 class SamplingStats(MultiEnsembleCollection):
     """
-    Statistical analysis tools for energy-level samplings from multiple ensembles.
+    Statistical analysis tools for scalar samplings from one or more ensembles.
 
-    Extends MultiEnsembleEnergyCollection to provide statistical operations like
-    covariance matrices, chi-squared calculations, and fitting.
+    Extends MultiEnsembleCollection to provide covariance matrices,
+    chi-squared calculations, and fitting. Observables need not be energy levels.
 
     Inherits from MultiEnsembleCollection with return_type fixed to "numpy".
 
@@ -37,17 +37,14 @@ class SamplingStats(MultiEnsembleCollection):
         use_gvar: bool = False,
     ):
         """
-        Initialize SamplingStats with sampling_info and energy-level validation.
+        Initialize statistics for scalar observables sharing one sampling plan.
 
         Args:
-            data: Input data - can be:
-                - List of SigmondSampling objects with energy-level observables
-                - ObservableCollection / MultiEnsembleCollection
-                - None for empty collection
+            data: Scalar SigmondSampling objects, or an ObservableCollection of them.
             use_gvar: Whether to convert values to gvar objects (only supporting covariance currently)
 
         Raises:
-            ValueError: If samplings have inconsistent sampling_info or non-energy observables
+            ValueError: If samplings have inconsistent sampling_info
         """
         super().__init__(data, "numpy")
         self.use_gvar = use_gvar

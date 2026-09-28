@@ -580,7 +580,10 @@ def register_obs_kind(kind: str, *aliases: str):
 # Modules whose import populates the registry. Imported on first lookup rather than
 # at module scope: they import this one, and the package exposes them lazily, so a
 # caller may reach the registry before anything has pulled them in.
-_OBS_KIND_SOURCES = ("sigmondsamplings.energy_levels",)
+_OBS_KIND_SOURCES = (
+    "sigmondsamplings.energy_levels",
+    "sigmondsamplings.correlators.observables",
+)
 
 
 def _ensure_obs_kinds_registered() -> None:

@@ -95,7 +95,10 @@ class PandasExportMixin:
                 if hasattr(s, key):
                     row[key] = getattr(s, key)
             sampling_info = getattr(s, "sampling_info", None)
-            if sampling_info is not None and sampling_info.method != "bootstrap":
+            # Percentile intervals need real data and resamples (bootstrap or bins).
+            if getattr(s, "is_complex", False) or (
+                sampling_info is not None and sampling_info.method != "bootstrap"
+            ):
                 row["CI_lower"] = None
                 row["CI_upper"] = None
             else:

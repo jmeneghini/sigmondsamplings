@@ -126,10 +126,13 @@ class SigmondSampling(SigmondData):
         Returns:
             str: Formatted string using PDG conventions
 
+        Complex samplings are formatted as ``re ± im i``, each part with its own error.
+
         Raises:
             ImportError: If uncertainties package is not available
-            ValueError: If sampling is complex
         """
+        if self.is_complex:
+            return self._complex_pdg_format(format_spec, resamp_idx=resamp_idx)
         ufloat_obj = self.to_ufloat(resamp_idx=resamp_idx)
         return f"{ufloat_obj:{format_spec}}"
 

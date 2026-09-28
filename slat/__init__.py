@@ -35,7 +35,6 @@ from .constants import (
     get_irrep_unicode_str,
     get_particle_latex_str,
     get_particle_unicode_str,
-    is_particle_name,
     get_qc_matrix_latex_str,
     get_qc_matrix_unicode_str,
     get_qc_type_latex_str,
@@ -44,18 +43,28 @@ from .constants import (
     get_spectro_str,
     get_spectro_unicode_str,
     get_twoJ_L_twoS_from_spectro,
+    is_particle_name,
     latex_to_unicode,
     resolve_particle_name,
     wrap_str_in_determinant,
 )
-from .toml_config import (
-    USE_TOML_TAG,
-    StrictModel,
-    TomlConfigModel,
-    dump_toml,
-    load_toml,
-    load_toml_file,
+
+# The TOML config models need pydantic, which dominates import time; load them
+# on first use so the label tables stay cheap to import.
+_TOML_NAMES = frozenset(
+    {"USE_TOML_TAG", "StrictModel", "TomlConfigModel", "dump_toml", "load_toml", "load_toml_file"}
 )
+
+
+def __getattr__(name: str):
+    if name in _TOML_NAMES:
+        from . import toml_config
+
+        value = getattr(toml_config, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "TomlConfigModel",

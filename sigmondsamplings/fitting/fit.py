@@ -18,6 +18,10 @@ the minimizer selection (:class:`MinimizerConfig`), and a least-squares
 The objective is a *whitened-residual vector* marked with
 ``optimagic.mark.least_squares``; least-squares algorithms consume it directly and
 optimagic auto-aggregates it to a scalar :math:`\\chi^2` for scalar algorithms.
+
+Fits are built from a ``SamplingStats`` + :class:`Model`
+(:meth:`SamplingFit.from_model`), or from a 1-D ``SigmondData`` + :class:`XModel`
+(:meth:`SamplingFit.from_data`), which takes ``x`` from one of the data's coords.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from typing import Any, Literal
 import numpy as np
 
 from ..analysis import analyzer_for
+from ..data import SigmondData
 from ..info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
 from ..plotting import SamplingPlotter
 from ..sampling import SigmondSampling
@@ -50,7 +55,7 @@ from ._execution import (
 )
 from .batch import CentralFit, ResampleBatch
 from .minimizer import MinimizerConfig
-from .model import Model, predict_model
+from .model import Model, XModel, predict_model
 from .objective import LeastSquaresObjective, Objective
 from .params import ParamSetResolved
 from .result import RANK_RTOL, FitResult
@@ -197,6 +202,41 @@ def _draws_within_bounds(
 
     samples[:, active] = active_samples[:n]
     return samples
+
+
+def _series_x(data: SigmondData, x: str | None) -> tuple[str, np.ndarray]:
+    """The independent-variable dim of a 1-D series and its values as floats."""
+    if not isinstance(data, SigmondData):
+        raise TypeError(
+            f"from_data expects a 1-D SigmondData, got {type(data).__name__}; "
+            "use from_model for a SamplingStats"
+        )
+    if data.ndim != 1:
+        hint = "a single observable" if data.ndim == 0 else f"dims {data.dims}"
+        raise ValueError(
+            f"from_data expects a 1-D SigmondData, got {hint}; "
+            "select down to one dim with .sel()/.isel() first"
+        )
+    if data.sampling_info is None:
+        raise TypeError("from_data needs samplings, not raw bins; resample the bins first")
+    if data.is_complex:
+        raise ValueError(
+            "from_data needs real data; project explicitly first, e.g. .to_real() "
+            "or CorrelatorMatrix.diagonal(component='real')"
+        )
+    (dim,) = data.dims
+    name = dim if x is None else x
+    if name != dim:
+        raise ValueError(f"x={name!r} is not a dim of the data (dims {data.dims})")
+    if name not in data.coords:
+        raise ValueError(f"dim {name!r} has no coordinate values to use as x")
+    try:
+        values = np.asarray(data.coords[name], dtype=float)
+    except (TypeError, ValueError):
+        raise ValueError(f"coordinate {name!r} is not numeric; it cannot be used as x") from None
+    values = values.copy()
+    values.flags.writeable = False
+    return name, values
 
 
 def _error_factor(sampling_info: SamplingInfo, n: int) -> float:
@@ -400,6 +440,12 @@ class SamplingFit:
         ``SamplingStats`` when available; required for custom objectives.
     ensemble_info:
         Ensemble tag attached to the output observables.
+
+    Attributes
+    ----------
+    x_name, x:
+        The coord used as the independent variable and its values, in the order
+        of the fitted observables. Set by :meth:`from_data`; ``None`` otherwise.
     """
 
     def __init__(
@@ -425,6 +471,8 @@ class SamplingFit:
                     "pass sampling_info= explicitly for custom objectives"
                 )
         self.sampling_info = sampling_info
+        self.x_name: str | None = None
+        self.x: np.ndarray | None = None
 
     @classmethod
     def from_model(
@@ -449,6 +497,55 @@ class SamplingFit:
             sampling_info=sampling_info,
             ensemble_info=ensemble_info,
         )
+
+    @classmethod
+    def from_data(
+        cls,
+        data: SigmondData,
+        model: XModel,
+        param_set: ParamSetResolved,
+        *,
+        x: str | None = None,
+        minimizer: MinimizerConfig | None = None,
+        resample_minimizer: MinimizerConfig | None = None,
+        use_correlation: bool = True,
+        sampling_info: SamplingInfo | None = None,
+        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
+    ) -> SamplingFit:
+        """Build a fit from a 1-D ``SigmondData`` series + an :class:`XModel`.
+
+        ``x`` names the dim whose coord values are the independent variable
+        (default: the data's only dim). The model is bound to those values, so
+        theory entry ``i`` is compared with the observable at ``x[i]``; they are
+        kept on :attr:`x` / :attr:`x_name`. Complex data is rejected: project it
+        to a real component first. Bins are rejected: resample them first.
+        """
+        x_name, x_values = _series_x(data, x)
+        if not isinstance(model, XModel):
+            raise TypeError(
+                "from_data needs a model of x (an XModel such as CallableXModel), "
+                f"got {type(model).__name__}; use from_model for a model that "
+                "already holds its x values"
+            )
+        bound = model.bind(x_values)
+        n_theory = predict_model(bound, param_set.start_values()).size
+        if n_theory != x_values.size:
+            raise ValueError(
+                f"the model returns {n_theory} values for {x_values.size} x values; "
+                "it must return one per x"
+            )
+        fit = cls.from_model(
+            SamplingStats(data.to_collection()),
+            bound,
+            param_set,
+            minimizer=minimizer,
+            resample_minimizer=resample_minimizer,
+            use_correlation=use_correlation,
+            sampling_info=sampling_info,
+            ensemble_info=ensemble_info,
+        )
+        fit.x_name, fit.x = x_name, x_values
+        return fit
 
     # ------------------------------------------------------------------
     # single fit

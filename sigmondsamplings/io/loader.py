@@ -12,12 +12,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, TypeAlias, cast
 
 if TYPE_CHECKING:
-    from .spec import SamplingDataSourceResolved, SamplingDataResolved
+    from ..correlators.index import CorrelatorIndex
+    from .spec import SamplingDataResolved, SamplingDataSourceResolved
 
 import h5py
 import numpy as np
 
 from ..bins import SigmondBins
+from ..correlators.observables import observable_info_for
 from ..ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
 from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo, obs_kind_class
 from ..lazy import (
@@ -65,14 +67,22 @@ def discover_root_groups(h5: h5py.File) -> list[str]:
     depth, so nested paths such as ``isotriplet/P0A1g`` (the form used in the
     Sigmond HDF5 spec) are discovered. The global ``Info`` group is excluded
     automatically since it has no ``Values`` child.
+
+    ``Values`` groups themselves are never descended into: they can hold tens of
+    thousands of datasets, and visiting each one dominated the cost of a lazy load.
     """
     found: list[str] = []
 
-    def visit(name: str, obj: object) -> None:
-        if isinstance(obj, h5py.Group) and isinstance(obj.get("Values"), h5py.Group):
-            found.append(name)
+    def walk(group: h5py.Group, path: str) -> None:
+        for name, obj in group.items():
+            if name == "Values" or not isinstance(obj, h5py.Group):
+                continue
+            full = f"{path}/{name}" if path else name
+            if isinstance(obj.get("Values"), h5py.Group):
+                found.append(full)
+            walk(obj, full)
 
-    h5.visititems(visit)
+    walk(h5, "")
     return found
 
 
@@ -144,6 +154,7 @@ class SigmondLoader:
         self._lazy = lazy
         self._file_kind: str | None = None  # "samplings" or "bins"
         self._all_samplings = SingleEnsembleCollection([])
+        self._correlator_index = None
 
         # Load file if provided
         if filename:
@@ -161,6 +172,19 @@ class SigmondLoader:
     def observables(self) -> SingleEnsembleCollection:
         """Access the loaded samplings collection."""
         return self._all_samplings
+
+    @property
+    def correlators(self) -> "CorrelatorIndex":
+        """A cached, metadata-only :class:`~sigmondsamplings.correlators.CorrelatorIndex`.
+
+        Built from :attr:`observables` on first access (unrelated observables are
+        skipped); it does not modify :attr:`observables` or read any samples.
+        """
+        if self._correlator_index is None:
+            from ..correlators.index import CorrelatorIndex
+
+            self._correlator_index = CorrelatorIndex.from_collection(self._all_samplings)
+        return self._correlator_index
 
     def energy_observables(
         self,
@@ -241,15 +265,18 @@ class SigmondLoader:
         Open a Sigmond HDF5 file, validate its structure, and map ``extract`` over each
         observable dataset in the ``Values`` group.
 
-        ``extract(obs_info, dataset_name, values_group, fields)`` is invoked once per
-        parseable dataset and its return value collected, where ``fields`` is the
-        observable's :mod:`obsmeta` row (``None`` for legacy files). Datasets whose
-        key cannot be parsed are skipped. This is the single read/validate path
-        shared by the eager (full-array) and lazy (name+shape) loaders.
+        ``extract(obs_info, dataset_name, values_group, fields, dsid)`` is invoked
+        once per parseable dataset and its return value collected, where ``fields``
+        is the observable's :mod:`obsmeta` row (``None`` for legacy files) and
+        ``dsid`` is the dataset's low-level ``h5py.h5d.DatasetID`` if it was
+        already opened (else ``None``). Datasets whose key cannot be parsed are
+        skipped. This is the single read/validate path shared by the eager
+        (full-array) and lazy (name+shape) loaders.
 
         Observable annotations come from the consolidated ``ObsMeta`` table in one
         read; datasets absent from it (legacy or real Sigmond files) fall back to
-        their per-dataset HDF5 attributes.
+        their per-dataset HDF5 attributes. Those datasets are opened once, through
+        the low-level API, and their attributes are only read when they have any.
 
         Returns:
             (ensemble_info, sampling_info_or_None, [extract(...), ...])
@@ -282,9 +309,14 @@ class SigmondLoader:
                     logger.debug(f"Skipping dataset {dataset_name}: {e}")
                     continue
                 fields = meta.get(dataset_name)
-                attrs = fields if fields is not None else values_group[dataset_name].attrs
+                dsid = None
+                if fields is not None:
+                    attrs = fields
+                else:
+                    dsid = h5py.h5d.open(values_group.id, dataset_name.encode())
+                    attrs = h5py.Dataset(dsid).attrs if h5py.h5o.get_info(dsid).num_attrs else {}
                 obs_info = self._apply_obs_attrs(obs_info, attrs)
-                results.append(extract(obs_info, dataset_name, values_group, fields))
+                results.append(extract(obs_info, dataset_name, values_group, fields, dsid))
 
             if not results:
                 raise ValueError("No valid observable data found in file")
@@ -321,7 +353,7 @@ class SigmondLoader:
             (ensemble_info, sampling_info_or_None, [(obs_info, data), ...])
         """
         return self._iter_hdf5_values(
-            filename, group, lambda obs_info, name, vg, fields: (obs_info, vg[name][:])
+            filename, group, lambda obs_info, name, vg, fields, dsid: (obs_info, vg[name][:])
         )
 
     def _read_hdf5_index(
@@ -343,10 +375,11 @@ class SigmondLoader:
         return self._iter_hdf5_values(
             filename,
             group,
-            lambda obs_info, name, vg, fields: (
+            lambda obs_info, name, vg, fields, dsid: (
                 obs_info,
                 name,
-                obsmeta.shape_of(fields) or tuple(vg[name].shape),
+                obsmeta.shape_of(fields)
+                or tuple((dsid or h5py.h5d.open(vg.id, name.encode())).shape),
             ),
         )
 
@@ -495,6 +528,7 @@ class SigmondLoader:
         # Load samplings
         try:
             self._all_samplings = self._load_samplings_impl(filename, group, lazy=lazy)
+            self._correlator_index = None
             logger.info(f"Successfully loaded {len(self._all_samplings)} samplings from {filename}")
         except Exception as e:
             logger.error(f"Failed to load file: {e}")
@@ -764,14 +798,9 @@ class SigmondLoader:
             raise ValueError(f"Empty MCObservable element in key: {key_xml!r}")
         name = "".join(child_xml_parts)
 
-        obs_info = ObservableInfo(
-            name=name,
-            index=0,
-            op_type="n",
-            re_im=re_im,
-            ensemble_info=ensemble_info,
-        )
-        return obs_info
+        # <CorrT> and <VEV> keys become correlator/VEV infos (their typed key is
+        # parsed on first use); anything else stays a plain ObservableInfo.
+        return observable_info_for(name, re_im, ensemble_info)
 
     def _parse_keys_from_output(
         self, keys_output: str, ensemble_info: EnsembleInfo

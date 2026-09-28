@@ -2,6 +2,7 @@ from . import (
     analysis as analysis,
     bins as bins,
     colors as colors,
+    correlators as correlators,
     data as data,
     energy_level_collection as energy_level_collection,
     energy_levels as energy_levels,
@@ -28,6 +29,22 @@ from .colors import (
     MARKERS as MARKERS,
     IndexedCycle as IndexedCycle,
 )
+from .correlators import (
+    BasicOperator as BasicOperator,
+    Channel as Channel,
+    CorrelatorIndex as CorrelatorIndex,
+    CorrelatorKey as CorrelatorKey,
+    CorrelatorMatrix as CorrelatorMatrix,
+    CorrelatorMatrixSpec as CorrelatorMatrixSpec,
+    CorrelatorObsInfo as CorrelatorObsInfo,
+    CorrelatorPair as CorrelatorPair,
+    GeneralOperator as GeneralOperator,
+    Hadron as Hadron,
+    SigmondParseError as SigmondParseError,
+    VEVKey as VEVKey,
+    VEVObsInfo as VEVObsInfo,
+    parse_operator as parse_operator,
+)
 from .data import SigmondData as SigmondData
 from .energy_level_collection import (
     EnergyLevelMixin as EnergyLevelMixin,
@@ -48,6 +65,7 @@ from .ensemble_collection import (
 from .fitting import (
     CallableModel as CallableModel,
     CallableObjective as CallableObjective,
+    CallableXModel as CallableXModel,
     Chi2PlotStyle as Chi2PlotStyle,
     Chi2Scan as Chi2Scan,
     ConstraintKind as ConstraintKind,
@@ -67,6 +85,7 @@ from .fitting import (
     SamplingFit as SamplingFit,
     SigmondModelFunc as SigmondModelFunc,
     WhiteningTransform as WhiteningTransform,
+    XModel as XModel,
     algorithm_capabilities as algorithm_capabilities,
     algorithm_settings as algorithm_settings,
     available_algorithms as available_algorithms,

@@ -334,8 +334,21 @@ class SigmondData:
                        - '.1uP': Pretty-print with ± symbol
                        - '.1uL': LaTeX notation
                        - '.1ue': Scientific notation
+
+        Complex data is formatted as ``re ± im i``, each part with its own error.
         """
+        if self.is_complex:
+            return self._complex_pdg_format(format_spec)
         return f"{self.to_ufloat():{format_spec}}"
+
+    def _complex_pdg_format(self, format_spec: str, **kwargs) -> str:
+        """``re ± im i``: ``pdg_format`` of each part, with its own error."""
+        self._require_scalar("pdg_format")
+        real = self.to_real().pdg_format(format_spec, **kwargs)
+        imag = self._new(self.data.imag, self.observable_info, is_complex=False)
+        imag = imag.pdg_format(format_spec, **kwargs)
+        sign = "-" if imag.startswith("-") else "+"
+        return f"{real} {sign} {imag.removeprefix('-')}i"
 
     @property
     def latex_str(self):
@@ -439,6 +452,38 @@ class SigmondData:
         """Integer-based selection; a fully-indexed result is a single observable."""
         self._require_indexable()
         return _nd().isel(self, **kwargs)
+
+    def transpose(self, *dims: str) -> SigmondData:
+        """Reorder the spatial dims (the sample axis stays last)."""
+        self._require_indexable()
+        return _nd().transpose(self, *dims)
+
+    def rename_dims(self, mapping: Mapping[str, str] | None = None, **names: str) -> SigmondData:
+        """Rename spatial dims (their coords follow); ``obj.rename_dims(operator='sink')``."""
+        self._require_indexable()
+        return _nd().rename_dims(self, {**(mapping or {}), **names})
+
+    def diagonal(self, dim1: str, dim2: str, new_dim: str = "diagonal") -> SigmondData:
+        """The diagonal over two equal-length dims, as one new dim (infos are kept)."""
+        self._require_indexable()
+        return _nd().diagonal(self, dim1, dim2, new_dim)
+
+    def apply_matrix(
+        self,
+        matrix,
+        dim: str,
+        *,
+        new_dim: str | None = None,
+        coords=None,
+        conj: bool = False,
+    ) -> SigmondData:
+        """Contract ``dim`` with ``matrix``: ``out[.., b, ..] = sum_a M[a, b] obj[.., a, ..]``.
+
+        Applied identically to every sample. ``conj=True`` uses ``conj(M)``.
+        See :func:`sampling_array.apply_matrix`.
+        """
+        self._require_indexable()
+        return _nd().apply_matrix(self, matrix, dim, new_dim=new_dim, coords=coords, conj=conj)
 
     def _require_indexable(self):
         if not self._dims:

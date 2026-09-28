@@ -9,8 +9,10 @@ Layers:
 * minimizer selection — :class:`MinimizerConfig` (a TOML-round-trippable wrapper
   over an optimagic algorithm and its option groups).
 * model & objective — :class:`Model`/:class:`ResampledModel`/:class:`CallableModel`
-  (flat theory vector) and :class:`LeastSquaresObjective`/:class:`CallableObjective`
-  (whitened residuals marked for optimagic least-squares).
+  (flat theory vector), :class:`XModel`/:class:`CallableXModel` (a model of an
+  independent variable, bound to a data coord by :meth:`SamplingFit.from_data`),
+  and :class:`LeastSquaresObjective`/:class:`CallableObjective` (whitened
+  residuals marked for optimagic least-squares).
 * driver & result — :class:`SamplingFit` (``fit_one``/``fit_full_sample``/
   ``fit_resampled``) producing a :class:`FitResult` that keeps both the native
   optimagic result and the framework SigmondSampling outputs.

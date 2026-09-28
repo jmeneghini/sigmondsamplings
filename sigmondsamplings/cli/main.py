@@ -167,6 +167,89 @@ def energy(
     )
 
 
+@query_app.command()
+def corr(
+    file: Path,
+    operators: bool = typer.Option(False, "--operators", help="List operators, numbered for --sink/--source."),
+    channels: bool = typer.Option(False, "--channels", help="List channels, numbered for --matrix."),
+    vevs: bool = typer.Option(False, "--vevs", help="List stored VEVs with their values."),
+    sink: str | None = typer.Option(None, "--sink", help="Sink operator (number from --operators, or short string)."),
+    source: str | None = typer.Option(None, "--source", help="Source operator (number from --operators, or short string)."),
+    matrix: str | None = typer.Option(None, "--matrix", help="Show the correlation matrix of a channel (number from --channels, or label substring)."),
+    times: str | None = typer.Option(None, "--times", help="Comma-separated times for --sink/--source (default: all stored)."),
+    ops: str | None = typer.Option(None, "--ops", help="Operators for --matrix, as numbers from --operators (e.g. 0-6,8; default: the whole channel)."),
+    time: int | None = typer.Option(None, "--time", help="Time for --matrix (default: the first stored)."),
+    hermitian: bool | None = typer.Option(None, "--hermitian/--no-hermitian", help="Use (or derive) hermitian-averaged correlators. Default: on for --matrix; for --sink/--source, off unless the pair is stored only as HermMat."),
+    subtract_vev: bool = typer.Option(False, "--subtract-vev", help="Use (or derive) VEV-subtracted correlators (bins need --sampling)."),
+    sampling: str | None = typer.Option(None, "--sampling", help="Resample bins before display: 'jackknife' or 'bootstrap:N[:SEED]'."),
+    group: str | None = typer.Option(None, "--group", help="HDF5 root group to read."),
+    fmt: str = typer.Option("table", "--format", help="Output format: table, json, or csv."),
+) -> None:
+    """Query correlators: stored series by default, or operators, channels, VEVs, one correlator, or a matrix."""
+    from . import corr as views
+
+    _check_format(fmt)
+    pair = sink is not None or source is not None
+    modes = sum(bool(m) for m in (operators, channels, vevs, pair, matrix))
+    if modes > 1:
+        raise typer.BadParameter(
+            "Use only one of --operators, --channels, --vevs, --sink/--source, or --matrix."
+        )
+    if pair and (sink is None or source is None):
+        raise typer.BadParameter("--sink and --source must be given together.")
+    if times is not None and not pair:
+        raise typer.BadParameter("--times requires --sink/--source.")
+    if time is not None and not matrix:
+        raise typer.BadParameter("--time requires --matrix.")
+    if ops is not None and not matrix:
+        raise typer.BadParameter("--ops requires --matrix.")
+    if (hermitian is not None or subtract_vev or sampling) and not (pair or matrix):
+        raise typer.BadParameter(
+            "--hermitian, --subtract-vev and --sampling require --sink/--source or --matrix."
+        )
+
+    try:
+        index = views.load_index(file, group=group)
+        sampling_info = views.parse_sampling(index, sampling) if sampling else None
+        if operators:
+            records = views.operator_records(index)
+        elif channels:
+            records = views.channel_records(index)
+        elif vevs:
+            records = views.vev_records(index)
+        elif pair:
+            time_list = [int(t) for t in times.split(",")] if times else None
+            records = views.correlator_records(
+                index,
+                sink,
+                source,
+                times=time_list,
+                hermitian=hermitian,
+                subtract_vev=subtract_vev,
+                sampling_info=sampling_info,
+            )
+        elif matrix:
+            shown, records = views.matrix_records(
+                index,
+                matrix,
+                time,
+                hermitian=True if hermitian is None else hermitian,
+                subtract_vev=subtract_vev,
+                sampling_info=sampling_info,
+                operators=views.parse_operator_numbers(ops) if ops is not None else None,
+            )
+            if fmt == "table":
+                typer.echo(f"time = {shown}")
+        else:
+            records = views.series_records(index)
+    except (KeyError, ValueError) as exc:
+        message = str(exc).strip("'\"").replace(
+            "set hermitian=/subtract_vev= to match", "use --hermitian/--subtract-vev to match"
+        )
+        raise typer.BadParameter(message) from exc
+    render_records(records, fmt=fmt)
+
+
 def _query_view(
     file: Path,
     *,
