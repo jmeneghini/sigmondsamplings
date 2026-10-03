@@ -7,7 +7,6 @@ which wraps the third-party ``corner`` package and is matplotlib-only.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 from typing import Any
 
@@ -18,7 +17,7 @@ import slat.plotting as slp
 from ..observable_collection import ObservableCollection
 from ..sampling import SigmondSampling
 from ..stats import SamplingStats
-from ._util import resolve_axes
+from ._util import labeled_heatmap, resolve_axes, summary_grid
 
 __all__ = ["SamplingPlotter"]
 
@@ -27,15 +26,6 @@ _VALID_PANELS = frozenset({"errorbar", "correlation", "histogram", "eff_sample_s
 _DEFAULT_PANELS = ["histogram", "correlation"]
 _PANEL_W = 6.5  # inches per column
 _PANEL_H = 5.0  # inches per row
-
-
-def _summary_grid(n: int) -> tuple[int, int]:
-    """Compute (nrows, ncols) grid shape for n panels."""
-    if n <= 3:
-        return (1, n)
-    ncols = math.ceil(math.sqrt(n))
-    nrows = math.ceil(n / ncols)
-    return (nrows, ncols)
 
 
 def _summary_figsize(
@@ -419,21 +409,24 @@ class SamplingPlotter:
 
         axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
 
-        axes.heatmap(
-            self.stats.corr_matrix,
+        corr = np.asarray(self.stats.corr_matrix)
+        labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
+        names = [str(s.observable_info) for s in self.stats]
+        hover = [
+            [f"{names[i]}<br>{names[j]}<br>{corr[i, j]:.3f}" for j in range(len(names))]
+            for i in range(len(names))
+        ]
+        labeled_heatmap(
+            axes,
+            corr,
+            labels=labels,
             cmap="RdBu",
             vmin=-1,
             vmax=1,
-            # Row 0 at the top, the usual convention for a correlation matrix.
-            origin="upper",
             colorbar_label="Correlation",
+            hover=hover,
             native=kwargs or None,
         )
-
-        # Labels - use str() method which handles latex_str automatically
-        labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
-        axes.ticks("x", range(len(labels)), labels, rotation=45)
-        axes.ticks("y", range(len(labels)), labels)
         axes.set(title="Observable Correlation Matrix")
 
         return axes
@@ -530,7 +523,7 @@ class SamplingPlotter:
                 slots.append((p, obs_index if p == "histogram" else None))
 
         n = len(slots)
-        nrows, ncols = layout if layout is not None else _summary_grid(n)
+        nrows, ncols = layout if layout is not None else summary_grid(n)
         figsize = figsize or _summary_figsize(nrows, ncols, panels, self.stats.num_observables)
 
         fig = slp.figure(nrows, ncols, figsize=figsize, backend=backend)

@@ -64,6 +64,7 @@ class MatplotlibAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
         # hover is plotly-only; matplotlib silently ignores it.
@@ -74,6 +75,7 @@ class MatplotlibAxes(Axes):
                 "linestyle": style,
                 "marker": marker,
                 "markersize": markersize,
+                "markerfacecolor": None if fill else "none",
                 "label": label,
                 "alpha": alpha,
                 "zorder": zorder,
@@ -94,12 +96,15 @@ class MatplotlibAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
-        # `size` is a diameter in points; scatter wants an area.
+        # `size` is a diameter in points; scatter wants an area. With
+        # facecolors="none", scatter takes `color` as the edge color only.
         kwargs = _merge(
             {
                 "color": color,
+                "facecolors": None if fill else "none",
                 "s": None if size is None else size**2,
                 "marker": marker,
                 "label": label,
@@ -127,6 +132,7 @@ class MatplotlibAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
         kwargs = _merge(
@@ -136,6 +142,7 @@ class MatplotlibAxes(Axes):
                 "color": color,
                 "marker": marker,
                 "markersize": markersize,
+                "markerfacecolor": None if fill else "none",
                 "capsize": capsize,
                 "elinewidth": width,
                 # style=None means markers only, matching the fmt="o" idiom.
@@ -200,6 +207,7 @@ class MatplotlibAxes(Axes):
         alpha=None,
         label=None,
         zorder=None,
+        hover=None,
         native=None,
     ) -> None:
         kwargs = _merge(
@@ -271,6 +279,8 @@ class MatplotlibAxes(Axes):
         self,
         x,
         *,
+        ymin=0.0,
+        ymax=1.0,
         color=None,
         style="-",
         width=None,
@@ -281,6 +291,9 @@ class MatplotlibAxes(Axes):
     ) -> None:
         kwargs = _merge(
             {
+                "ymin": ymin,
+                "ymax": ymax,
+                "clip_on": not (ymin < 0.0 or ymax > 1.0),
                 "color": color,
                 "linestyle": style,
                 "linewidth": width,
@@ -304,8 +317,11 @@ class MatplotlibAxes(Axes):
         origin: Origin = "lower",
         colorbar=True,
         colorbar_label=None,
+        hover=None,
         native=None,
     ) -> None:
+        # hover is plotly-only. NaN cells are masked by imshow/pcolormesh and
+        # drawn in the colormap's "bad" color, transparent by default.
         values = np.asarray(values)
         kwargs = _merge({"cmap": cmap, "vmin": vmin, "vmax": vmax}, native)
 
@@ -384,6 +400,13 @@ class MatplotlibAxes(Axes):
     # ------------------------------------------------------------------
     # Configuration
     # ------------------------------------------------------------------
+
+    def get_limits(self, axis, *, explicit_only=False):
+        if axis not in ("x", "y"):
+            raise ValueError("axis must be 'x' or 'y'")
+        if explicit_only and getattr(self._ax, f"get_autoscale{axis}_on")():
+            return None
+        return tuple(getattr(self._ax, f"get_{axis}lim")())
 
     def set(
         self,

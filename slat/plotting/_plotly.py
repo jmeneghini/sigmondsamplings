@@ -7,8 +7,8 @@ Differences from matplotlib that callers should know about:
   relative to the whole figure.
 * :meth:`PlotlyAxes.marker_extent` is an estimate, and returns ``0.0`` until
   the y limits have been set.
-* LaTeX in tick labels and legend entries is flattened to Unicode, because
-  MathJax does not render reliably in those positions.
+* LaTeX in tick labels is converted to HTML scripts and Unicode, because
+  MathJax does not render reliably in that position.
 """
 
 from __future__ import annotations
@@ -21,12 +21,119 @@ import numpy as np
 
 from .base import Axes, Coords, Figure, Origin
 from .style import PlotStyle, get_style
-from .text import to_display
+from .text import to_html
 
 __all__ = ["PlotlyAxes", "PlotlyFigure", "make_figure", "wrap"]
 
 # No pixel_metrics (estimated only) and no zorder (insertion-ordered).
 _SUPPORTED = frozenset({"capsize", "contour", "hover", "mathtext", "raster_export"})
+
+# Run after Plotly has resolved autoranges. Keep initial sizes and axis spans so
+# repeated zooms do not compound the scaling, and each subplot scales locally.
+_ZOOM_MARKERS_SCRIPT = r"""
+(function () {
+    const graph = document.getElementById('{plot_id}');
+    const axisKey = ref => ref[0] + 'axis' + ref.slice(1);
+    const span = key => {
+        const axis = graph._fullLayout[key];
+        if (!axis || !axis.range) return null;
+        const value = Math.abs(axis.range[1] - axis.range[0]);
+        return Number.isFinite(value) && value > 0 ? value : null;
+    };
+    const markers = graph.data.flatMap((trace, index) => {
+        if (!['scatter', 'scattergl'].includes(trace.type) ||
+            !(trace.mode || graph._fullData[index].mode || '').includes('markers')) {
+            return [];
+        }
+        const x = axisKey(trace.xaxis || 'x');
+        const y = axisKey(trace.yaxis || 'y');
+        const size = trace.marker && trace.marker.size != null
+            ? trace.marker.size : graph._fullData[index].marker.size;
+        return [{index, x, y, xspan: span(x), yspan: span(y),
+                 size: Array.isArray(size) || ArrayBuffer.isView(size)
+                    ? Array.from(size) : size}];
+    });
+    const segments = graph.data.flatMap((trace, index) => {
+        const lines = trace.meta && trace.meta.slat_hover_segments;
+        return Array.isArray(lines) ? [{index, axis: axisKey(trace.xaxis || 'x'), lines,
+            dash: (trace.line && trace.line.dash) || 'solid'}] : [];
+    });
+    function updateLineHoverTargets() {
+        if (!segments.length) return;
+        const xs = [], ys = [], texts = [], dashes = [];
+        for (const trace of segments) {
+            const axis = graph._fullLayout[trace.axis];
+            const log = axis.type === 'log';
+            const linear = value => log ? Math.log10(value) : value;
+            const data = value => log ? Math.pow(10, value) : value;
+            const [low, high] = [...axis.range].sort((a, b) => a - b);
+            const range = high - low;
+            let dash = trace.dash;
+            if (dash === 'dash' && trace.lines.length === 1 && range > 0) {
+                const [, start, end] = trace.lines[0];
+                const pixels = Math.abs(linear(end) - linear(start)) / range *
+                    (axis._length || 1000);
+                if (Number.isFinite(pixels) && pixels > 0) {
+                    // Fit complete end dashes around 4px gaps, rather than
+                    // letting SVG's fixed dash pattern finish in a gap.
+                    const gaps = Math.max(0, Math.round((pixels - 6) / 10));
+                    const length = (pixels - gaps * 4) / (gaps + 1);
+                    dash = `${length}px,4px`;
+                }
+            }
+            dashes.push(dash);
+            const x = [], y = [], text = [];
+            for (const [height, start, end, label] of trace.lines) {
+                const a = linear(start), b = linear(end);
+                const left = Math.max(Math.min(a, b), low);
+                const right = Math.min(Math.max(a, b), high);
+                const points = [start];
+                if (Number.isFinite(range) && range > 0 && right >= left) {
+                    // At most 12 screen pixels between hover targets, even
+                    // when the original segment endpoints are off screen.
+                    const pixels = (right - left) / range * (axis._length || 1000);
+                    const count = Math.min(4096, Math.max(1, Math.ceil(pixels / 12)));
+                    const interior = Array.from({length: count + 1}, (_, i) =>
+                        data(left + (right - left) * i / count));
+                    if (a > b) interior.reverse();
+                    points.push(...interior);
+                }
+                points.push(end);
+                x.push(...points, null);
+                y.push(...points.map(() => height), null);
+                text.push(...points.map(() => label), label);
+            }
+            xs.push(x); ys.push(y); texts.push(text);
+        }
+        return Plotly.restyle(graph, {x: xs, y: ys, hovertext: texts, 'line.dash': dashes},
+            segments.map(trace => trace.index));
+    }
+    updateLineHoverTargets();
+    graph.on('plotly_relayout', function (event) {
+        if (!Object.keys(event).some(key =>
+            /^[xy]axis\d*\.(range|autorange)/.test(key) ||
+            ['width', 'height', 'autosize'].includes(key))) {
+            return;
+        }
+        const sizes = markers.map(marker => {
+            const xspan = span(marker.x), yspan = span(marker.y);
+            const zoom = Math.max(
+                marker.xspan && xspan ? marker.xspan / xspan : 1,
+                marker.yspan && yspan ? marker.yspan / yspan : 1
+            );
+            const scale = Math.min(1.5, Math.max(1, Math.pow(zoom, 0.2)));
+            return Array.isArray(marker.size)
+                ? marker.size.map(size => size * scale) : marker.size * scale;
+        });
+        if (markers.length) {
+            Promise.resolve(Plotly.restyle(graph, {'marker.size': sizes},
+                markers.map(marker => marker.index))).then(updateLineHoverTargets);
+        } else {
+            updateLineHoverTargets();
+        }
+    });
+})();
+"""
 
 _MARKERS = {
     "o": "circle",
@@ -133,8 +240,14 @@ def _color(color: str | None, alpha: float | None = None) -> str | None:
     return f"rgba({rgb[0]},{rgb[1]},{rgb[2]},{alpha})"
 
 
-def _marker(symbol: str | None) -> str | None:
-    return None if symbol is None else _MARKERS.get(symbol, symbol)
+def _marker(symbol: str | None, fill: bool = True) -> str | None:
+    """A plotly symbol name; ``fill=False`` picks its ``-open`` (hollow) variant."""
+    if symbol is None:
+        return None
+    name = _MARKERS.get(symbol, symbol)
+    if not fill and not name.endswith("-open"):
+        name = f"{name}-open"
+    return name
 
 
 def _dash(style: str | None) -> str | None:
@@ -249,6 +362,7 @@ class PlotlyAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
         import plotly.graph_objects as go
@@ -258,7 +372,7 @@ class PlotlyAxes(Axes):
             y=y,
             mode="lines+markers" if marker else "lines",
             line=_clean({"color": _color(color, alpha), "width": width, "dash": _dash(style)}),
-            marker=_clean({"symbol": _marker(marker), "size": markersize}),
+            marker=_clean({"symbol": _marker(marker, fill), "size": markersize}),
             name=label,
             showlegend=label is not None,
             **self._hover(hover),
@@ -277,6 +391,7 @@ class PlotlyAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
         import plotly.graph_objects as go
@@ -285,7 +400,9 @@ class PlotlyAxes(Axes):
             x=x,
             y=y,
             mode="markers",
-            marker=_clean({"symbol": _marker(marker), "size": size, "color": _color(color, alpha)}),
+            marker=_clean(
+                {"symbol": _marker(marker, fill), "size": size, "color": _color(color, alpha)}
+            ),
             name=label,
             showlegend=label is not None,
             **self._hover(hover),
@@ -309,6 +426,7 @@ class PlotlyAxes(Axes):
         alpha=None,
         zorder=None,
         hover=None,
+        fill=True,
         native=None,
     ) -> None:
         import plotly.graph_objects as go
@@ -327,7 +445,7 @@ class PlotlyAxes(Axes):
             x=x,
             y=y,
             mode="markers" if style is None else "lines+markers",
-            marker=_clean({"symbol": _marker(marker), "size": markersize, "color": rendered}),
+            marker=_clean({"symbol": _marker(marker, fill), "size": markersize, "color": rendered}),
             line=_clean({"color": rendered, "dash": _dash(style)}),
             error_y=error_y,
             error_x=error_x,
@@ -429,6 +547,7 @@ class PlotlyAxes(Axes):
         alpha=None,
         label=None,
         zorder=None,
+        hover=None,
         native=None,
     ) -> None:
         ys, x0s, x1s = np.broadcast_arrays(
@@ -436,10 +555,21 @@ class PlotlyAxes(Axes):
         )
         xs: list[float | None] = []
         vals: list[float | None] = []
+        # Give hover an interior target as well as the segment endpoints.
         for yi, a, b in zip(ys, x0s, x1s):
-            xs += [a, b, None]
-            vals += [yi, yi, None]
-        self._segments(xs, vals, color, style, width, alpha, label, native)
+            xs += [a, (a + b) / 2, b, None] if hover is not None else [a, b, None]
+            vals += [yi, yi, yi, None] if hover is not None else [yi, yi, None]
+        hovertext = None
+        if hover is not None:
+            labels = [hover] * len(ys) if isinstance(hover, str) else list(hover)
+            if len(labels) != len(ys):
+                raise ValueError("hlines hover must have one string per segment")
+            hovertext = [text for text in labels for _ in range(4)]
+        segments = None if hover is None else [
+            [float(yi), float(a), float(b), text]
+            for yi, a, b, text in zip(ys, x0s, x1s, labels)
+        ]
+        self._segments(xs, vals, color, style, width, alpha, label, native, hovertext, segments)
 
     def vlines(
         self,
@@ -465,7 +595,7 @@ class PlotlyAxes(Axes):
             vals += [a, b, None]
         self._segments(xs, vals, color, style, width, alpha, label, native)
 
-    def _segments(self, xs, ys, color, style, width, alpha, label, native) -> None:
+    def _segments(self, xs, ys, color, style, width, alpha, label, native, hover=None, segments=None) -> None:
         import plotly.graph_objects as go
 
         trace = go.Scatter(
@@ -476,7 +606,9 @@ class PlotlyAxes(Axes):
             line=_clean({"color": _color(color, alpha), "width": width, "dash": _dash(style)}),
             name=label,
             showlegend=label is not None,
-            hoverinfo="skip",
+            hoverinfo="text" if hover is not None else "skip",
+            hovertext=hover,
+            meta={"slat_hover_segments": segments} if segments is not None else None,
         )
         self._add(trace, native)
 
@@ -498,6 +630,8 @@ class PlotlyAxes(Axes):
         self,
         x,
         *,
+        ymin=0.0,
+        ymax=1.0,
         color=None,
         style="-",
         width=None,
@@ -506,6 +640,7 @@ class PlotlyAxes(Axes):
         zorder=None,
         native=None,
     ) -> None:
+        native = {"y0": ymin, "y1": ymax, **(native or {})}
         self._axline("v", x, color, style, width, alpha, label, native)
 
     def _axline(self, kind, value, color, style, width, alpha, label, native) -> None:
@@ -532,11 +667,16 @@ class PlotlyAxes(Axes):
         origin: Origin = "lower",
         colorbar=True,
         colorbar_label=None,
+        hover=None,
         native=None,
     ) -> None:
         import plotly.graph_objects as go
 
+        # NaN cells are gaps in a plotly heatmap: no color, as on matplotlib.
         values = np.asarray(values)
+        text = {}
+        if hover is not None:
+            text = {"text": [list(row) for row in hover], "hoverinfo": "text"}
         trace = go.Heatmap(
             z=values,
             x=x,
@@ -546,6 +686,7 @@ class PlotlyAxes(Axes):
             zmax=vmax,
             showscale=colorbar,
             colorbar=_clean({"title": colorbar_label}) if colorbar else None,
+            **text,
         )
         self._add(trace, native)
         if origin == "upper":
@@ -664,6 +805,17 @@ class PlotlyAxes(Axes):
     # Configuration
     # ------------------------------------------------------------------
 
+    def get_limits(self, axis, *, explicit_only=False):
+        if axis not in ("x", "y"):
+            raise ValueError("axis must be 'x' or 'y'")
+        target = self._fig.layout[f"{axis}axis{self._suffix}"]
+        if target.range is None or (explicit_only and target.autorange):
+            return None
+        limits = target.range
+        if target.type == "log":
+            limits = tuple(10.0 ** value for value in limits)
+        return tuple(limits)
+
     def set(
         self,
         *,
@@ -679,14 +831,14 @@ class PlotlyAxes(Axes):
         x_updates = _clean(
             {
                 "title_text": xlabel,
-                "range": list(xlim) if xlim else None,
+                "range": self._range("x", xlim, xscale),
                 "type": _scale(xscale),
             }
         )
         y_updates = _clean(
             {
                 "title_text": ylabel,
-                "range": list(ylim) if ylim else None,
+                "range": self._range("y", ylim, yscale),
                 "type": _scale(yscale),
             }
         )
@@ -721,6 +873,22 @@ class PlotlyAxes(Axes):
                     fontsize=self._style.title_fontsize,
                 )
 
+    def _range(self, axis: Literal["x", "y"], lim, scale: str | None) -> list[float] | None:
+        """Limits as plotly wants them: log10 of the data limits on a log axis.
+
+        The axis type is the one being set in the same call, else the current one,
+        so set ``yscale="log"`` before or together with ``ylim``.
+        """
+        if not lim:
+            return None
+        kind = _scale(scale) or self._fig.layout[f"{axis}axis{self._suffix}"].type
+        if kind != "log":
+            return list(lim)
+        lo, hi = lim
+        if lo <= 0 or hi <= 0:
+            raise ValueError(f"log-scale {axis} limits must be positive, got {tuple(lim)}")
+        return [float(np.log10(lo)), float(np.log10(hi))]
+
     def ticks(
         self,
         axis: Literal["x", "y"],
@@ -734,7 +902,7 @@ class PlotlyAxes(Axes):
         updates: dict[str, Any] = {"tickmode": "array", "tickvals": list(positions)}
         if labels is not None:
             # MathJax is unreliable in tick labels; fall back to Unicode.
-            updates["ticktext"] = [to_display(label, mathtext=False) for label in labels]
+            updates["ticktext"] = [to_html(label) for label in labels]
         if rotation:
             # matplotlib rotates counter-clockwise, plotly clockwise.
             updates["tickangle"] = -rotation
@@ -830,7 +998,9 @@ class PlotlyFigure(Figure):
     def save(self, path: str | Path, *, dpi: float | None = None) -> None:
         path = Path(path)
         if path.suffix.lower() in (".html", ".htm"):
-            self._fig.write_html(str(path))
+            self._fig.write_html(
+                str(path), include_mathjax="cdn", post_script=_ZOOM_MARKERS_SCRIPT
+            )
             return
         try:
             scale = (dpi or self._style.dpi) / 100.0
@@ -842,7 +1012,10 @@ class PlotlyFigure(Figure):
             ) from exc
 
     def embed_html(self, *, dpi: float | None = None) -> str:
-        return self._fig.to_html(full_html=False, include_plotlyjs="cdn")
+        return self._fig.to_html(
+            full_html=False, include_plotlyjs="cdn", include_mathjax="cdn",
+            post_script=_ZOOM_MARKERS_SCRIPT,
+        )
 
     def show(self) -> None:
         self._fig.show()

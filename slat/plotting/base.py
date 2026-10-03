@@ -97,9 +97,13 @@ class Axes(ABC):
         alpha: float | None = None,
         zorder: float | None = None,
         hover: Sequence[str] | None = None,
+        fill: bool = True,
         native: dict[str, Any] | None = None,
     ) -> None:
-        """A connected line through ``(x, y)``."""
+        """A connected line through ``(x, y)``.
+
+        ``fill=False`` draws the markers (if any) hollow.
+        """
 
     @abstractmethod
     def points(
@@ -114,9 +118,13 @@ class Axes(ABC):
         alpha: float | None = None,
         zorder: float | None = None,
         hover: Sequence[str] | None = None,
+        fill: bool = True,
         native: dict[str, Any] | None = None,
     ) -> None:
-        """Unconnected markers. ``size`` is a marker diameter in points."""
+        """Unconnected markers. ``size`` is a marker diameter in points.
+
+        ``fill=False`` draws them hollow, outlined in ``color``.
+        """
 
     @abstractmethod
     def errorbar(
@@ -136,6 +144,7 @@ class Axes(ABC):
         alpha: float | None = None,
         zorder: float | None = None,
         hover: Sequence[str] | None = None,
+        fill: bool = True,
         native: dict[str, Any] | None = None,
     ) -> None:
         """Points with error bars.
@@ -143,6 +152,7 @@ class Axes(ABC):
         ``style=None`` (the default) draws markers only, matching the
         ``fmt="o"`` idiom. ``yerr``/``xerr`` accept a scalar, a 1-D array, or a
         ``(2, N)`` array of asymmetric ``(lower, upper)`` offsets.
+        ``fill=False`` draws the markers hollow.
         """
 
     @abstractmethod
@@ -203,9 +213,13 @@ class Axes(ABC):
         alpha: float | None = None,
         label: str | None = None,
         zorder: float | None = None,
+        hover: str | Sequence[str] | None = None,
         native: dict[str, Any] | None = None,
     ) -> None:
-        """Horizontal line segments. ``y`` may be a scalar or an array."""
+        """Horizontal segments; hover is shared text or one string per segment.
+
+        Static backends ignore hover text. ``y`` may be a scalar or an array.
+        """
 
     @abstractmethod
     def vlines(
@@ -244,6 +258,8 @@ class Axes(ABC):
         self,
         x: float,
         *,
+        ymin: float = 0.0,
+        ymax: float = 1.0,
         color: str | None = None,
         style: str = "-",
         width: float | None = None,
@@ -252,7 +268,11 @@ class Axes(ABC):
         zorder: float | None = None,
         native: dict[str, Any] | None = None,
     ) -> None:
-        """A vertical line spanning the full axes height."""
+        """A vertical line with endpoints in axes fractions.
+
+        Defaults span the full height. Endpoints outside [0, 1] extend beyond
+        the axes, e.g. a group separator continuing below the x-axis.
+        """
 
     @abstractmethod
     def heatmap(
@@ -267,13 +287,19 @@ class Axes(ABC):
         origin: Origin = "lower",
         colorbar: bool = True,
         colorbar_label: str | None = None,
+        hover: Sequence[Sequence[str]] | None = None,
         native: dict[str, Any] | None = None,
     ) -> None:
         """A 2-D array as colored cells.
 
         ``x``/``y`` are cell centres; when omitted, integer indices are used.
         ``origin="upper"`` puts ``values[0]`` in the top row, which is the
-        convention for correlation matrices.
+        convention for correlation matrices. ``hover`` is a 2-D array of
+        strings shaped like ``values``, shown per cell where the backend
+        supports ``"hover"``.
+
+        NaN cells render empty (no color) on every backend. Frontends rely on
+        this to show missing entries, so it is part of the contract.
         """
 
     @abstractmethod
@@ -320,6 +346,16 @@ class Axes(ABC):
     # ------------------------------------------------------------------
     # Configuration
     # ------------------------------------------------------------------
+
+    def get_limits(
+        self, axis: Literal["x", "y"], *, explicit_only: bool = False
+    ) -> tuple[float, float] | None:
+        """Current limits in data units, or None if unknown/automatic.
+
+        With ``explicit_only``, return None when the axis uses automatic
+        limits. This lets frontends respect ranges set by their caller.
+        """
+        return None
 
     @abstractmethod
     def set(

@@ -340,6 +340,25 @@ class TestRoundTrip:
         assert "time=26" in obs.observable_info.name
         np.testing.assert_allclose(np.asarray(obs.data), np.asarray(bins.data), rtol=1e-12)
 
+    def test_tweak_header_uses_sigmond_tags(self, tmp_path):
+        import h5py
+
+        # 101 measurements, every odd one omitted: 51 bins at rebin 1
+        omissions = " ".join(str(k) for k in range(1, 101, 2))
+        ens = EnsembleInfo("ens_A", 101, num_bins=51, tweak_info={"Omissions": omissions})
+        bins = _make_bins("obs_a", RNG.standard_normal(51), ens=ens)
+        out = tmp_path / "tweak_bins.hdf5"
+        SigmondWriter(create_backups=False).write_bins_hdf5(str(out), [bins], group="g")
+
+        with h5py.File(out) as f:
+            header = f["g/Header"][()].decode()
+        # Sigmond matches these tags case-sensitively and omits a rebin of 1.
+        assert f"<TweakEnsemble><Omissions>{omissions}</Omissions></TweakEnsemble>" in header
+        assert "Rebin" not in header and "rebin" not in header
+
+        loaded = SigmondLoader(str(out), group="g").observables[0]
+        assert loaded.observable_info.ensemble_info == ens
+
     def test_mixed_collection_rejected(self, tmp_path, bins_a):
         sinfo = SamplingInfo("bootstrap", 100, seed=1)
         samp = SigmondSampling(

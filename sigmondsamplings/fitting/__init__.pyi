@@ -33,8 +33,10 @@ from .minimizer import (
 )
 from .model import (
     CallableModel as CallableModel,
+    CallableXModel as CallableXModel,
     Model as Model,
     ResampledModel as ResampledModel,
+    XModel as XModel,
     predict_model as predict_model,
 )
 from .model_func import (

@@ -161,6 +161,14 @@ class RecordingAxes(Axes):
     def set(self, **kwargs) -> None:
         self._record("set", **kwargs)
 
+    def get_limits(self, axis, *, explicit_only=False):
+        if axis not in ("x", "y"):
+            raise ValueError("axis must be 'x' or 'y'")
+        for mark in reversed(self.native):
+            if mark.kind == "set" and mark.kwargs.get(f"{axis}lim") is not None:
+                return tuple(mark.kwargs[f"{axis}lim"])
+        return None
+
     def ticks(self, axis, positions, labels=None, **kwargs) -> None:
         self._record("ticks", axis, positions, labels, **kwargs)
 

@@ -330,12 +330,27 @@ class MultiEnsembleCollection(ObservableCollection):
             from .io.writer import SigmondWriter
 
             grouped_observables = {
-                f"{group}_{ens.name}" if ens.name else f"{group}_{i}": list(sub)
-                for i, (ens, sub) in enumerate(self.by_ensemble.items())
+                name: list(sub)
+                for name, sub in zip(self.hdf5_group_names(group), self.by_ensemble.values())
             }
             SigmondWriter(create_backups=create_backups).write_groups_hdf5(
                 filename, grouped_observables, overwrite=overwrite, mode=mode
             )
+
+    def hdf5_group_names(self, group: str = "data") -> list[str]:
+        """The HDF5 groups :meth:`to_hdf5` writes under ``group``.
+
+        ``[group]`` for a single ensemble, else one ``{group}_{ensemble_name}``
+        (or ``{group}_{i}`` when names are empty) per ensemble, in
+        :attr:`by_ensemble` order.
+        """
+        if len(self.ensembles) == 1:
+            return [group]
+        return [
+            f"{group}_{ens.name}" if ens.name else f"{group}_{i}"
+            for i, ens in enumerate(self.by_ensemble)
+        ]
+
 
     def reduced(self):
         """Collapse to the lone ``SingleEnsembleCollection`` when one ensemble is present.

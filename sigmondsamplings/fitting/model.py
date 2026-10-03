@@ -7,6 +7,11 @@ aligned with the ``SamplingStats`` observable order. Flattening any structure â€
 multiple channels, time slices, ensembles â€” is the caller's responsibility; the
 fit layer never loops per observable.
 
+A model of an independent variable (:class:`XModel`, e.g. :class:`CallableXModel`)
+is the unbound form: :meth:`SamplingFit.from_data
+<sigmondsamplings.fitting.fit.SamplingFit.from_data>` binds it to the coordinate
+values of a 1-D ``SigmondData`` so ``x`` comes from the data it labels.
+
 This is distinct from :class:`sigmondsamplings.model_func.SigmondModelFunc`,
 which is the error-propagation / plotting engine for an already-fitted model.
 """
@@ -19,7 +24,14 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-__all__ = ["CallableModel", "Model", "ResampledModel", "predict_model"]
+__all__ = [
+    "CallableModel",
+    "CallableXModel",
+    "Model",
+    "ResampledModel",
+    "XModel",
+    "predict_model",
+]
 
 
 @runtime_checkable
@@ -42,6 +54,18 @@ class ResampledModel(Model, Protocol):
     """
 
     def predict_at(self, params: dict[str, float], resamp_idx: int) -> np.ndarray: ...
+
+
+@runtime_checkable
+class XModel(Protocol):
+    """A model of an independent variable, bound to the data's ``x`` before fitting.
+
+    ``bind`` receives the coordinate values (a read-only float array, one entry per
+    fitted observable, in data order) and returns the :class:`Model` the objective
+    evaluates.
+    """
+
+    def bind(self, x: np.ndarray) -> Model: ...
 
 
 def predict_model(
@@ -80,3 +104,44 @@ class CallableModel:
             count=len(self.param_names),
         )
         return np.asarray(self.func(theta), dtype=float).reshape(-1)
+
+
+@dataclass(frozen=True, eq=False)
+class CallableXModel:
+    """Adapt ``func(x, theta) -> flat vector`` to the :class:`XModel` API.
+
+    ``theta`` is as for :class:`CallableModel`. Unbound (``x is None``) it only
+    records the function; :meth:`bind` returns a copy holding ``x``, which is a
+    :class:`Model`. Keeping ``x`` on the model (rather than in a closure) keeps
+    it inspectable and picklable for the process backend when ``func`` is.
+    """
+
+    func: Callable[[np.ndarray, np.ndarray], np.ndarray]
+    param_names: tuple[str, ...]
+    x: np.ndarray | None = None
+
+    def __init__(
+        self,
+        func: Callable[[np.ndarray, np.ndarray], np.ndarray],
+        param_names: Sequence[str],
+        x: np.ndarray | None = None,
+    ):
+        object.__setattr__(self, "func", func)
+        object.__setattr__(self, "param_names", tuple(param_names))
+        if x is not None:
+            x = np.array(x, dtype=float)
+            x.flags.writeable = False
+        object.__setattr__(self, "x", x)
+
+    def bind(self, x: np.ndarray) -> CallableXModel:
+        return CallableXModel(self.func, self.param_names, x)
+
+    def predict(self, params: dict[str, float]) -> np.ndarray:
+        if self.x is None:
+            raise ValueError("CallableXModel has no x values; bind(x) it first")
+        theta = np.fromiter(
+            (params[name] for name in self.param_names),
+            dtype=float,
+            count=len(self.param_names),
+        )
+        return np.asarray(self.func(self.x, theta), dtype=float).reshape(-1)

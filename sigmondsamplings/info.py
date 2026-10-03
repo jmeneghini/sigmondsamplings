@@ -507,6 +507,23 @@ class SamplingInfo:
         self.boot_skip = boot_skip
         self.extra_params = kwargs
 
+    @classmethod
+    def jackknife(cls, num_resamplings: int, **kwargs) -> "SamplingInfo":
+        """Jackknife sampling with ``num_resamplings`` (typically the number of configs)."""
+        return cls("jackknife", num_resamplings, **kwargs)
+
+    @classmethod
+    def jackknife_for(cls, ensemble: "EnsembleInfo", **kwargs) -> "SamplingInfo":
+        """Jackknife sampling sized to ``ensemble``'s number of bins (after rebinning)."""
+        return cls.jackknife(ensemble.num_bins, **kwargs)
+
+    @classmethod
+    def bootstrap(
+        cls, num_resamplings: int, seed: int = 0, boot_skip: int = 0, **kwargs
+    ) -> "SamplingInfo":
+        """Bootstrap sampling with ``num_resamplings`` resamples, RNG ``seed`` and ``boot_skip``."""
+        return cls("bootstrap", num_resamplings, seed=seed, boot_skip=boot_skip, **kwargs)
+
     @property
     def slug(self):
         """Fixed-width identifier for filenames."""
@@ -580,7 +597,10 @@ def register_obs_kind(kind: str, *aliases: str):
 # Modules whose import populates the registry. Imported on first lookup rather than
 # at module scope: they import this one, and the package exposes them lazily, so a
 # caller may reach the registry before anything has pulled them in.
-_OBS_KIND_SOURCES = ("sigmondsamplings.energy_levels",)
+_OBS_KIND_SOURCES = (
+    "sigmondsamplings.energy_levels",
+    "sigmondsamplings.correlators.observables",
+)
 
 
 def _ensure_obs_kinds_registered() -> None:

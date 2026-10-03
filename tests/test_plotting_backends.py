@@ -255,10 +255,73 @@ class TestPlotlyTranslation:
 
         np.testing.assert_allclose(_err(0.5, 3)["array"], [0.5, 0.5, 0.5])
 
-    def test_tick_labels_fall_back_to_unicode(self):
+    def test_fill_false_picks_the_open_symbol(self):
+        from slat.plotting._plotly import _marker
+
+        assert _marker("o", fill=False) == "circle-open"
+        assert _marker("circle-open", fill=False) == "circle-open"
+        assert _marker("s") == "square"
+
+    def test_fill_reaches_every_marker_mark(self):
         fig = slp.figure(backend="plotly")
-        fig.axes().ticks("x", [0, 1], ["$A_1$", "$T_{1g}$"])
-        assert fig.native.layout.xaxis.ticktext == ("A₁", "T₁g")
+        axes = fig.axes()
+        axes.points([0], [1], fill=False)
+        axes.errorbar([0], [1], yerr=[0.1], fill=False)
+        axes.line([0, 1], [1, 2], marker="s", fill=False)
+        axes.errorbar([0], [1], yerr=[0.1])
+        symbols = [trace.marker.symbol for trace in fig.native.data]
+        assert symbols == ["circle-open", "circle-open", "square-open", "circle"]
+
+    def test_log_axis_limits_are_given_to_plotly_in_log10(self):
+        fig = slp.figure(backend="plotly")
+        axes = fig.axes()
+        axes.set(yscale="log", ylim=(1e-3, 10.0))
+        assert fig.native.layout.yaxis.range == (-3.0, 1.0)
+        axes.set(ylim=(1e-2, 1.0))  # the axis is already log
+        assert fig.native.layout.yaxis.range == (-2.0, 0.0)
+        axes.set(xlim=(0.0, 5.0))  # linear x is untouched
+        assert fig.native.layout.xaxis.range == (0.0, 5.0)
+        with pytest.raises(ValueError, match="positive"):
+            axes.set(ylim=(0.0, 1.0))
+
+    def test_heatmap_hover_becomes_cell_text(self):
+        fig = slp.figure(backend="plotly")
+        hover = [["a", "b"], ["c", "d"]]
+        fig.axes().heatmap(np.eye(2), hover=hover)
+        trace = fig.native.data[0]
+        assert [list(row) for row in trace.text] == hover
+        assert trace.hoverinfo == "text"
+
+    def test_heatmap_without_hover_keeps_the_default(self):
+        fig = slp.figure(backend="plotly")
+        fig.axes().heatmap(np.eye(2))
+        assert fig.native.data[0].text is None
+
+    def test_nan_heatmap_cells_stay_nan(self):
+        fig = slp.figure(backend="plotly")
+        values = np.array([[1.0, np.nan], [0.5, 0.2]])
+        fig.axes().heatmap(values)
+        assert np.isnan(np.asarray(fig.native.data[0].z, dtype=float)[0, 1])
+
+    def test_tick_labels_preserve_whole_subscripts(self):
+        fig = slp.figure(backend="plotly")
+        fig.axes().ticks("x", [0, 1, 2], ["$A_1$", "$T_{1g}$", "$T_{1u}^{-}$"])
+        assert fig.native.layout.xaxis.ticktext == (
+            "A<sub>1</sub>", "T<sub>1g</sub>", "T<sub>1u</sub><sup>-</sup>"
+        )
+
+    def test_horizontal_segments_have_independent_hover_text(self):
+        fig = slp.figure(backend="plotly")
+        fig.axes().hlines([2, 3], 0, 1, hover=["N(0) + N(0)", "N(1) + N(1)"])
+        trace = fig.native.data[0]
+        assert trace.hoverinfo == "text"
+        assert trace.hovertext == ("N(0) + N(0)",) * 4 + ("N(1) + N(1)",) * 4
+        assert trace.x == (0, 0.5, 1, None) * 2
+        assert trace.meta["slat_hover_segments"] == [
+            [2, 0, 1, "N(0) + N(0)"], [3, 0, 1, "N(1) + N(1)"]
+        ]
+        with pytest.raises(ValueError, match="one string per segment"):
+            fig.axes().hlines([2, 3], 0, 1, hover=["only one"])
 
     @pytest.mark.parametrize(
         ("x", "y", "side"),
@@ -307,6 +370,45 @@ class TestPlotlyTranslation:
         assert (margin.l, margin.r, margin.t, margin.b) == before
 
 
+@pytest.mark.skipif("matplotlib" not in slp.available(), reason="matplotlib not installed")
+class TestMatplotlibTranslation:
+    def test_fill_false_hollows_errorbar_and_line_markers(self):
+        from matplotlib.colors import to_rgba
+
+        fig = slp.figure(backend="matplotlib")
+        axes = fig.axes()
+        axes.errorbar([0], [1], yerr=[0.1], color="#d60000", fill=False)
+        axes.line([0, 1], [1, 2], marker="o", color="#d60000", fill=False)
+        errorbar_line, line = axes.native.get_lines()
+        for artist in (errorbar_line, line):
+            assert artist.get_markerfacecolor() == "none"
+            assert to_rgba(artist.get_markeredgecolor()) == to_rgba("#d60000")
+        fig.close()
+
+    def test_fill_false_hollows_scatter_points(self):
+        from matplotlib.colors import to_rgba
+
+        fig = slp.figure(backend="matplotlib")
+        fig.axes().points([0, 1], [1, 2], color="#d60000", fill=False)
+        (collection,) = fig.axes().native.collections
+        assert collection.get_facecolors().size == 0
+        np.testing.assert_allclose(collection.get_edgecolors()[0], to_rgba("#d60000"))
+        fig.close()
+
+    def test_filled_is_the_default(self):
+        fig = slp.figure(backend="matplotlib")
+        fig.axes().errorbar([0], [1], yerr=[0.1], color="#d60000")
+        assert fig.axes().native.get_lines()[0].get_markerfacecolor() != "none"
+        fig.close()
+
+    def test_nan_heatmap_cells_are_masked(self):
+        fig = slp.figure(backend="matplotlib")
+        fig.axes().heatmap(np.array([[1.0, np.nan], [0.5, 0.2]]), hover=[["a", "b"], ["c", "d"]])
+        (image,) = fig.axes().native.get_images()
+        assert np.ma.is_masked(image.get_array()[0, 1])
+        fig.close()
+
+
 # ---------------------------------------------------------------------------
 # Every mark works on every installed backend
 # ---------------------------------------------------------------------------
@@ -347,6 +449,23 @@ class TestBackendSmoke:
         axes.contour(np.arange(5), np.arange(5), grid, levels=[0.3, 0.7], labels=True)
         fig.close()
 
+    def test_hollow_markers_render(self, backend):
+        fig = slp.figure(backend=backend)
+        axes = fig.axes()
+        axes.points([0, 1], [1, 2], color="#d60000", fill=False)
+        axes.errorbar([0, 1], [1, 2], yerr=0.1, color="black", fill=False)
+        axes.line([0, 1], [1, 2], marker="o", fill=False)
+        fig.close()
+
+    def test_nan_heatmap_with_hover_renders(self, backend):
+        """NaN cells render empty on every backend: a contract frontends rely on."""
+        values = np.array([[1.0, np.nan], [np.nan, 0.2]])
+        hover = [["a", "b"], ["c", "d"]]
+        fig = slp.figure(backend=backend)
+        fig.axes().heatmap(values, origin="upper", hover=hover)
+        fig.embed_html()
+        fig.close()
+
     def test_grid_layout_with_height_ratios(self, backend):
         fig = slp.figure(2, 2, height_ratios=[3, 1], sharex=True, backend=backend)
         assert fig.shape == (2, 2)
@@ -369,6 +488,20 @@ class TestBackendSmoke:
         out = tmp_path / ("plot.html" if backend == "plotly" else "plot.png")
         fig.save(out)
         assert out.exists() and out.stat().st_size > 0
+        fig.close()
+
+    def test_plotly_html_loads_mathjax(self, backend, tmp_path):
+        if backend != "plotly":
+            pytest.skip("MathJax is used by the Plotly HTML backend")
+        fig = slp.figure(backend="plotly")
+        fig.axes().set(ylabel=r"$E_{\mathrm{cm}}/M_N$")
+        out = tmp_path / "math.html"
+        fig.save(out)
+        for html in (out.read_text(), fig.embed_html()):
+            assert '<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/' in html
+            assert "graph.on('plotly_relayout'" in html
+            assert "Plotly.restyle(graph, {'marker.size': sizes}" in html
+            assert "{plot_id}" not in html
         fig.close()
 
     def test_wrap_is_idempotent_for_wrapped_objects(self, backend):

@@ -28,7 +28,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -334,8 +334,21 @@ class SigmondData:
                        - '.1uP': Pretty-print with ± symbol
                        - '.1uL': LaTeX notation
                        - '.1ue': Scientific notation
+
+        Complex data is formatted as ``re ± im i``, each part with its own error.
         """
+        if self.is_complex:
+            return self._complex_pdg_format(format_spec)
         return f"{self.to_ufloat():{format_spec}}"
+
+    def _complex_pdg_format(self, format_spec: str, **kwargs) -> str:
+        """``re ± im i``: ``pdg_format`` of each part, with its own error."""
+        self._require_scalar("pdg_format")
+        real = self.to_real().pdg_format(format_spec, **kwargs)
+        imag = self._new(self.data.imag, self.observable_info, is_complex=False)
+        imag = imag.pdg_format(format_spec, **kwargs)
+        sign = "-" if imag.startswith("-") else "+"
+        return f"{real} {sign} {imag.removeprefix('-')}i"
 
     @property
     def latex_str(self):
@@ -357,11 +370,27 @@ class SigmondData:
     # Transformations
     # ------------------------------------------------------------------
 
-    def to_real(self):
-        """Return a new instance holding only the real part of the data."""
-        if not self.is_complex:
-            return self
-        return self._new(self.data.real, self.observable_info, is_complex=False)
+    def component(self, component: Literal["real", "imag"]) -> SigmondData:
+        """Project a component, keeping array and cell metadata consistent."""
+        if component not in ("real", "imag"):
+            raise ValueError("component must be 'real' or 'imag'")
+        if component == "imag" and not self.is_complex:
+            raise ValueError("real data has no imaginary part")
+        info = self.observable_info.copy()
+        info.re_im = "re" if component == "real" else "im"
+        data = self.data.real if component == "real" else self.data.imag
+        out = self._new(data, info, is_complex=False)
+        if self.ndim:
+            infos = np.empty(self.shape, dtype=object)
+            for idx in np.ndindex(self.shape):
+                infos[idx] = self.infos[idx].copy()
+                infos[idx].re_im = info.re_im
+            out = out._with_replaced_infos(infos)
+        return out
+
+    def to_real(self) -> SigmondData:
+        """Return the real component with real component metadata."""
+        return self.component("real")
 
     def to_complex(self):
         """Return a new instance with the data promoted to complex dtype."""
@@ -439,6 +468,38 @@ class SigmondData:
         """Integer-based selection; a fully-indexed result is a single observable."""
         self._require_indexable()
         return _nd().isel(self, **kwargs)
+
+    def transpose(self, *dims: str) -> SigmondData:
+        """Reorder the spatial dims (the sample axis stays last)."""
+        self._require_indexable()
+        return _nd().transpose(self, *dims)
+
+    def rename_dims(self, mapping: Mapping[str, str] | None = None, **names: str) -> SigmondData:
+        """Rename spatial dims (their coords follow); ``obj.rename_dims(operator='sink')``."""
+        self._require_indexable()
+        return _nd().rename_dims(self, {**(mapping or {}), **names})
+
+    def diagonal(self, dim1: str, dim2: str, new_dim: str = "diagonal") -> SigmondData:
+        """The diagonal over two equal-length dims, as one new dim (infos are kept)."""
+        self._require_indexable()
+        return _nd().diagonal(self, dim1, dim2, new_dim)
+
+    def apply_matrix(
+        self,
+        matrix,
+        dim: str,
+        *,
+        new_dim: str | None = None,
+        coords=None,
+        conj: bool = False,
+    ) -> SigmondData:
+        """Contract ``dim`` with ``matrix``: ``out[.., b, ..] = sum_a M[a, b] obj[.., a, ..]``.
+
+        Applied identically to every sample. ``conj=True`` uses ``conj(M)``.
+        See :func:`sampling_array.apply_matrix`.
+        """
+        self._require_indexable()
+        return _nd().apply_matrix(self, matrix, dim, new_dim=new_dim, coords=coords, conj=conj)
 
     def _require_indexable(self):
         if not self._dims:

@@ -39,11 +39,16 @@ from types import ModuleType
 from typing import Any
 
 from .base import FEATURES, Axes, Coords, Figure, Origin, UnsupportedFeature
+from .export import BackendExports, ExportCapability, export_capabilities
+from .lifecycle import figure_scope, track_figure
 from .recording import Mark, Recorder, record
 from .style import PlotStyle, get_style, set_style, style_context
 from .text import ensure_math, strip_math, to_display
 
 __all__ = [
+    "export_capabilities",
+    "BackendExports",
+    "ExportCapability",
     "FEATURES",
     "Axes",
     "Coords",
@@ -58,6 +63,7 @@ __all__ = [
     "current",
     "ensure_math",
     "figure",
+    "figure_scope",
     "get_style",
     "record",
     "set_style",
@@ -154,7 +160,7 @@ def figure(
         constrained_layout: matplotlib layout engine; ignored by plotly.
         backend: Backend name; defaults to the active one.
     """
-    return _module(backend).make_figure(
+    return track_figure(_module(backend).make_figure(
         rows,
         cols,
         figsize=figsize,
@@ -164,7 +170,7 @@ def figure(
         sharey=sharey,
         style=style,
         constrained_layout=constrained_layout,
-    )
+    ))
 
 
 def wrap(obj: Any, *, style: PlotStyle | None = None, backend: str | None = None) -> Axes | Figure:

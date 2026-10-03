@@ -36,19 +36,49 @@ from slat.plotting import (
     wrap,
 )
 
+from ..plot_contracts import (
+    PlotDefinition,
+    PlotResult,
+    UncertaintyOptions,
+    get_plot_definition,
+    plot_definitions,
+)
+from ._util import energy_level_hover_text, full_sample_and_bounds
+from .correlators import (
+    CorrelatorMatrixPlotter,
+    CorrelatorPlotter,
+    operator_labels,
+    plot_coverage,
+)
+from .markers import FitOverlay, HMarker
 from .sampling import SamplingPlotter
-from .spectrum import HMarker, SectorSpectrumPlotter, SpectrumPlotter, SpectrumStyle
+from .series import SeriesPlotter, SeriesStyle
+from .spectrum import (
+    PreparedSpectrum,
+    SectorSpectrumPlotter,
+    SpectrumPlotter,
+    SpectrumStyle,
+    draw_spectrum,
+    prepare_spectrum,
+)
 
 __all__ = [
+    "PlotDefinition", "PlotResult", "get_plot_definition", "plot_definitions",
+    "UncertaintyOptions", "PreparedSpectrum", "prepare_spectrum", "draw_spectrum",
     "FEATURES",
     "Axes",
+    "CorrelatorMatrixPlotter",
+    "CorrelatorPlotter",
     "Figure",
+    "FitOverlay",
     "HMarker",
     "Mark",
     "PlotStyle",
     "Recorder",
     "SamplingPlotter",
     "SectorSpectrumPlotter",
+    "SeriesPlotter",
+    "SeriesStyle",
     "SpectrumPlotter",
     "SpectrumStyle",
     "UnsupportedFeature",
@@ -56,7 +86,11 @@ __all__ = [
     "backend",
     "current",
     "figure",
+    "energy_level_hover_text",
+    "full_sample_and_bounds",
     "get_style",
+    "operator_labels",
+    "plot_coverage",
     "record",
     "set_style",
     "style_context",

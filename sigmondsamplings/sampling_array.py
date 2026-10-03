@@ -15,6 +15,9 @@ objects need, and is imported lazily so single observables never import xarray:
   carried along so the per-cell infos stay aligned with the data;
 - arithmetic between N-D operands, broadcast by dim name with exact label
   alignment (mismatched coords raise instead of silently dropping cells);
+- dim operations: :func:`transpose`, :func:`rename_dims`, :func:`diagonal`
+  and the labeled linear map :func:`apply_matrix` (NumPy's ``matmul`` and
+  ``einsum`` cannot be used directly: the sample axis is last);
 - attribute accessors and the batch editor.
 
 ``SigmondDataArray``, ``SigmondSamplingArray`` and ``SigmondBinsArray`` are
@@ -24,7 +27,7 @@ aliases of ``SigmondData``, ``SigmondSampling`` and ``SigmondBins``.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -207,6 +210,7 @@ def from_data(
     coords: dict[str, Sequence] | None = None,
     ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
     is_complex: bool = False,
+    infos: np.ndarray | None = None,
 ) -> SigmondData:
     """Wrap a raw buffer of shape ``S + (N,)``.
 
@@ -214,6 +218,11 @@ def from_data(
     moved last, otherwise the last dim is taken as the sample axis. An ndarray
     gets ``dim_names`` (default ``dim_0, ...``) and ``coords``.
     ``sampling_info=None`` means the buffer holds raw bins.
+
+    ``infos`` optionally gives each cell its own ``ObservableInfo`` (an object
+    array of shape ``S``), e.g. the exact primary key of a derived observable.
+    The objects are used as given, never mutated; without ``infos`` the cells
+    get placeholder infos named by ``name_fn``.
     """
     target = _resolve_cls(cls, sampling_info)
     if isinstance(data, xr.DataArray):
@@ -233,7 +242,11 @@ def from_data(
         if len(dims) != rank:
             raise ValueError(f"dim_names length ({len(dims)}) must match spatial rank ({rank})")
 
+    if infos is not None:
+        infos = _checked_infos(infos, arr.shape[:-1])
     if not dims:
+        if infos is not None:
+            return target._from_parts(arr, infos[()], sampling_info, is_complex)
         info = obs_info if isinstance(obs_info, ObservableInfo) else None
         info = info or ObservableInfo(obs_info, ensemble_info=ensemble_info)
         return target._from_parts(arr, info, sampling_info, is_complex)
@@ -246,8 +259,25 @@ def from_data(
         is_complex,
         dims,
         coords,
-        _default_element_infos(array_info, arr.shape[:-1]),
+        infos if infos is not None else _default_element_infos(array_info, arr.shape[:-1]),
     )
+
+
+def _checked_infos(infos, shape: tuple[int, ...]) -> np.ndarray:
+    """A fresh object array of the given per-cell infos, validated against ``shape``."""
+    src = np.asarray(infos, dtype=object)
+    if src.shape != shape:
+        raise ValueError(f"infos must have shape {shape}, got {src.shape}")
+    out = np.empty(shape, dtype=object)
+    for idx in np.ndindex(*shape):
+        if not isinstance(src[idx], ObservableInfo):
+            raise TypeError(f"infos{list(idx)} is not an ObservableInfo: {src[idx]!r}")
+        out[idx] = src[idx]
+    return out
+
+
+def _attr_getter(attr: str) -> Callable[[ObservableInfo], Any]:
+    return lambda info: getattr(info, attr)
 
 
 def _walk_nested(obj, flat_out: list) -> tuple[int, ...]:
@@ -311,23 +341,36 @@ def from_samplings(
 def from_collection(
     cls,
     source,
-    shape_by: Sequence[str],
+    shape_by: Sequence[str] | Mapping[str, str | Callable[[ObservableInfo], Any]],
     *,
     filter: dict | None = None,
     sort: Sequence[str] | None = None,
     sentinel: SigmondData | float | complex | None = None,
+    missing: str = "fill",
     obs_info: ArrayObsInfo | str = "array",
 ) -> SigmondData:
     """Build from a 1-D iterable / ObservableCollection by pivoting attributes onto axes.
 
-    Each attribute in ``shape_by`` becomes one axis; the axis coords are
-    ``unique(values)`` for that attribute (ordered as in the collection).
+    Each entry of ``shape_by`` becomes one axis; the axis coords are the unique
+    values (ordered as in the collection). A sequence names ``ObservableInfo``
+    attributes. A mapping ``{dim: attr_or_function}`` names the dims itself and
+    may give a key function, called with each item's ``ObservableInfo``.
 
-    If the cartesian product is not fully covered, missing cells are filled
-    with ``sentinel``. ``sentinel`` may be a SigmondSampling/SigmondBins (whose
-    data is used directly), a scalar (broadcast across the sample axis), or
-    ``None`` (zero-fill with a warning). All items must share ``sampling_info``.
+    With ``missing="fill"`` (the default), cells not covered by the inputs are
+    filled with ``sentinel``: a SigmondSampling/SigmondBins (whose data is used
+    directly), a scalar (broadcast across the sample axis), or ``None``
+    (zero-fill with a warning). ``missing="raise"`` rejects any uncovered cell
+    instead. All items must share ``sampling_info``.
     """
+    if missing not in ("fill", "raise"):
+        raise ValueError(f"missing must be 'fill' or 'raise', got {missing!r}")
+    if missing == "raise" and sentinel is not None:
+        raise ValueError("sentinel is only used with missing='fill'")
+    if isinstance(shape_by, Mapping):
+        axes = [(dim, key if callable(key) else _attr_getter(key)) for dim, key in shape_by.items()]
+    else:
+        axes = [(attr, _attr_getter(attr)) for attr in shape_by]
+    shape_by = [dim for dim, _ in axes]
     from .observable_collection import ObservableCollection
 
     collection = (
@@ -341,12 +384,13 @@ def from_collection(
         raise ValueError("from_collection requires a non-empty collection")
 
     # Coords for each axis from unique attribute values (insertion order).
+    keys = [[get(samp.observable_info) for _, get in axes] for samp in collection]
     coords_per_axis: list[list] = []
-    for attr in shape_by:
+    for a in range(len(axes)):
         seen = []
         seen_set = set()
-        for samp in collection:
-            v = getattr(samp.observable_info, attr)
+        for row in keys:
+            v = row[a]
             try:
                 if v not in seen_set:
                     seen_set.add(v)
@@ -381,10 +425,8 @@ def from_collection(
     filled = np.zeros(shape, dtype=bool)
     infos = np.empty(shape, dtype=object)
 
-    for samp in collection:
-        idx = tuple(
-            index_lookup[a][getattr(samp.observable_info, attr)] for a, attr in enumerate(shape_by)
-        )
+    for samp, row in zip(collection, keys):
+        idx = tuple(index_lookup[a][v] for a, v in enumerate(row))
         if filled[idx]:
             raise ValueError(
                 f"Multiple samplings map to cell {idx} for shape_by={list(shape_by)}; "
@@ -394,6 +436,14 @@ def from_collection(
         infos[idx] = samp.observable_info
         filled[idx] = True
 
+    if missing == "raise" and not filled.all():
+        holes = [
+            {dim: coords_per_axis[a][i] for a, (dim, i) in enumerate(zip(shape_by, idx))}
+            for idx in zip(*np.nonzero(~filled))
+        ]
+        shown = "\n".join(f"  {h}" for h in holes[:10])
+        more = f"\n  ... and {len(holes) - 10} more" if len(holes) > 10 else ""
+        raise ValueError(f"from_collection: {len(holes)} cell(s) missing:\n{shown}{more}")
     if sentinel is None and not filled.all():
         warnings.warn(
             f"from_collection: {int((~filled).sum())} cell(s) not specified by inputs; "
@@ -443,6 +493,17 @@ def _from_xr(template: SigmondData, x: xr.DataArray) -> SigmondData:
     if not dims:
         infos = np.asarray(infos, dtype=object).reshape(())
     coords = {d: x.indexes[d].values for d in dims if d in x.indexes}
+    for d in dims:
+        if d not in coords:
+            # Vectorized indexing (e.g. a diagonal) leaves the source dims' labels
+            # as non-index coords along the new dim; keep them if they agree.
+            along = [
+                np.asarray(c.values)
+                for name, c in x.coords.items()
+                if name != _CELL_COORD and c.dims == (d,)
+            ]
+            if along and all(np.array_equal(along[0], v) for v in along[1:]):
+                coords[d] = along[0]
     return _build(
         _kind_cls(template.sampling_info),
         np.asarray(x.values),
@@ -488,6 +549,148 @@ def getitem(obj: SigmondData, key) -> SigmondData:
             "(the sample axis cannot be indexed; use .data)"
         )
     return isel(obj, **dict(zip(obj.dims, key)))
+
+
+# ---------------------------------------------------------------------------
+# Dim operations: transpose, rename, diagonal, linear maps
+# ---------------------------------------------------------------------------
+
+
+def _axis(obj: SigmondData, dim: str) -> int:
+    try:
+        return obj.dims.index(dim)
+    except ValueError:
+        raise KeyError(f"no dim {dim!r}; dims are {obj.dims}") from None
+
+
+def transpose(obj: SigmondData, *dims: str) -> SigmondData:
+    """Reorder the spatial dims; ``dims`` must be a permutation of ``obj.dims``."""
+    if sorted(dims) != sorted(obj.dims):
+        raise ValueError(f"transpose needs a permutation of {obj.dims}, got {dims}")
+    perm = [_axis(obj, d) for d in dims]
+    return _kind_cls(obj.sampling_info)._from_parts(
+        np.transpose(obj.data, perm + [obj.ndim]),
+        obj.observable_info,
+        obj.sampling_info,
+        obj.is_complex,
+        tuple(dims),
+        dict(obj.coords),
+        np.transpose(obj.infos, perm),
+    )
+
+
+def rename_dims(obj: SigmondData, mapping: Mapping[str, str]) -> SigmondData:
+    """Rename spatial dims; their coords move with them. Data and infos are shared."""
+    for old in mapping:
+        _axis(obj, old)
+    dims = tuple(mapping.get(d, d) for d in obj.dims)
+    if len(set(dims)) != len(dims) or SAMPLE_DIM in dims:
+        raise ValueError(f"renaming {obj.dims} with {dict(mapping)} gives invalid dims {dims}")
+    coords = {mapping.get(d, d): v for d, v in obj.coords.items()}
+    return _kind_cls(obj.sampling_info)._from_parts(
+        obj.data, obj.observable_info, obj.sampling_info, obj.is_complex, dims, coords, obj.infos
+    )
+
+
+def diagonal(obj: SigmondData, dim1: str, dim2: str, new_dim: str = "diagonal") -> SigmondData:
+    """Cells with equal positions along ``dim1`` and ``dim2``, as one new dim.
+
+    The dims must have equal length and, where both are labeled, equal
+    coords; the new dim takes those coords. It sits where ``dim1`` was. The
+    per-cell infos of the selected cells are kept.
+    """
+    a1, a2 = _axis(obj, dim1), _axis(obj, dim2)
+    if a1 == a2:
+        raise ValueError("diagonal needs two different dims")
+    n = obj.shape[a1]
+    if obj.shape[a2] != n:
+        raise ValueError(f"dims {dim1!r} and {dim2!r} have different lengths")
+    c1, c2 = obj.coords.get(dim1), obj.coords.get(dim2)
+    if c1 is not None and c2 is not None and not np.array_equal(c1, c2):
+        raise ValueError(f"dims {dim1!r} and {dim2!r} have different coords")
+    labels = c1 if c1 is not None else c2
+    rest = [d for d in obj.dims if d not in (dim1, dim2)]
+    if new_dim in rest or new_dim == SAMPLE_DIM:
+        raise ValueError(f"new dim {new_dim!r} collides with an existing dim")
+    where = sum(1 for d in obj.dims[:a1] if d != dim2)
+    idx = np.arange(n)
+
+    def take(arr):
+        moved = np.moveaxis(arr, [a1, a2], [0, 1])[idx, idx]
+        return np.moveaxis(moved, 0, where)
+
+    dims = tuple(rest[:where]) + (new_dim,) + tuple(rest[where:])
+    coords = {d: v for d, v in obj.coords.items() if d in rest}
+    if labels is not None:
+        coords[new_dim] = labels
+    return _kind_cls(obj.sampling_info)._from_parts(
+        take(obj.data),
+        obj.observable_info,
+        obj.sampling_info,
+        obj.is_complex,
+        dims,
+        coords,
+        take(obj.infos),
+    )
+
+
+def _contract(data, matrix, axis: int):
+    return np.moveaxis(np.tensordot(data, matrix, axes=([axis], [0])), -1, axis)
+
+
+def apply_matrix(
+    obj: SigmondData,
+    matrix,
+    dim: str,
+    *,
+    new_dim: str | None = None,
+    coords: Sequence | None = None,
+    conj: bool = False,
+) -> SigmondData:
+    """Apply a linear map over one labeled dim, identically to every sample.
+
+    ``out[..., b, ...] = sum_a M[a, b] * obj[..., a, ...]`` with ``M = matrix``
+    (or ``conj(matrix)`` if ``conj``), of shape ``(len(dim), n_out)``. The
+    result keeps ``dim``'s position under ``new_dim`` (default: the same name)
+    with ``coords`` as its labels. The map is linear, so it is exact for bins
+    and for every resample of a sampling alike. Cells get placeholder infos.
+    """
+    axis = _axis(obj, dim)
+    m = np.asarray(matrix)
+    if m.ndim != 2 or m.shape[0] != obj.shape[axis]:
+        raise ValueError(
+            f"matrix must have shape ({obj.shape[axis]}, n_out) to act on {dim!r}, got {m.shape}"
+        )
+    if not np.all(np.isfinite(m)):
+        raise ValueError("matrix has non-finite entries")
+    if conj:
+        m = np.conj(m)
+    new_dim = dim if new_dim is None else new_dim
+    if new_dim != dim and (new_dim in obj.dims or new_dim == SAMPLE_DIM):
+        raise ValueError(f"new dim {new_dim!r} collides with an existing dim")
+    if coords is not None and len(coords) != m.shape[1]:
+        raise ValueError(f"coords has {len(coords)} labels for {m.shape[1]} outputs")
+
+    data = _contract(obj.data, m, axis)
+    is_complex = obj.is_complex or np.iscomplexobj(m)
+    if not is_complex:
+        data = data.real
+    dims = obj.dims[:axis] + (new_dim,) + obj.dims[axis + 1 :]
+    new_coords = {d: v for d, v in obj.coords.items() if d != dim}
+    if coords is not None:
+        new_coords[new_dim] = list(coords)
+    array_info = obj.observable_info
+    if not isinstance(array_info, ArrayObsInfo):
+        array_info = ArrayObsInfo(array_info.name, ensemble_info=array_info.ensemble_info)
+    return _kind_cls(obj.sampling_info)._from_parts(
+        data,
+        array_info,
+        obj.sampling_info,
+        is_complex,
+        dims,
+        new_coords,
+        _default_element_infos(array_info, data.shape[:-1]),
+    )
 
 
 def to_collection(obj: SigmondData):

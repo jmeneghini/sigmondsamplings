@@ -330,20 +330,18 @@ IRREP_LATEX_MAP: dict[str, str] = {
     "G1g": r"G_{1g}",
     "G1u": r"G_{1u}",
     "G2": r"G_2",
+    "G2g": r"G_{2g}",
+    "G2u": r"G_{2u}",
     "Hg": r"H_{g}",
     "Hu": r"H_{u}",
 }
 
-_latex_format_addp = {
-    irrep + "p": latex_format[:-1] + "^{+}$"
-    for irrep, latex_format in IRREP_LATEX_MAP.items()
-}
-_latex_format_addm = {
-    irrep + "m": latex_format[:-1] + "^{-}$"
-    for irrep, latex_format in IRREP_LATEX_MAP.items()
-}
-IRREP_LATEX_MAP.update(_latex_format_addp)
-IRREP_LATEX_MAP.update(_latex_format_addm)
+# G-parity variants (``A1um`` -> ``A_{1u}^{-}``). Every irrep in Sigmond's table
+# (``slat.sigmond_names.LG_IRREPS``) is covered.
+IRREP_LATEX_MAP.update(
+    {irrep + "p": latex + "^{+}" for irrep, latex in list(IRREP_LATEX_MAP.items())}
+    | {irrep + "m": latex + "^{-}" for irrep, latex in list(IRREP_LATEX_MAP.items())}
+)
 
 
 def get_irrep_latex_str(irrep_name: str) -> str:

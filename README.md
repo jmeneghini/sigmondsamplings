@@ -12,11 +12,13 @@
 
 - **Convenient Many-Observable Data Structures**: In-memory `ObservableCollection` objects act as queryable containers, providing batched accessors along with `filter`, `find`, `group_by`, and `sort` methods. `EnergyObsInfo` can be constructed by flexibly parsing observable names and extracting level info, which can then be stored in specialized `Single/MultiEnsembleEnergyCollection` objects with accessors like `irreps`, `psq_values`, and `group_by_irrep()`.
 
+- **Operators and Correlation Matrices**: Sigmond's BL/GI operator labels, `CorrT` correlator keys and VEV keys parse into immutable, hashable objects (`BasicLapHOperator`, `GenIrrepOperator`, `CorrelatorAtTimeInfo`, `VEVInfo`) that print Sigmond's canonical short form. Loaded correlators carry typed infos, so they filter and group like other observables. A metadata-only `CorrelatorIndex` (`loader.correlators`) finds them, and `index.matrix(operators)` assembles a complete, labeled `(time, sink, source)` matrix with Hermitian completion, VEV subtraction (bins are resampled jointly before subtracting) and complex basis changes. See `docs/operators_correlators_api_design.md`.
+
 - **Plotting**: General observable plots, such as histograms and corner plots, are provided by `SamplingPlotter`. Spectrum plotting of energy levels is provided by `SpectrumPlotter`, and a WIP fit-result plotter lives in `fitting/fit_plotter.py`.
 
 - **Runtime Configuration**: Global `rcparams` support package-level defaults for plotting behavior, metric selection, confidence levels, color/marker palettes, and the `KnownEnsembles` XML database path. Settings can be temporarily overridden or saved/loaded from TOML config files.
 
-- **CLI Utilities**: The package installs a single `ss` command. `ss query` inspects/queries files (`groups`, `info`, `obs`, `energy`); `ss convert`, `ss combine`, and `ss edit` write HDF5 (convert an fstream/HDF5 file, combine several sampling files, or edit an observable set).
+- **CLI Utilities**: The package installs a single `ss` command. `ss query` inspects/queries files (`groups`, `info`, `obs`, `energy`, `corr`); `ss convert`, `ss combine`, and `ss edit` write HDF5 (convert an fstream/HDF5 file, combine several sampling files, or edit an observable set).
 
   `ss edit` retags observables as energy levels, rewrites attributes, adds derived observables, and prunes, all on the way to a new file:
 
@@ -211,6 +213,156 @@ print(energy_levels.filter(irrep = 'A1g', psq = 0))
 print(energy_levels.filter(irrep = ['A1', 'A2'], psq = 1)) # returns collections
 
 ```
+
+### Plot an Energy Spectrum
+
+Spectrum points use the full-sample value. By default their uncertainty is the
+statistical error; bootstrap percentiles provide asymmetric bounds:
+
+```python
+from sigmondsamplings import plotting as ssp
+
+reference = ssp.HMarker.from_sampling(
+    energy_levels[0], percentiles=(16, 84), label="reference",
+    ni_pair="N(0)N(0)",
+)
+axes = ssp.SectorSpectrumPlotter(energy_levels).plot(
+    energy_type="ecm",
+    percentiles=(16, 84),
+    markers=[reference],
+    backend="plotly",
+)
+axes.figure.save("spectrum.html")
+```
+
+Plotly HTML exports and embedded plots enlarge markers gently as you zoom in,
+using the fifth root of the zoom factor up to 1.5 times their initial size.
+Resetting the axes restores the initial sizes. This callback is included by
+`save` and `embed_html`; direct use of the native Plotly figure does not include it.
+
+`HMarker.hover` supplies interactive hover text without a visible annotation;
+`label` supplies the visible annotation independently. This works on spectrum
+and series overlays. Slat's `axes.hlines(..., hover=...)` also accepts a shared
+string or one string per segment; Matplotlib ignores hover text.
+In Plotly HTML exports, horizontal-line hover targets cover the visible line
+and are refreshed on zoom, pan and resize to keep their screen spacing small.
+
+`HMarker.from_sampling` retains the sampling and automatically shows its
+full-sample energy in PDG notation with the Gaussian statistical error, followed
+by the percentile bounds. Spectrum points use the same summary. `ni_pair` adds
+the compact particle pair to a marker's summary; explicit `hover` overrides it.
+
+`confidence_level=0.68` is an alternative to explicit percentiles. Both levels
+and `HMarker.from_sampling` also honor `plot.error_metric="confidence_interval"`
+and `plot.confidence_level`. Percentiles use bootstrap resamples, excluding the
+full-sample entry, and are unavailable for jackknife data. The point remains at
+the full-sample value even when it lies outside the percentile interval.
+
+`energy_type=` filters the plotted data. All plotted groups must share the same
+energy type and reference-particle normalization; labels come from those groups.
+Colors follow `level_index`, so reordering or filtering levels preserves their
+colors (missing indices use the first color). Columns are evenly spaced, with
+vertical separators between outer groups rather than extra horizontal gaps.
+`SpectrumStyle.group_separator_color`, `group_separator_linewidth`, and
+`group_separator_linestyle` control the separators. They extend below the x-axis
+as larger ticks; `group_separator_tick_length` sets that extension in points
+(default 10). Automatic y limits include marker
+lines and bands. Existing explicit axes limits are preserved; pass `xlim=` or
+`ylim=` to override them.
+
+### Work with Correlation Matrices
+
+The loader gives every `<CorrT>` correlator and `<VEV>` observable a typed
+info (`CorrelatorObsInfo`, `VEVObsInfo`), so correlators can be queried like
+any other observable (`filter(obs_kind="correlator", time=8)`,
+`ss query obs f.hdf5 --where obs_kind=correlator psq=0`). Building the index and
+listing its contents never reads samples. A matrix request reads only the
+selected cells and times, and never zero-fills a missing cell.
+
+```python
+from sigmondsamplings import SigmondLoader
+
+loader = SigmondLoader("corrs.hdf5", lazy=True)
+at_t8 = loader.observables.filter(obs_kind="correlator", time=8)
+index = loader.correlators                        # CorrelatorIndex, metadata only
+print(index.channels)                             # candidate bases, by channel
+
+ops = ["pion P=(0,0,0) A1um_1 SD_5 D4", "pion P=(0,0,0) A1um_1 SS_1"]
+matrix = index.matrix(ops, times=range(4, 21))    # Hermitian by default
+c01 = matrix.correlator(ops[0], ops[1])           # 1-D SigmondData over time
+print(c01.sel(time=8).full_sample_value)
+print(matrix.diagonal().mean)                     # xarray over (time, operator)
+print(matrix.at(8).as_xarray())                   # the (sink, source) matrix at t=8
+print(matrix.key_form, matrix.stored.sel(time=8).values)  # how the cells were read
+```
+
+`matrix.values` is an ordinary N-D `SigmondSampling`/`SigmondBins`, so
+statistics, arithmetic, `.sel`/`.isel` and `.to_collection()` work as usual.
+Operators may be given as short strings or as `BasicLapHOperator`/`GenIrrepOperator`
+objects. One stored key form (`"HermMat"`, `"plain"`, `"SubVEV"`, ...) is used
+per request; if a file holds several for the basis, the request raises and
+`key_form=` chooses. Connected correlators use `subtract_vev=True` (pass
+`sampling_info=` when the file holds bins), basis changes use
+`matrix.transform(T, new_gi_operators)` (`C_new = T^H C T`), and
+`matrix.write("out.hdf5", group=...)` writes keys that Sigmond reads back. To
+fit a correlator, pass the 1-D series to `SamplingFit.from_data` with a model of
+`x`. It uses the series' `time` coord as `x` (`x=` picks the dim by name). Complex
+data must be projected to a real component first:
+
+```python
+from sigmondsamplings import CallableXModel, ParamSetSpec, ParamSpec, SamplingFit
+
+series = matrix.diagonal(component="real").sel(operator=matrix.operators[0].coordinate)
+model = CallableXModel(lambda t, theta: theta[0] * np.exp(-theta[1] * t), ("A", "E"))
+param_set = ParamSetSpec(values={"A": ParamSpec(initial=1.0), "E": ParamSpec(initial=0.3)}).resolve()
+fit = SamplingFit.from_data(series, model, param_set)   # fit.x holds the times
+result = fit.fit_resampled()
+```
+
+The runnable [matrix example](examples/correlator_matrix.py) needs no fitting
+library. `index.matrix(channel)` accepts a discovered channel, and
+`index.correlator(op)` requests its diagonal. Single-correlator requests follow
+the unique stored form; conflicting forms require `key_form=` (CLI:
+`--key-form`). `matrix.transform(T, name="ROT")` generates GI labels from the
+channel. `sel()`, `at()` and `correlator()` return ordinary `SigmondData`;
+`select()` and `sel_times()` preserve the matrix wrapper and its provenance.
+
+Indices snapshot mutable metadata. After renaming observations, call
+`loader.refresh_correlators()` to rebuild; existing indices keep their original
+metadata. Coverage and available bases check metadata, including usable real
+parts, VEVs and compatible directions; assembly may still require a bins
+resampling plan or encounter a read failure. Channels group physical quantum
+numbers, so discovery can return separate forward and backward sub-bases.
+
+`key_form` describes stored keys; `info.hermitian` requests averaging and
+completion. A Hermitian request has already erased off-diagonal disagreement;
+use `hermitian=False` to inspect the original directions. Numerical diagnostics
+reject non-finite data. Forward effective energies need a positive integer step
+and exact neighbouring coordinates, but no lattice extent. Symmetric kinds
+require the extent. Existing coordinates with invalid samples follow the chosen
+`on_fail` policy.
+
+Operator strings, coordinates, XML and pickle preserve Python identity.
+`to_sigmond()` retains Sigmond's exact stored-key spelling, including its lossy
+tetraquark displacement omission; compatibility key export uses that spelling.
+
+From the command line, `ss query corr` shows the same index:
+
+```bash
+ss query corr corrs.hdf5                          # stored series: sink, source, key form, times
+ss query corr corrs.hdf5 --operators              # numbered operators (also --channels, --vevs)
+ss query corr corrs.hdf5 --sink 0 --source 1      # one correlator over time
+ss query corr corrs.hdf5 --matrix 0 --time 8      # a channel's matrix at t=8 (Hermitian by default)
+ss query corr bins.hdf5 --matrix 0 --subtract-vev --sampling jackknife
+```
+
+Operators and channels are picked by their number in the listings or by label
+(a short operator string, or a unique substring of the channel). Complex values
+are shown as `re ± im i`; bins need `--sampling jackknife` or
+`--sampling bootstrap:N[:SEED]` to subtract VEVs.
+
+The benchmark in `benchmarks/correlator_matrix.py` times loading, the index
+build, a one-time request and full assembly on a synthetic file.
 
 ### Write HDF5 Output
 

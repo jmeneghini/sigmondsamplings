@@ -11,7 +11,7 @@ from pathlib import Path
 import typer
 
 from .edit import edit
-from .plot import GENERIC_PLOT_METHODS
+from .plot import CORRELATOR_PLOT_METHODS, GENERIC_PLOT_METHODS
 from .query import (
     ENERGY_DEFAULT_SORT,
     QUERY_FORMATS,
@@ -165,6 +165,213 @@ def energy(
         fmt=fmt,
         save=save,
     )
+
+
+@query_app.command()
+def corr(
+    file: Path,
+    operators: bool = typer.Option(False, "--operators", help="List operators, numbered for --sink/--source."),
+    channels: bool = typer.Option(False, "--channels", help="List channels, numbered for --matrix."),
+    vevs: bool = typer.Option(False, "--vevs", help="List stored VEVs with their values."),
+    sink: str | None = typer.Option(None, "--sink", help="Sink operator (number from --operators, or short string)."),
+    source: str | None = typer.Option(None, "--source", help="Source operator (number from --operators, or short string)."),
+    matrix: str | None = typer.Option(None, "--matrix", help="Show the correlation matrix of a channel (number from --channels, or label substring)."),
+    times: str | None = typer.Option(None, "--times", help="Comma-separated times for --sink/--source (default: all stored)."),
+    ops: str | None = typer.Option(None, "--ops", help="Operators for --matrix, as numbers from --operators (e.g. 0-6,8; default: the whole channel)."),
+    time: int | None = typer.Option(None, "--time", help="Time for --matrix (default: the first complete time of the selected basis)."),
+    hermitian: bool | None = typer.Option(None, "--hermitian/--no-hermitian", help="Use (or derive) hermitian-averaged correlators. Default: on for --matrix; for --sink/--source, off unless the correlator is stored only as HermMat."),
+    subtract_vev: bool = typer.Option(False, "--subtract-vev", help="Use (or derive) VEV-subtracted correlators (bins need --sampling)."),
+    key_form: str | None = typer.Option(None, "--key-form", help="Stored form: plain, HermMat, SubVEV, or HermMat SubVEV."),
+    sampling: str | None = typer.Option(None, "--sampling", help="Resample bins before display: 'jackknife' or 'bootstrap:N[:SEED]'."),
+    plot: str | None = typer.Option(None, "--plot", help=f"Plot the selection instead of listing it: {', '.join(CORRELATOR_PLOT_METHODS)}."),
+    plot_output: Path | None = typer.Option(None, "--plot-output", help="Write plot to this path."),
+    no_gui: bool = typer.Option(False, "--no-gui", help="Do not display the plot GUI."),
+    plot_panels: str | None = typer.Option(None, "--plot-panels", help="Comma-separated summary panels."),
+    plot_backend: str | None = typer.Option(None, "--plot-backend", help="Plotting backend: matplotlib (default) or plotly."),
+    latex: bool = typer.Option(False, "--latex", help="Render plot text with matplotlib's LaTeX engine."),
+    eff_kind: str = typer.Option("forward", "--eff-kind", help="Effective-energy kind: forward, symmetric, forward-const or symmetric-const."),
+    eff_step: int = typer.Option(1, "--eff-step", min=1, help="Effective-energy time step."),
+    time_extent: int | None = typer.Option(None, "--time-extent", min=1, help="Lattice time extent T for effective energies (default: the ensemble's)."),
+    norm_time: int | None = typer.Option(None, "--norm-time", help="Normalize matrix plots at this time (grid, heatmap, summary)."),
+    plot_value: str | None = typer.Option(None, "--plot-value", help="Heatmap value: normalized (default), significance or hermiticity."),
+    group: str | None = typer.Option(None, "--group", help="HDF5 root group to read."),
+    fmt: str = typer.Option("table", "--format", help="Output format: table, json, or csv."),
+) -> None:
+    """Query correlators: stored series by default, or operators, channels, VEVs, one correlator, or a matrix."""
+    from . import corr as views
+
+    _check_format(fmt)
+    single = sink is not None or source is not None
+    modes = sum(bool(m) for m in (operators, channels, vevs, single, matrix))
+    if modes > 1:
+        raise typer.BadParameter(
+            "Use only one of --operators, --channels, --vevs, --sink/--source, or --matrix."
+        )
+    if single and (sink is None or source is None):
+        raise typer.BadParameter("--sink and --source must be given together.")
+    if times is not None and not single:
+        raise typer.BadParameter("--times requires --sink/--source.")
+    if time is not None and not matrix:
+        raise typer.BadParameter("--time requires --matrix.")
+    plot_options_used = (
+        plot_output is not None
+        or no_gui
+        or plot_panels is not None
+        or plot_backend is not None
+        or latex
+        or eff_kind != "forward"
+        or eff_step != 1
+        or time_extent is not None
+        or norm_time is not None
+        or plot_value is not None
+    )
+    if plot_options_used and plot is None:
+        raise typer.BadParameter("Plot options require --plot.")
+    if plot is not None:
+        if plot not in CORRELATOR_PLOT_METHODS:
+            raise typer.BadParameter(
+                f"Unknown --plot {plot!r}. Expected one of: {', '.join(CORRELATOR_PLOT_METHODS)}"
+            )
+        if not (single or matrix):
+            raise typer.BadParameter("--plot requires --sink/--source or --matrix.")
+        if plot_value is not None and plot != "heatmap":
+            raise typer.BadParameter("--plot-value applies to --plot heatmap.")
+        if matrix and time is not None and plot not in ("heatmap", "summary"):
+            raise typer.BadParameter("--time applies to the heatmap and summary plots.")
+    if ops is not None and not matrix:
+        raise typer.BadParameter("--ops requires --matrix.")
+    if (hermitian is not None or subtract_vev or sampling or key_form is not None) and not (single or matrix):
+        raise typer.BadParameter(
+            "--hermitian, --subtract-vev and --sampling require --sink/--source or --matrix."
+        )
+
+    try:
+        index = views.load_index(file, group=group)
+        sampling_info = views.parse_sampling(index, sampling) if sampling else None
+        if plot is not None:
+            _plot_correlators(
+                views,
+                index,
+                plot,
+                single=single,
+                sink=sink,
+                source=source,
+                times=times,
+                matrix=matrix,
+                ops=ops,
+                time=time,
+                hermitian=hermitian,
+                subtract_vev=subtract_vev,
+                key_form=key_form,
+                sampling_info=sampling_info,
+                output=plot_output,
+                show=not no_gui,
+                panels=plot_panels,
+                backend=plot_backend,
+                latex=latex,
+                eff_kind=eff_kind,
+                eff_step=eff_step,
+                time_extent=time_extent,
+                norm_time=norm_time,
+                value=plot_value,
+            )
+            return
+        if operators:
+            records = views.operator_records(index)
+        elif channels:
+            records = views.channel_records(index)
+        elif vevs:
+            records = views.vev_records(index)
+        elif single:
+            time_list = [int(t) for t in times.split(",")] if times else None
+            records = views.correlator_records(
+                index,
+                sink,
+                source,
+                times=time_list,
+                hermitian=hermitian,
+                subtract_vev=subtract_vev,
+                key_form=key_form,
+                sampling_info=sampling_info,
+            )
+        elif matrix:
+            shown, records = views.matrix_records(
+                index,
+                matrix,
+                time,
+                hermitian=True if hermitian is None else hermitian,
+                subtract_vev=subtract_vev,
+                key_form=key_form,
+                sampling_info=sampling_info,
+                operators=views.parse_operator_numbers(ops) if ops is not None else None,
+            )
+            if fmt == "table":
+                typer.echo(f"time = {shown}")
+        else:
+            records = views.series_records(index)
+    except (KeyError, ValueError) as exc:
+        message = (
+            str(exc)
+            .strip("'\"")
+            .replace(
+                "set hermitian=/subtract_vev= to match", "use --hermitian/--subtract-vev to match"
+            )
+            .replace("pass time_extent= explicitly", "pass --time-extent")
+        )
+        raise typer.BadParameter(message) from exc
+    render_records(records, fmt=fmt)
+
+
+def _plot_correlators(
+    views,
+    index,
+    method: str,
+    *,
+    single: bool,
+    sink,
+    source,
+    times,
+    matrix,
+    ops,
+    time,
+    hermitian,
+    subtract_vev,
+    key_form,
+    sampling_info,
+    **render,
+) -> None:
+    """Build what ``ss query corr`` selected and hand it to the correlator renderer."""
+    from .plot import render_correlator_plot
+
+    if index.is_bins and sampling_info is None and method != "coverage":
+        raise ValueError(
+            "plots of bins need --sampling (e.g. --sampling jackknife): errors and effective "
+            "energies are computed from samplings"
+        )
+    if single:
+        data = views.single_correlator(
+            index,
+            sink,
+            source,
+            times=[int(t) for t in times.split(",")] if times else None,
+            hermitian=hermitian,
+            subtract_vev=subtract_vev,
+            key_form=key_form,
+            sampling_info=sampling_info,
+        )
+        render_correlator_plot(data, method=method, **render)
+        return
+    numbers = views.parse_operator_numbers(ops) if ops is not None else None
+    flags = {"hermitian": True if hermitian is None else hermitian, "subtract_vev": subtract_vev, "key_form": key_form}
+    if method == "coverage":
+        data = views.channel_coverage(index, matrix, operators=numbers, **flags)
+        labels = views.operator_numbers(index, data.attrs["operators"])
+    else:
+        data = views.channel_matrix(
+            index, matrix, operators=numbers, sampling_info=sampling_info, **flags
+        )
+        labels = views.operator_numbers(index, data.operators)
+    render_correlator_plot(data, method=method, labels=labels, time=time, **render)
 
 
 def _query_view(

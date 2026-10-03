@@ -34,6 +34,8 @@ __all__ = [
     "HDF5ObservableRecord",
     "LazySigmondSampling",
     "LazySigmondBins",
+    "materialize",
+    "stack_data",
 ]
 
 
@@ -84,15 +86,93 @@ class HDF5ObservableRecord:
         return int(shape[0])
 
 
-def _read_record(record: HDF5ObservableRecord) -> np.ndarray:
-    """Materialization phase: read and fuse exactly the dataset(s) for one observable."""
-    with h5py.File(record.file.filename, "r") as f:
-        group = f[record.file.values_group]
-        re_part = group[record.real_name][:] if record.real_name is not None else None
-        im_part = group[record.imag_name][:] if record.imag_name is not None else None
+def _read_from_group(group: h5py.Group, record: HDF5ObservableRecord) -> np.ndarray:
+    """Read and fuse exactly the dataset(s) for one observable from an open group."""
+    re_part = group[record.real_name][:] if record.real_name is not None else None
+    im_part = group[record.imag_name][:] if record.imag_name is not None else None
     if re_part is not None and im_part is not None:
         return re_part + 1j * im_part
     return re_part if re_part is not None else im_part
+
+
+def _read_record(record: HDF5ObservableRecord) -> np.ndarray:
+    """Materialization phase: read and fuse exactly the dataset(s) for one observable."""
+    with h5py.File(record.file.filename, "r") as f:
+        return _read_from_group(f[record.file.values_group], record)
+
+
+def _read_into(gid, name: str, row: np.ndarray) -> None:
+    """Read one 1-D dataset straight into the contiguous ``row``."""
+    dsid = h5py.h5d.open(gid, name.encode())
+    if dsid.shape != row.shape:
+        raise ValueError(f"dataset {name!r} has shape {dsid.shape}, expected {row.shape}")
+    dsid.read(h5py.h5s.ALL, h5py.h5s.ALL, row)
+
+
+def _read_records(file_ref: _FileRef, records) -> np.ndarray:
+    """Read and fuse the records of one file into one ``(n, length)`` array.
+
+    Each dataset is read straight into its row through h5py's low-level API
+    (no per-dataset ``Dataset`` objects). The array is complex if any record is.
+    """
+    lengths = {r.sample_length for r in records}
+    if len(lengths) != 1:
+        raise ValueError(f"records have different sample lengths: {sorted(lengths)}")
+    n, length = len(records), lengths.pop()
+    re = np.empty((n, length))
+    im = np.zeros((n, length)) if any(r.is_complex for r in records) else None
+    with h5py.File(file_ref.filename, "r") as f:
+        gid = f[file_ref.values_group].id
+        for k, rec in enumerate(records):
+            if rec.real_name is not None:
+                _read_into(gid, rec.real_name, re[k])
+                if rec.imag_name is not None:
+                    _read_into(gid, rec.imag_name, im[k])
+            else:  # a lone imaginary part is read as the (real) data, as _read_record does
+                _read_into(gid, rec.imag_name, re[k])
+    if im is None:
+        return re
+    out = np.empty((n, length), dtype=complex)
+    out.real, out.imag = re, im
+    return out
+
+
+def materialize(observables) -> None:
+    """Read every unmaterialized lazy observable in ``observables`` in one pass per file.
+
+    Reading lazy records one at a time through ``.data`` reopens the HDF5 file
+    and builds h5py objects per dataset; this opens each file once and reads
+    each dataset straight into one preallocated array, several times faster.
+    Every observable then caches a view of its row. Eager observables are left
+    alone.
+    """
+    pending: dict[_FileRef, list] = {}
+    for o in observables:
+        if isinstance(o, LazyDataMixin) and not o.is_materialized:
+            pending.setdefault(o._record.file, []).append(o)
+    for file_ref, objs in pending.items():
+        unique = list({id(o): o for o in objs}.values())
+        block = _read_records(file_ref, [o._record for o in unique])
+        for row, o in zip(block, unique):
+            o._data_cache = row if o.is_complex == np.iscomplexobj(block) else row.real.copy()
+
+
+def stack_data(observables) -> np.ndarray:
+    """The ``(len(observables), S)`` stack of the observables' sample arrays.
+
+    Lazy observables are read first with :func:`materialize`. Every observable
+    must have the same sample length; the result is complex if any observable is.
+    """
+    obs = list(observables)
+    if not obs:
+        raise ValueError("stack_data needs at least one observable")
+    lengths = {o._sample_length for o in obs}
+    if len(lengths) != 1:
+        raise ValueError(f"observables have different sample lengths: {sorted(lengths)}")
+    materialize(obs)
+    dtype = complex if any(o.is_complex for o in obs) else float
+    out = np.empty((len(obs), lengths.pop()), dtype=dtype)
+    return np.stack([o.data for o in obs], out=out)
 
 
 class LazyDataMixin:
@@ -104,6 +184,10 @@ class LazyDataMixin:
 
     # Minimum sample length expected after read (overridden per concrete type).
     _min_data_len = 1
+
+    @property
+    def _sample_length(self) -> int:
+        return self._record.sample_length
 
     @property
     def data(self) -> np.ndarray:
@@ -122,8 +206,7 @@ class LazyDataMixin:
             raise ValueError(f"{type(self).__name__} data must be 1-dimensional")
         if len(arr) < self._min_data_len:
             raise ValueError(
-                f"{type(self).__name__} data must have at least "
-                f"{self._min_data_len} element(s)"
+                f"{type(self).__name__} data must have at least {self._min_data_len} element(s)"
             )
         return arr.astype(complex) if self.is_complex else arr.astype(float)
 
@@ -195,6 +278,5 @@ class LazySigmondBins(LazyDataMixin, SigmondBins):
         if self.is_materialized:
             return super().__repr__()
         return (
-            f"LazySigmondBins(name='{self.observable_info}', "
-            f"n_bins={self.num_bins}, state='lazy')"
+            f"LazySigmondBins(name='{self.observable_info}', n_bins={self.num_bins}, state='lazy')"
         )

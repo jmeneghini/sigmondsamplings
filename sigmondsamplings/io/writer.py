@@ -37,6 +37,23 @@ WriteMode = Literal["a", "w"]
 FileKind = Literal["samplings", "bins"]
 DatasetRow = tuple[str, np.ndarray, dict | None]
 
+# Metadata-cache size used while writing (HDF5's ceiling, H5C__MAX_MAX_CACHE_SIZE).
+# Sigmond's ``Values`` group is an old-style symbol-table group: every link name
+# lives in one local heap that grows with the observable count. Once that heap
+# outgrows HDF5's default cache (2 MiB initial, adaptive, which never catches up)
+# it is flushed and reloaded on every insert, making writes quadratic. A cache
+# that starts large and never shrinks keeps them linear; it is only an upper
+# bound, so small files do not use more memory. The file format is unchanged.
+_WRITE_MDC_BYTES = 128 << 20
+
+# Sigmond's <TweakEnsemble> tag names, keyed by EnsembleInfo's lowercased keys.
+_SIGMOND_TWEAK_TAGS = {
+    "rebin": "Rebin",
+    "omissions": "Omissions",
+    "keepfirst": "KeepFirst",
+    "keeplast": "KeepLast",
+}
+
 
 @dataclass(frozen=True)
 class _HDF5WritePayload:
@@ -204,9 +221,16 @@ class SigmondWriter:
         ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.short_str
         ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(ensemble_info.num_measurements)
         ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
-        if ensemble_info.tweak_info:
+        # EnsembleInfo lowercases tweak keys, but Sigmond's MCBinsInfo reader
+        # matches tags case-sensitively and, like Sigmond, omits a rebin of 1.
+        tweaks = {
+            _SIGMOND_TWEAK_TAGS.get(key, key): value
+            for key, value in ensemble_info.tweak_info.items()
+            if not (key == "rebin" and int(value) == 1)
+        }
+        if tweaks:
             tweak_elem = ET.SubElement(bins_elem, "TweakEnsemble")
-            for key, value in ensemble_info.tweak_info.items():
+            for key, value in tweaks.items():
                 ET.SubElement(tweak_elem, key).text = str(value)
 
     def _generate_header_xml(self, ensemble_info: EnsembleInfo, sampling_info: SamplingInfo) -> str:
@@ -374,6 +398,17 @@ class SigmondWriter:
                     f"File {filename} already exists. Use overwrite=True to overwrite."
                 )
             self._create_numbered_backup(filename)
+
+    @staticmethod
+    def _open_for_write(filename: str, mode: str) -> h5py.File:
+        """Open ``filename`` with a metadata cache sized for many datasets (see ``_WRITE_MDC_BYTES``)."""
+        hdf5_file = h5py.File(filename, mode)
+        config = hdf5_file.id.get_mdc_config()
+        config.set_initial_size = True
+        config.initial_size = config.max_size = _WRITE_MDC_BYTES
+        config.decr_mode = 0  # H5C_decr__off: adaptive decrement would shrink it again
+        hdf5_file.id.set_mdc_config(config)
+        return hdf5_file
 
     @staticmethod
     def _validate_write_mode(mode: str) -> WriteMode:
@@ -570,7 +605,7 @@ class SigmondWriter:
         if append_existing:
             existing_groups = self._preflight_append(filename, payloads, overwrite)
             self._create_numbered_backup(filename)
-            with h5py.File(filename, "r+") as hdf5_file:
+            with self._open_for_write(filename, "r+") as hdf5_file:
                 for payload in payloads:
                     self._write_payload_to_group(
                         hdf5_file,
@@ -581,7 +616,7 @@ class SigmondWriter:
             return
 
         self._prepare_output(filename, overwrite)
-        with h5py.File(filename, "w") as hdf5_file:
+        with self._open_for_write(filename, "w") as hdf5_file:
             first, *remaining = payloads
             self._write_sigmond_skeleton(
                 hdf5_file,

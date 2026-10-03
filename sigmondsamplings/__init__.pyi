@@ -2,6 +2,7 @@ from . import (
     analysis as analysis,
     bins as bins,
     colors as colors,
+    correlators as correlators,
     data as data,
     energy_level_collection as energy_level_collection,
     energy_levels as energy_levels,
@@ -28,6 +29,23 @@ from .colors import (
     MARKERS as MARKERS,
     IndexedCycle as IndexedCycle,
 )
+from .correlators import (
+    BasicLapHOperator as BasicLapHOperator,
+    Channel as Channel,
+    CorrelatorIndex as CorrelatorIndex,
+    CorrelatorAtTimeInfo as CorrelatorAtTimeInfo,
+    CorrelatorMatrix as CorrelatorMatrix,
+    CorrelatorMatrixInfo as CorrelatorMatrixInfo,
+    CorrelatorObsInfo as CorrelatorObsInfo,
+    CorrelatorInfo as CorrelatorInfo,
+    GenIrrepOperator as GenIrrepOperator,
+    Hadron as Hadron,
+    SigmondParseError as SigmondParseError,
+    VEVInfo as VEVInfo,
+    VEVObsInfo as VEVObsInfo,
+    effective_energy as effective_energy,
+    parse_operator as parse_operator,
+)
 from .data import SigmondData as SigmondData
 from .energy_level_collection import (
     EnergyLevelMixin as EnergyLevelMixin,
@@ -48,6 +66,7 @@ from .ensemble_collection import (
 from .fitting import (
     CallableModel as CallableModel,
     CallableObjective as CallableObjective,
+    CallableXModel as CallableXModel,
     Chi2PlotStyle as Chi2PlotStyle,
     Chi2Scan as Chi2Scan,
     ConstraintKind as ConstraintKind,
@@ -67,6 +86,7 @@ from .fitting import (
     SamplingFit as SamplingFit,
     SigmondModelFunc as SigmondModelFunc,
     WhiteningTransform as WhiteningTransform,
+    XModel as XModel,
     algorithm_capabilities as algorithm_capabilities,
     algorithm_settings as algorithm_settings,
     available_algorithms as available_algorithms,
@@ -105,11 +125,27 @@ from .io.loader import (
 )
 from .observable_collection import ObservableCollection as ObservableCollection
 from .plotting import (
+    CorrelatorMatrixPlotter as CorrelatorMatrixPlotter,
+    CorrelatorPlotter as CorrelatorPlotter,
+    FitOverlay as FitOverlay,
     HMarker as HMarker,
     SamplingPlotter as SamplingPlotter,
     SectorSpectrumPlotter as SectorSpectrumPlotter,
+    SeriesPlotter as SeriesPlotter,
+    SeriesStyle as SeriesStyle,
     SpectrumPlotter as SpectrumPlotter,
     SpectrumStyle as SpectrumStyle,
+    plot_coverage as plot_coverage,
+    PreparedSpectrum as PreparedSpectrum,
+    prepare_spectrum as prepare_spectrum,
+    draw_spectrum as draw_spectrum,
+)
+from .plot_contracts import (
+    PlotDefinition as PlotDefinition,
+    PlotResult as PlotResult,
+    UncertaintyOptions as UncertaintyOptions,
+    get_plot_definition as get_plot_definition,
+    plot_definitions as plot_definitions,
 )
 from .project_utils import (
     LinuxDistro as LinuxDistro,
