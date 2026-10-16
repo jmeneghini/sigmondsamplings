@@ -46,6 +46,14 @@ DatasetRow = tuple[str, np.ndarray, dict | None]
 # bound, so small files do not use more memory. The file format is unchanged.
 _WRITE_MDC_BYTES = 128 << 20
 
+# Sigmond's <TweakEnsemble> tag names, keyed by EnsembleInfo's lowercased keys.
+_SIGMOND_TWEAK_TAGS = {
+    "rebin": "Rebin",
+    "omissions": "Omissions",
+    "keepfirst": "KeepFirst",
+    "keeplast": "KeepLast",
+}
+
 
 @dataclass(frozen=True)
 class _HDF5WritePayload:
@@ -67,12 +75,15 @@ class SigmondWriter:
     Optional numbered backups protect files before they are overwritten or modified.
     """
 
-    def __init__(self, create_backups: bool = True):
+    def __init__(self, create_backups: bool = True, *, include_imaginary: bool = False):
         """
         Args:
             create_backups: Create numbered backups before modifying existing files.
+            include_imaginary: Emit explicit zero Im datasets for real observables
+                when exporting for a complex Sigmond build.
         """
         self.create_backups = create_backups
+        self.include_imaginary = bool(include_imaginary)
 
     # ──────────────────────────────────────────────────────────────────────
     # Backups
@@ -213,9 +224,16 @@ class SigmondWriter:
         ET.SubElement(bins_elem, "MCEnsembleInfo").text = ensemble_info.short_str
         ET.SubElement(bins_elem, "NumberOfMeasurements").text = str(ensemble_info.num_measurements)
         ET.SubElement(bins_elem, "NumberOfBins").text = str(ensemble_info.num_bins)
-        if ensemble_info.tweak_info:
+        # EnsembleInfo lowercases tweak keys, but Sigmond's MCBinsInfo reader
+        # matches tags case-sensitively and, like Sigmond, omits a rebin of 1.
+        tweaks = {
+            _SIGMOND_TWEAK_TAGS.get(key, key): value
+            for key, value in ensemble_info.tweak_info.items()
+            if not (key == "rebin" and int(value) == 1)
+        }
+        if tweaks:
             tweak_elem = ET.SubElement(bins_elem, "TweakEnsemble")
-            for key, value in ensemble_info.tweak_info.items():
+            for key, value in tweaks.items():
                 ET.SubElement(tweak_elem, key).text = str(value)
 
     def _generate_header_xml(self, ensemble_info: EnsembleInfo, sampling_info: SamplingInfo) -> str:
@@ -300,12 +318,11 @@ class SigmondWriter:
     @staticmethod
     def _obs_attrs(observable_info: ObservableInfo) -> dict | None:
         """
-        Self-describing dataset attrs for an observable, or None for plain ones.
+        Self-describing annotations, including the authoritative physical sector.
 
-        Duck-typed: any ObservableInfo exposing ``to_attrs`` (currently the energy
-        types) gets its metadata persisted; explicit display labels are preserved
-        via ``latex_str``, except for types that regenerate their own label from
-        those attrs (``_reconstructs_own_label``), where storing it is redundant.
+        Any ObservableInfo exposing ``to_attrs`` gets its metadata persisted;
+        explicit display labels are preserved via ``latex_str``. Generated
+        default labels are reconstructed by their metadata type on read.
         """
         attrs = {}
         to_attrs = getattr(observable_info, "to_attrs", None)
@@ -313,7 +330,7 @@ class SigmondWriter:
             attrs.update(to_attrs())
 
         latex_str = getattr(observable_info, "_latex_str", None)
-        if latex_str and not getattr(observable_info, "_reconstructs_own_label", False):
+        if latex_str is not None:
             attrs["latex_str"] = latex_str
 
         return attrs or None
@@ -330,7 +347,7 @@ class SigmondWriter:
         """
         arr = np.asarray(data)
         attrs = self._obs_attrs(observable_info)
-        if is_complex:
+        if is_complex or (self.include_imaginary and observable_info.re_im == "re"):
             re_key = self._dataset_key_for_observable(observable_info, "re")
             im_key = self._dataset_key_for_observable(observable_info, "im")
             if re_key == im_key:
@@ -523,9 +540,22 @@ class SigmondWriter:
                     raise ValueError(f"Values group not found in root group {payload.group}")
                 if payload.group not in existing_groups:
                     continue
+                existing_meta = obsmeta.read(hdf5_file[payload.group])
+                values_group = hdf5_file[payload.group]["Values"]
+                for rows in payload.dataset_rows:
+                    for key, _, attrs in rows:
+                        if key not in values_group or attrs is None:
+                            continue
+                        old = existing_meta[key] if key in existing_meta else dict(values_group[key].attrs)
+                        if "identity_record" in attrs or "identity_record" in old:
+                            from ..metadata import identity_json
+
+                            if identity_json(attrs.get("identity_record")) != identity_json(old.get("identity_record")):
+                                raise ValueError("Generated storage identity collision: unequal metadata records")
+                        if any(attrs.get(name) != old.get(name) for name in ("sink_rotation", "source_rotation")):
+                            raise ValueError("Native storage key collision: rotation bindings differ; use distinct operator namespaces")
                 if overwrite:
                     continue
-                values_group = hdf5_file[payload.group]["Values"]
                 for keys in payload.component_keys:
                     collisions = keys.intersection(values_group.keys())
                     if collisions:

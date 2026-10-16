@@ -24,4 +24,4 @@ __getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
 if "rcparams" not in __all__:
     __all__ = [*__all__, "rcparams"]
 
-__version__ = "0.1.0"
+__version__ = "0.5.1"

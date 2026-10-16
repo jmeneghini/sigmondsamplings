@@ -14,11 +14,16 @@ from typing import Any
 from sigmondsamplings.io.loader import SigmondLoader, is_hdf5_file
 
 __all__ = [
+    "channel_coverage",
+    "channel_matrix",
+    "channel_operators",
     "channel_records",
     "correlator_records",
     "load_index",
     "matrix_records",
+    "operator_numbers",
     "operator_records",
+    "single_correlator",
     "parse_operator_numbers",
     "parse_sampling",
     "resolve_channel",
@@ -42,18 +47,18 @@ def load_index(filename: str | Path, *, group: str | None = None):
 
 
 def series_records(index) -> list[dict[str, Any]]:
-    """One record per stored correlator series (pair and key form)."""
+    """One record per stored correlator series (correlator and key form)."""
     label = _op_labels(index)
     return [
         {
-            "sink": label[pair.sink],
-            "source": label[pair.source],
+            "sink": label[corr.sink],
+            "source": label[corr.source],
             "hermitian": hermitian,
             "subtract_vev": subtract_vev,
             "times": _span(times),
             "n_times": len(times),
         }
-        for (pair, hermitian, subtract_vev), times in index.series().items()
+        for (corr, hermitian, subtract_vev), times in index.series().items()
     ]
 
 
@@ -82,11 +87,11 @@ def channel_records(index) -> list[dict[str, Any]]:
 
 def vev_records(index) -> list[dict[str, Any]]:
     """One record per stored VEV, with its value."""
-    from sigmondsamplings.correlators import VEVKey
+    from sigmondsamplings.correlators import VEVInfo
 
     label = _op_labels(index)
     return [
-        {"operator": label[op], **_value_fields(index.get(VEVKey(op)))}
+        {"operator": label[op], **_value_fields(index.get(VEVInfo(op)))}
         for op in index.vev_operators
     ]
 
@@ -94,6 +99,33 @@ def vev_records(index) -> list[dict[str, Any]]:
 # ----------------------------------------------------------------------
 # Data views
 # ----------------------------------------------------------------------
+
+
+def single_correlator(
+    index,
+    sink: str,
+    source: str,
+    *,
+    times: Sequence[int] | None = None,
+    hermitian: bool | None = None,
+    subtract_vev: bool = False,
+    sampling_info=None,
+    key_form: str | None = None,
+):
+    """``C(sink, source)`` as a 1-D ``SigmondData`` over ``time``.
+
+    ``hermitian=None`` follows the file (see :func:`resolve_hermitian`).
+    """
+    sink_op, source_op = resolve_operator(index, sink), resolve_operator(index, source)
+    return index.correlator(
+        sink_op,
+        source_op,
+        times,
+        hermitian=hermitian,
+        subtract_vev=subtract_vev,
+        sampling_info=sampling_info,
+        key_form=key_form,
+    )
 
 
 def correlator_records(
@@ -105,21 +137,21 @@ def correlator_records(
     hermitian: bool | None = None,
     subtract_vev: bool = False,
     sampling_info=None,
+    key_form: str | None = None,
 ) -> list[dict[str, Any]]:
     """``C(sink, source)`` over time, one record per time.
 
     ``hermitian=None`` follows the file (see :func:`resolve_hermitian`).
     """
-    sink_op, source_op = resolve_operator(index, sink), resolve_operator(index, source)
-    if hermitian is None:
-        hermitian = resolve_hermitian(index, sink_op, source_op)
-    corr = index.correlator(
-        sink_op,
-        source_op,
-        times,
+    corr = single_correlator(
+        index,
+        sink,
+        source,
+        times=times,
         hermitian=hermitian,
         subtract_vev=subtract_vev,
         sampling_info=sampling_info,
+        key_form=key_form,
     )
     return [
         {"time": int(t), **_value_fields(corr.isel(time=k))}
@@ -135,35 +167,26 @@ def matrix_records(
     hermitian: bool = True,
     subtract_vev: bool = False,
     sampling_info=None,
+    key_form: str | None = None,
     operators: Sequence[int] | None = None,
 ) -> tuple[int, list[dict[str, Any]]]:
-    """The correlation matrix of one channel at one time (default: the first stored).
+    """The correlation matrix of one channel at one time (default: its first complete time).
 
     ``operators`` (numbers from ``--operators``, in the order given) restricts
     the basis to part of the channel. Returns ``(time, records)`` with one
     record per sink operator and one column per source operator (numbered as
     in the row's ``#``).
     """
-    resolved = resolve_channel(index, channel)
-    ops = index.channels[resolved]
-    if operators is not None:
-        ops = _channel_subset(index, resolved, ops, operators)
+    ops = channel_operators(index, channel, operators)
     if time is None:
-        if not index.times:
-            raise ValueError("no correlators in the file")
-        time = index.times[0]
-    try:
-        matrix = index.matrix(
-            ops,
-            [time],
-            hermitian=hermitian,
-            subtract_vev=subtract_vev,
-            sampling_info=sampling_info,
-        )
-    except ValueError as exc:
-        if "not every requested cell" not in str(exc):
-            raise
-        raise ValueError(f"{exc}\n{_subset_hint(index, ops, time, hermitian)}") from exc
+        cov = index.coverage(ops, hermitian=hermitian, subtract_vev=subtract_vev, key_form=key_form)
+        complete = cov.coords["time"].values[cov.values.all(axis=(1, 2))]
+        if not complete.size:
+            from sigmondsamplings.correlators.matrix import IncompleteCorrelatorError
+
+            raise IncompleteCorrelatorError("no time has every requested cell")
+        time = int(complete[0])
+    matrix = _matrix_with_hint(index, ops, [time], hermitian, subtract_vev, sampling_info, key_form)
     values = matrix.at(time)
     records = []
     for i, op in enumerate(matrix.operators):
@@ -174,9 +197,52 @@ def matrix_records(
     return time, records
 
 
+def channel_matrix(
+    index,
+    channel: str,
+    *,
+    operators: Sequence[int] | None = None,
+    hermitian: bool = True,
+    subtract_vev: bool = False,
+    sampling_info=None,
+    key_form: str | None = None,
+):
+    """The ``CorrelatorMatrix`` of a channel (or ``operators`` of it) at every complete time."""
+    ops = channel_operators(index, channel, operators)
+    return _matrix_with_hint(index, ops, None, hermitian, subtract_vev, sampling_info, key_form)
+
+
+def channel_coverage(
+    index,
+    channel: str,
+    *,
+    operators: Sequence[int] | None = None,
+    hermitian: bool = True,
+    subtract_vev: bool = False,
+    key_form: str | None = None,
+):
+    """Which cells of a channel's matrix are stored, per time. Reads no samples."""
+    ops = channel_operators(index, channel, operators)
+    return index.coverage(ops, hermitian=hermitian, subtract_vev=subtract_vev, key_form=key_form)
+
+
+def operator_numbers(index, operators) -> list[str]:
+    """The ``--operators`` number of each operator, as labels."""
+    return [str(index.operators.index(op)) for op in operators]
+
+
 # ----------------------------------------------------------------------
 # Selectors
 # ----------------------------------------------------------------------
+
+
+def channel_operators(index, channel: str, operators: Sequence[int] | None = None) -> list:
+    """A channel's operators, or the ``--ops`` numbers of it in the order given."""
+    resolved = resolve_channel(index, channel)
+    ops = index.channels[resolved]
+    if operators is not None:
+        return _channel_subset(index, resolved, ops, operators)
+    return list(ops)
 
 
 def resolve_operator(index, text: str):
@@ -212,15 +278,13 @@ def resolve_hermitian(index, sink, source) -> bool:
     """Whether a ``(sink, source)`` request should be Hermitian, following the file.
 
     Non-Hermitian when that direction is stored without ``HermMat``; Hermitian
-    when only ``HermMat`` keys (either direction) hold the pair.
+    when only ``HermMat`` keys (either direction) hold the correlator.
     """
-    from sigmondsamplings.correlators import CorrelatorPair
+    from sigmondsamplings.correlators.matrix import _choose_form, _Request
 
-    direct, flipped = CorrelatorPair(sink, source), CorrelatorPair(source, sink)
-    forms = {(pair, herm) for pair, herm, _ in index.series()}
-    if (direct, False) in forms:
-        return False
-    return (direct, True) in forms or (flipped, True) in forms
+    ops = (sink,) if sink == source else (sink, source)
+    req = _Request(index, ops, [(0, len(ops) - 1)], True)
+    return _choose_form(req, True, False, None)[0]
 
 
 def parse_sampling(index, text: str):
@@ -279,29 +343,35 @@ def _channel_subset(index, channel, channel_ops, numbers: Sequence[int]) -> list
     return subset
 
 
-def _subset_hint(index, ops, time: int, hermitian: bool) -> str:
-    """Suggest ``--ops`` for a complete sub-basis: greedily drop the operator with most holes.
+def _matrix_with_hint(index, ops, times, hermitian, subtract_vev, sampling_info, key_form=None):
+    """``index.matrix``, adding an ``--ops`` suggestion when cells are missing."""
+    from sigmondsamplings.correlators.matrix import IncompleteCorrelatorError
 
-    Any stored key form counts, so the suggestion is a hint, not a guarantee.
-    """
-    from sigmondsamplings.correlators import CorrelatorPair
+    try:
+        return index.matrix(
+            ops,
+            times,
+            hermitian=hermitian,
+            subtract_vev=subtract_vev,
+            sampling_info=sampling_info,
+            key_form=key_form,
+        )
+    except IncompleteCorrelatorError as exc:
+        hint = _subset_hint(index, ops, times, hermitian, subtract_vev, key_form)
+        raise ValueError(f"{exc}\n{hint}") from exc
 
-    stored = {pair for (pair, _, _), times in index.series().items() if time in times}
 
-    def has(a, b) -> bool:
-        return CorrelatorPair(a, b) in stored or (hermitian and CorrelatorPair(b, a) in stored)
-
-    keep = list(ops)
-    while keep:
-        holes = {op: sum(not has(op, o) or not has(o, op) for o in keep) for op in keep}
-        worst = max(keep, key=holes.get)
-        if not holes[worst]:
-            break
-        keep.remove(worst)
-    if len(keep) < 2:
-        return "No complete sub-basis of two or more operators is stored; pick one with --ops."
-    numbers = [index.operators.index(op) for op in keep]
-    return f"Pick a complete sub-basis with --ops, e.g. --ops {_ranges(numbers)}"
+def _subset_hint(index, ops, times, hermitian: bool, subtract_vev: bool, key_form=None) -> str:
+    """Suggest ``--ops`` for the largest available sub-basis at ``times`` (None: all)."""
+    bases = index.available_bases(
+        ops, times, hermitian=hermitian, subtract_vev=subtract_vev, key_form=key_form
+    )
+    bases = [basis for basis in bases if len(basis) >= 2]
+    if not bases:
+        return "No available sub-basis of two or more operators is stored; pick one with --ops."
+    numbers = sorted(index.operators.index(op) for op in bases[0])
+    others = f" ({len(bases) - 1} other maximal choice(s))" if len(bases) > 1 else ""
+    return f"Pick an available sub-basis with --ops, e.g. --ops {_ranges(numbers)}{others}"
 
 
 def _ranges(numbers: Sequence[int]) -> str:
@@ -316,7 +386,11 @@ def _ranges(numbers: Sequence[int]) -> str:
 
 
 def _value_fields(obs) -> dict[str, Any]:
-    return {"value": obs.pdg_format(), "full_sample_value": obs.full_sample_value, "error": obs.error}
+    return {
+        "value": obs.pdg_format(),
+        "full_sample_value": obs.full_sample_value,
+        "error": obs.error,
+    }
 
 
 def _op_labels(index) -> dict:

@@ -12,12 +12,14 @@ from an observable name (:func:`parse_energy_attributes`,
 import logging
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from numbers import Integral
 from typing import Any
 
 from slat import (
     IRREP_LATEX_MAP,
     PARTICLE_LATEX_MAP,
-    get_energy_type_latex_str,
+    get_energy_type_latex_str as get_energy_type_latex_str,
     get_irrep_latex_str,
     get_particle_latex_str,
     resolve_particle_name,
@@ -27,9 +29,14 @@ from .info import (
     INDEP_ENSEMBLE,
     EnsembleInfo,
     ObservableInfo,
+    SectorInfo,
+    normalize_sector,
     obs_kind_class,
     register_obs_kind,
+    sector_from_attrs,
 )
+
+from .labels import energy_symbol, normalized_energy_symbol, rotation_label
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,7 @@ SHIFT_ENERGY_TYPES = ("delab", "decm")
 """tuple of str: The energy types measured as a shift from a non-interacting level."""
 
 
+@dataclass(frozen=True)
 class Particle:
     """
     A particle with an optional momentum specification.
@@ -71,7 +79,11 @@ class Particle:
     >>> generic_pi = Particle('pi')  # no momentum, for non-shift types
     """
 
-    def __init__(self, name: str, psq: int | None = None):
+    name: str
+    psq: int | None = None
+
+    def __post_init__(self):
+        name, psq = self.name, self.psq
         if PARTICLE_LATEX_MAP:
             canonical = resolve_particle_name(name)
             if canonical is None:
@@ -80,8 +92,7 @@ class Particle:
         if psq is not None and psq < 0:
             raise ValueError(f"psq must be non-negative, got {psq}")
 
-        self.name = name
-        self.psq = psq
+        object.__setattr__(self, "name", name)
 
     @classmethod
     def from_string(cls, particle_str: str) -> "Particle":
@@ -156,14 +167,6 @@ class Particle:
             return f"Particle('{self.name}', psq={self.psq})"
         return f"Particle('{self.name}')"
 
-    def __eq__(self, other) -> bool:
-        if isinstance(other, str):
-            # Allow comparison with string for backward compatibility
-            return self.name == (resolve_particle_name(other) or other)
-        if not isinstance(other, Particle):
-            return False
-        return self.name == other.name and self.psq == other.psq
-
     @property
     def _momentum_key(self) -> tuple[int, int]:
         """tuple of int: Ordering key placing momentum-less particles first."""
@@ -192,9 +195,6 @@ class Particle:
         if not isinstance(other, Particle):
             return NotImplemented
         return self.__gt__(other) or self.__eq__(other)
-
-    def __hash__(self) -> int:
-        return hash((self.name, self.psq))
 
 
 _DEFAULT_DELIMITERS = r"[_\.\s/|]"
@@ -450,6 +450,31 @@ def parse_energy_attributes(name: str, delimiters: str = _DEFAULT_DELIMITERS) ->
     bounds = _BoundaryPatterns(delimiters)
     result = {}
 
+    marker = re.search(bounds.wrap("ni"), name, re.IGNORECASE)
+    if marker:
+        # Constituent momenta do not specify total PSQ. Keep repetitions/order.
+        tail = name[marker.end():]
+        tokens = list(filter(None, re.split(delimiters, tail)))
+        ref = bool(tokens and tokens[-1].lower() == "ref")
+        if ref:
+            tokens.pop()
+        rotation = None
+        if tokens and re.fullmatch(r"ROT\d+", tokens[-1], re.IGNORECASE):
+            rotation = int(tokens.pop()[3:])
+        parts = tuple(Particle.from_string(token) for token in tokens)
+        if not parts:
+            raise ValueError("NI name requires constituents")
+        energy_type = _parse_energy_type(name[:marker.start()], bounds) or "elab"
+        result.update(energy_type=energy_type, non_interacting=True, ni_particles=parts)
+        total = _parse_psq(name[:marker.start()], bounds)
+        if total is not None:
+            result["psq"] = total
+        if ref:
+            result["ref_particle"] = "ref"
+        if rotation is not None:
+            result["rot_idx"] = rotation
+        return result
+
     # Parse each attribute using specialized functions
     if energy_type := _parse_energy_type(name, bounds):
         result["energy_type"] = energy_type
@@ -469,8 +494,21 @@ def parse_energy_attributes(name: str, delimiters: str = _DEFAULT_DELIMITERS) ->
 
     if irrep := _parse_irrep(name, bounds):
         result["irrep"] = irrep
+    rotation = re.search(bounds.wrap(r"ROT(\d+)"), name, re.IGNORECASE)
+    if rotation:
+        result["rot_idx"] = int(rotation.group(1))
 
-    # Parse particles (may also extract PSQ from particle notation)
+    # Shift/qcmsq constituents are a separate role from the total sector.
+    if result.get("energy_type") in (*SHIFT_ENERGY_TYPES, "qcmsq"):
+        constituents = []
+        for token in filter(None, re.split(delimiters, name)):
+            if re.fullmatch("(" + _particle_alternation() + r")(?:\(\d+\))?", token):
+                constituents.append(Particle.from_string(token))
+        if constituents:
+            result["ni_particles"] = tuple(constituents)
+        return result
+
+    # Parse particles (may also extract PSQ from single-hadron notation)
     particles, psq_from_particle = _parse_particles(name, bounds)
     if particles:
         result["particles"] = particles
@@ -492,6 +530,8 @@ def _generate_latex_str(
     include_particles: bool = True,
     include_level_index: bool = True,
     is_single_hadron: bool = False,
+    *,
+    rot_idx: int | None = None,
 ) -> str:
     r"""
     Generate the LaTeX label for an energy level observable.
@@ -535,27 +575,13 @@ def _generate_latex_str(
     if is_single_hadron and psq == 0 and particle_names:
         # Special case: Single hadron PSQ=0 uses m_particle, with neither PSQ nor
         # the particle repeated in further_info.
-        base_expr = f"M_{{{get_particle_latex_str(particle_names[0])}}}"
+        base_expr = energy_symbol(hadron=particle_names[0], psq=psq)
         include_psq = False
         include_particles = False
     else:
         # Standard energy expression
-        base_expr = (
-            get_energy_type_latex_str(energy_type, level_index if include_level_index else None)
-            if energy_type
-            else "E"
-        )
-    if ref_particle is not None:
-        # Reference mode: E_type/M_ref
-        ref_latex = (
-            r"M_{\text{ref}}"
-            if ref_particle == "ref"
-            else f"M_{{{get_particle_latex_str(ref_particle)}}}"
-        )
-        base_expr = f"{base_expr}/{ref_latex}"
-    else:
-        # Standard mode: a_t E_type
-        base_expr = f"a_t {base_expr}"
+        base_expr = energy_symbol(energy_type, level_index=level_index if include_level_index else None)
+    base_expr = normalized_energy_symbol(base_expr, ref_particle)
 
     # Build further info (unified for all cases)
     further_info = []
@@ -566,6 +592,8 @@ def _generate_latex_str(
     if include_particles and particle_names:
         particle_strs = [get_particle_latex_str(p) for p in particle_names]
         further_info.append(f"({','.join(particle_strs)})")
+    if rot_idx is not None:
+        further_info.append(f"({rotation_label(rot_idx)})")
 
     return base_expr + "~" + "".join(further_info)
 
@@ -576,16 +604,37 @@ def _shared_energy_attrs(base: ObservableInfo, attrs: Mapping[str, Any]) -> dict
         name=base.name,
         index=base.index,
         ensemble_info=base.ensemble_info,
+        sector_info=sector_from_attrs(attrs, default=base.sector_info),
         irrep=attrs.get("irrep"),
         psq=int(attrs["psq"]) if "psq" in attrs else None,
         energy_type=attrs.get("energy_type"),
         ref_particle=attrs.get("ref_particle"),
+        rot_idx=attrs.get("rot_idx"),
+        latex_str=attrs.get("latex_str"),
     )
 
 
 def _ni_pairs_from_attrs(attrs: Mapping[str, Any]) -> list["Particle"]:
     """Parse the ``ni_pairs`` attr back into particles (empty when absent)."""
     return [Particle.from_string(str(s)) for s in attrs.get("ni_pairs", [])]
+
+
+def ni_energy_name(particles, *, psq=None, ref_particle=None, rot_idx=None):
+    """Canonical NI address; constituent momenta never determine total PSQ."""
+    parts = [] if psq is None else [f"PSQ{psq}"]
+    parts.extend(("elab", "ni", *(str(p) for p in particles)))
+    if rot_idx is not None:
+        parts.append(f"ROT{rot_idx}")
+    if ref_particle is not None:
+        parts.append("ref")
+    return "_".join(parts)
+
+
+def _energy_roles_from_attrs(attrs):
+    legacy = tuple(_ni_pairs_from_attrs(attrs)) if "ni_pairs" in attrs else None
+    explicit = tuple(Particle.from_string(str(p)) for p in attrs["ni_particles"]) if "ni_particles" in attrs else None
+    return dict(particles=legacy, ni_particles=explicit, hadron=attrs.get("hadron"),
+                non_interacting=bool(attrs["non_interacting"]) if "non_interacting" in attrs else None)
 
 
 @register_obs_kind("energy")
@@ -631,9 +680,8 @@ class EnergyObsInfo(ObservableInfo):
     """
 
     is_energy = True
-    _reconstructs_own_label = True
 
-    _repr_fields = ("irrep", "psq", "energy_type", "level_index", "ref_particle", "particles")
+    _repr_fields = ("energy_type", "level_index", "ref_particle", "hadron", "ni_particles", "non_interacting")
 
     def __init__(
         self,
@@ -646,6 +694,13 @@ class EnergyObsInfo(ObservableInfo):
         particles: Sequence[Particle] | None = None,
         level_index: int | None = None,
         ref_particle: str | None = None,
+        *,
+        sector_info: SectorInfo | None = None,
+        rot_idx: int | None = None,
+        latex_str: str | None = None,
+        hadron: str | None = None,
+        ni_particles: Sequence[Particle] | None = None,
+        non_interacting: bool | None = None,
     ):
         try:
             # Validate inputs
@@ -666,12 +721,21 @@ class EnergyObsInfo(ObservableInfo):
                 ref_particle = canonical_ref
 
             # Store attributes for canonical name generation
-            self.irrep = irrep
-            self.psq = psq
-            self.energy_type = energy_type
-            self.particles = tuple(particles or ())
+            self._sector_info = normalize_sector(sector_info, irrep=irrep, psq=psq)
+            if particles is not None and ni_particles is not None and tuple(particles) != tuple(ni_particles):
+                raise ValueError("Conflicting legacy particles and ni_particles")
+            self.hadron = hadron
+            self.ni_particles = tuple(ni_particles if ni_particles is not None else (particles or ()))
+            legacy_ni = bool(name and re.search(_BoundaryPatterns().wrap("ni"), name, re.IGNORECASE))
+            if legacy_ni and non_interacting is False:
+                raise ValueError("Conflicting legacy NI marker and non_interacting")
+            self.non_interacting = legacy_ni if non_interacting is None else non_interacting
+            if self.non_interacting and not self.ni_particles:
+                raise ValueError("NI energy requires constituents")
+            self.energy_type = "elab" if self.non_interacting and energy_type is None else energy_type
             self.level_index = level_index
             self.ref_particle = ref_particle
+            self.rot_idx = rot_idx
 
             # Auto-generate name if needed using canonical form
             super().__init__(
@@ -680,6 +744,8 @@ class EnergyObsInfo(ObservableInfo):
                 "n",
                 "re",
                 ensemble_info,
+                sector_info=self.sector_info,
+                latex_str=latex_str,
             )
         except Exception as e:
             raise ValueError(
@@ -699,12 +765,107 @@ class EnergyObsInfo(ObservableInfo):
             "particles": self.particles,
             "level_index": self.level_index,
             "ref_particle": self.ref_particle,
+            "rot_idx": self.rot_idx,
         }
+
+    @property
+    def hadron(self):
+        return self._hadron
+
+    def public_attributes(self):
+        attrs = super().public_attributes()
+        for name in ("hadron", "ni_particles", "non_interacting", "particles", "energy_type"):
+            attrs[name] = getattr(self, name)
+        if self.is_single_hadron:
+            attrs["particle"] = self.hadron
+        return attrs
+
+    @hadron.setter
+    def hadron(self, value):
+        if value is not None:
+            if not self.is_single_hadron:
+                raise ValueError("hadron requires SHEnergyObsInfo")
+            value = Particle(value).name
+        self._hadron = value
+
+    @property
+    def ni_particles(self):
+        return self._ni_particles
+
+    @ni_particles.setter
+    def ni_particles(self, values):
+        values = tuple(values)
+        if not all(isinstance(value, Particle) for value in values):
+            raise TypeError("ni_particles must contain Particle records")
+        if self.is_single_hadron and values:
+            raise ValueError("Single hadron cannot carry NI constituents")
+        if not values and getattr(self, "_non_interacting", False):
+            raise ValueError("NI energy requires constituents")
+        self._ni_particles = values
+
+    @property
+    def non_interacting(self):
+        return self._non_interacting
+
+    @non_interacting.setter
+    def non_interacting(self, value):
+        if not isinstance(value, bool):
+            raise TypeError("non_interacting must be boolean")
+        if value and self.is_single_hadron:
+            raise ValueError("Single hadron cannot be an NI sum")
+        if value and not self.ni_particles:
+            raise ValueError("NI energy requires constituents")
+        if value and getattr(self, "_energy_type", "elab") != "elab":
+            raise ValueError("NI sums use energy_type='elab'")
+        self._non_interacting = value
+
+    @property
+    def particles(self):
+        """Read-only legacy view, classified by explicit role rather than count."""
+        if self.is_single_hadron:
+            return () if self.hadron is None else (Particle(self.hadron, self.psq),)
+        return self.ni_particles
+
+    @property
+    def energy_type(self):
+        return self._energy_type
+
+    @energy_type.setter
+    def energy_type(self, value):
+        if value is not None and value not in ENERGY_TYPES:
+            raise ValueError(f"Invalid energy_type: {value}")
+        if self.is_single_hadron and value in (*SHIFT_ENERGY_TYPES, "qcmsq"):
+            raise ValueError(f"Single hadron cannot use energy type '{value}'")
+        if getattr(self, "_non_interacting", False) and value != "elab":
+            raise ValueError("NI sums use energy_type='elab'")
+        self._energy_type = value
 
     @property
     def latex_str(self) -> str:
         """str: LaTeX representation, generated from the current attributes."""
+        if self._latex_str is not None:
+            return self._latex_str
         return _generate_latex_str(**self._default_latex_params)
+
+    @latex_str.setter
+    def latex_str(self, value):
+        self._latex_str = value
+
+    @property
+    def rot_idx(self) -> int | None:
+        return self._rot_idx
+
+    @rot_idx.setter
+    def rot_idx(self, value):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, Integral) or value < 0):
+            raise ValueError("rot_idx must be a nonnegative integer")
+        self._rot_idx = None if value is None else int(value)
+
+    @classmethod
+    def from_channel(cls, channel, *, ensemble_info, energy_type="elab", rot_idx=None):
+        """Construct an energy from known channel physics and explicit ensemble context."""
+        return cls(sector_info=channel.to_sector(), ensemble_info=ensemble_info,
+                   energy_type=energy_type, rot_idx=rot_idx)
 
     def specify_latex_str(self, **kwargs) -> str:
         """
@@ -729,6 +890,8 @@ class EnergyObsInfo(ObservableInfo):
         latex_str : The same label with no overrides.
         """
         # override defaults with any provided kwargs
+        if not kwargs and self._latex_str is not None:
+            return self._latex_str
         kwargs_in = self._default_latex_params.copy()
         kwargs_in.update(kwargs)
         return _generate_latex_str(**kwargs_in)
@@ -750,6 +913,8 @@ class EnergyObsInfo(ObservableInfo):
         EnergyObsInfo
             The new observable info.
         """
+        energy_kwargs.setdefault("sector_info", obs_info.sector_info)
+        energy_kwargs.setdefault("latex_str", obs_info._latex_str)
         return cls(
             name=obs_info.name,
             index=obs_info.index,
@@ -799,13 +964,17 @@ class EnergyObsInfo(ObservableInfo):
         --------
         energy_obs_from_attrs : The inverse.
         """
-        attrs: dict[str, Any] = {"obs_kind": self.obs_kind}
-        for key in ("irrep", "psq", "energy_type", "level_index", "ref_particle"):
+        attrs: dict[str, Any] = super().to_attrs()
+        for key in ("energy_type", "level_index", "ref_particle", "rot_idx"):
             value = getattr(self, key)
             if value is not None:
                 attrs[key] = value
         if self.particles:
             attrs["ni_pairs"] = [str(p) for p in self.particles]
+        attrs["ni_particles"] = [str(p) for p in self.ni_particles]
+        attrs["non_interacting"] = self.non_interacting
+        if self.hadron is not None:
+            attrs["hadron"] = self.hadron
         return attrs
 
     @classmethod
@@ -828,7 +997,7 @@ class EnergyObsInfo(ObservableInfo):
         return cls(
             **_shared_energy_attrs(base, attrs),
             level_index=int(attrs["level_index"]) if "level_index" in attrs else None,
-            particles=_ni_pairs_from_attrs(attrs),
+            **_energy_roles_from_attrs(attrs),
         )
 
     @property
@@ -841,12 +1010,16 @@ class EnergyObsInfo(ObservableInfo):
         ValueError
             If ``irrep``, ``psq``, or ``energy_type`` is unset.
         """
+        if self.non_interacting:
+            return ni_energy_name(self.ni_particles, psq=self.psq, ref_particle=self.ref_particle, rot_idx=self.rot_idx)
         if not (self.irrep and self.psq is not None and self.energy_type):
             raise ValueError("Cannot generate canonical name: missing irrep, psq, or energy_type")
 
         parts = [f"PSQ{self.psq}", self.irrep, self.energy_type]
         if self.level_index is not None:
             parts.append(str(self.level_index))
+        if self.rot_idx is not None:
+            parts.append(f"ROT{self.rot_idx}")
         if self.ref_particle is not None:
             parts.append("ref")
         return "_".join(parts)
@@ -888,12 +1061,14 @@ class EnergyObsInfo(ObservableInfo):
             return False
         return (
             super().__eq__(other)
-            and self.irrep == other.irrep
-            and self.psq == other.psq
             and self.energy_type == other.energy_type
-            and self.particles == other.particles
+            and self.hadron == other.hadron
+            and self.ni_particles == other.ni_particles
+            and self.non_interacting == other.non_interacting
+            and self.is_single_hadron == other.is_single_hadron
             and self.level_index == other.level_index
             and self.ref_particle == other.ref_particle
+            and self.rot_idx == other.rot_idx
         )
 
     def __hash__(self):
@@ -901,17 +1076,20 @@ class EnergyObsInfo(ObservableInfo):
         return hash(
             (
                 super().__hash__(),
-                self.irrep,
-                self.psq,
                 self.energy_type,
-                self.particles or None,
+                self.hadron,
+                self.ni_particles,
+                self.non_interacting,
+                self.is_single_hadron,
                 self.level_index,
                 self.ref_particle,
+                self.rot_idx,
             )
         )
 
     def __repr__(self):
-        parts = [f"name='{self.name}'", f"index={self.index}"]
+        parts = [f"name='{self.name}'", f"index={self.index}", f"sector_info={self.sector_info!r}",
+                 f"rot_idx={self.rot_idx!r}"]
         parts += [
             f"{field}={getattr(self, field)!r}"
             for field in self._repr_fields
@@ -957,7 +1135,7 @@ class SHEnergyObsInfo(EnergyObsInfo):
 
     is_single_hadron = True
 
-    _repr_fields = ("irrep", "psq", "energy_type", "particle", "ref_particle")
+    _repr_fields = ("energy_type", "particle", "ref_particle")
 
     def __init__(
         self,
@@ -969,12 +1147,31 @@ class SHEnergyObsInfo(EnergyObsInfo):
         energy_type: str | None = None,
         particle: str | None = None,
         ref_particle: str | None = None,
+        *,
+        sector_info: SectorInfo | None = None,
+        rot_idx: int | None = None,
+        latex_str: str | None = None,
+        hadron: str | None = None,
+        ni_particles: Sequence[Particle] | None = None,
+        non_interacting: bool | None = None,
+        particles: Sequence[Particle] | None = None,
     ):
         # Single hadron constraints
         if energy_type in (*SHIFT_ENERGY_TYPES, "qcmsq"):
             raise ValueError(f"Single hadron cannot use energy type '{energy_type}'")
 
-        # Convert particle string to Particle object with momentum
+        sector_info = normalize_sector(sector_info, irrep=irrep, psq=psq)
+        known = [Particle(value).name for value in (particle, hadron) if value is not None]
+        if particles is not None:
+            legacy = tuple(particles)
+            if len(legacy) > 1 or any(not isinstance(value, Particle) for value in legacy):
+                raise ValueError("Single hadron requires at most one legacy Particle")
+            if legacy:
+                known.append(legacy[0].name)
+                sector_info = normalize_sector(sector_info, psq=legacy[0].psq)
+        if len(set(known)) > 1:
+            raise ValueError("Conflicting particle/hadron/legacy SH roles")
+        hadron = known[0] if known else None
         super().__init__(
             name,
             index,
@@ -982,9 +1179,15 @@ class SHEnergyObsInfo(EnergyObsInfo):
             irrep,
             psq,
             energy_type,
-            [Particle(particle, psq=psq)] if particle else [],
+            None,
             level_index=None,
             ref_particle=ref_particle,
+            sector_info=sector_info,
+            rot_idx=rot_idx,
+            latex_str=latex_str,
+            hadron=hadron,
+            ni_particles=ni_particles,
+            non_interacting=non_interacting,
         )
 
     @property
@@ -999,11 +1202,11 @@ class SHEnergyObsInfo(EnergyObsInfo):
     @property
     def particle(self) -> str | None:
         """str or None: Name of the single hadron. Setting it re-applies :attr:`psq`."""
-        return self.particles[0].name if self.particles else None
+        return self.hadron
 
     @particle.setter
     def particle(self, value: str):
-        self.particles = (Particle(value, psq=self.psq),) if value else ()
+        self.hadron = value
 
     @classmethod
     def from_attrs(cls, base: ObservableInfo, attrs: Mapping[str, Any]) -> "SHEnergyObsInfo":
@@ -1014,9 +1217,17 @@ class SHEnergyObsInfo(EnergyObsInfo):
         back from there rather than from a dedicated ``particle`` attr.
         """
         particles = _ni_pairs_from_attrs(attrs)
+        shared = _shared_energy_attrs(base, attrs)
+        if len(particles) > 1:
+            raise ValueError("Single hadron metadata requires at most one legacy particle")
+        if particles:
+            shared["sector_info"] = normalize_sector(shared["sector_info"], psq=particles[0].psq)
         return cls(
-            **_shared_energy_attrs(base, attrs),
+            **shared,
             particle=particles[0].name if particles else None,
+            hadron=attrs.get("hadron"),
+            ni_particles=tuple(Particle.from_string(str(p)) for p in attrs.get("ni_particles", [])),
+            non_interacting=bool(attrs["non_interacting"]) if "non_interacting" in attrs else None,
         )
 
     @property
@@ -1032,6 +1243,8 @@ class SHEnergyObsInfo(EnergyObsInfo):
         if not (self.psq is not None and self.particle):
             raise ValueError("Cannot generate canonical name: missing psq or particle")
         name = f"PSQ{self.psq}_{self.particle}"
+        if self.rot_idx is not None:
+            name += f"_ROT{self.rot_idx}"
         if self.ref_particle is not None:
             name += "_ref"
         return name
@@ -1090,11 +1303,14 @@ def detect_energy_level_type(parsed_attributes: dict) -> str:
         return "unknown"
 
     # If level index is given, it is multi-hadron
-    if parsed_attributes.get("level_index") is not None:
+    if (parsed_attributes.get("level_index") is not None or parsed_attributes.get("non_interacting")
+            or "ni_particles" in parsed_attributes or parsed_attributes.get("energy_type") in (*SHIFT_ENERGY_TYPES, "qcmsq")):
         return "multi_hadron"
 
     # Single particle suggests single hadron
     particles = parsed_attributes.get("particles", [])
+    if parsed_attributes.get("hadron") is not None:
+        return "single_hadron"
     return "single_hadron" if len(particles) == 1 else "multi_hadron"
 
 
@@ -1158,8 +1374,7 @@ def create_energy_obs_info(
     Returns
     -------
     EnergyObsInfo
-        An :class:`SHEnergyObsInfo` or an :class:`EnergyObsInfo`. A single hadron
-        that fails to construct is retried as a multi-hadron level.
+        An :class:`SHEnergyObsInfo` or an :class:`EnergyObsInfo`.
 
     Raises
     ------
@@ -1171,6 +1386,8 @@ def create_energy_obs_info(
     # TODO: this will need updated when we need anisotropy observable
     # Parse once and reuse
     parsed = parse_energy_attributes(obs_info.name)
+    parsed["sector_info"] = obs_info.sector_info
+    parsed["latex_str"] = obs_info._latex_str
     parsed.update(manual_overrides)
 
     # Determine energy level type
@@ -1178,10 +1395,7 @@ def create_energy_obs_info(
 
     try:
         if energy_type == "single_hadron":
-            try:
-                return _create_single_hadron_obs(obs_info, parsed)
-            except ValueError:
-                return _create_multi_hadron_obs(obs_info, parsed)
+            return _create_single_hadron_obs(obs_info, parsed)
         if energy_type != "multi_hadron":
             raise ValueError(f"Unrecognized energy level type: {energy_type}")
         return _create_multi_hadron_obs(obs_info, parsed)
@@ -1240,5 +1454,6 @@ def _create_multi_hadron_obs(obs_info: ObservableInfo, parsed: dict) -> EnergyOb
     """
     parsed = dict(parsed)
     # Convert particle strings to Particle objects
-    parsed["particles"] = [Particle(p) for p in parsed.get("particles", [])]
+    if "particles" in parsed:
+        parsed["particles"] = [Particle(p) for p in parsed["particles"]]
     return EnergyObsInfo(index=obs_info.index, ensemble_info=obs_info.ensemble_info, **parsed)

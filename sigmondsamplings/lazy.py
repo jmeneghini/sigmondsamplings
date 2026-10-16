@@ -101,14 +101,6 @@ def _read_record(record: HDF5ObservableRecord) -> np.ndarray:
         return _read_from_group(f[record.file.values_group], record)
 
 
-def _sample_length(obs) -> int:
-    if getattr(obs, "ndim", 0):
-        raise ValueError(f"expected single observables, got an N-D array {obs.observable_info}")
-    if isinstance(obs, LazyDataMixin) and not obs.is_materialized:
-        return obs._record.sample_length
-    return int(obs.data.shape[-1])
-
-
 def _read_into(gid, name: str, row: np.ndarray) -> None:
     """Read one 1-D dataset straight into the contiguous ``row``."""
     dsid = h5py.h5d.open(gid, name.encode())
@@ -174,7 +166,7 @@ def stack_data(observables) -> np.ndarray:
     obs = list(observables)
     if not obs:
         raise ValueError("stack_data needs at least one observable")
-    lengths = {_sample_length(o) for o in obs}
+    lengths = {o._sample_length for o in obs}
     if len(lengths) != 1:
         raise ValueError(f"observables have different sample lengths: {sorted(lengths)}")
     materialize(obs)
@@ -194,6 +186,10 @@ class LazyDataMixin:
     _min_data_len = 1
 
     @property
+    def _sample_length(self) -> int:
+        return self._record.sample_length
+
+    @property
     def data(self) -> np.ndarray:
         if self._data_cache is None:
             self._data_cache = self._coerce_and_validate(_read_record(self._record))
@@ -210,8 +206,7 @@ class LazyDataMixin:
             raise ValueError(f"{type(self).__name__} data must be 1-dimensional")
         if len(arr) < self._min_data_len:
             raise ValueError(
-                f"{type(self).__name__} data must have at least "
-                f"{self._min_data_len} element(s)"
+                f"{type(self).__name__} data must have at least {self._min_data_len} element(s)"
             )
         return arr.astype(complex) if self.is_complex else arr.astype(float)
 
@@ -283,6 +278,5 @@ class LazySigmondBins(LazyDataMixin, SigmondBins):
         if self.is_materialized:
             return super().__repr__()
         return (
-            f"LazySigmondBins(name='{self.observable_info}', "
-            f"n_bins={self.num_bins}, state='lazy')"
+            f"LazySigmondBins(name='{self.observable_info}', n_bins={self.num_bins}, state='lazy')"
         )

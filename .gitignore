@@ -197,3 +197,7 @@ CLAUDE.md
 CLAUDE.md
 .stignore
 .stfolder
+
+# Small pinned numerical reference fixtures, regenerated explicitly.
+!tests/fixtures/pivot/**/*.hdf5
+!tests/fixtures/pivot/**/*.npz

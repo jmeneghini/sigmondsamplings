@@ -239,8 +239,21 @@ class SigmondBins(SigmondData):
         return results[0] if isinstance(statistic, str) else results
 
     def _resampled(self, buf: np.ndarray, sampling_info: SamplingInfo, suffix: str):
+        from .arithmetic import DerivedObsInfo, arithmetic_info
+        from .metadata import AtObsInfo
+
+        def result_info(info):
+            if isinstance(info, (DerivedObsInfo, AtObsInfo)):
+                return arithmetic_info("resample" + suffix, [info]) if suffix else info.copy()
+            result = info.copy()
+            if suffix:
+                result.name = f"{result.name}{suffix}"
+            return result
+
         if self.ndim == 0:
             info = self.observable_info
+            if isinstance(info, (DerivedObsInfo, AtObsInfo)):
+                return SigmondSampling(buf, result_info(info), sampling_info, is_complex=self.is_complex)
             obs_info = ObservableInfo(
                 name=f"{info.name}{suffix}",
                 index=info.index,
@@ -251,16 +264,10 @@ class SigmondBins(SigmondData):
             )
             return SigmondSampling(buf, obs_info, sampling_info, is_complex=self.is_complex)
 
-        obs_info = self.observable_info
-        if suffix:
-            obs_info = obs_info.copy()
-            obs_info.name = f"{obs_info.name}{suffix}"
+        obs_info = result_info(self.observable_info)
         infos = np.empty(self.shape, dtype=object)
         for idx in np.ndindex(*self.shape):
-            info = self._infos[idx].copy()
-            if suffix:
-                info.name = f"{info.name}{suffix}"
-            infos[idx] = info
+            infos[idx] = result_info(self._infos[idx])
         return SigmondSampling._from_parts(
             buf, obs_info, sampling_info, self.is_complex, self._dims, self._coords, infos
         )
@@ -275,8 +282,7 @@ class SigmondBins(SigmondData):
         try:
             return (
                 f"SigmondBins(name='{self.observable_info}', "
-                f"n_bins={self.num_bins}, "
-                f"mean={self.full_sample_value:.6f}, error={self.error:.6f})"
+                f"n_bins={self.num_bins}, value={self.pdg_format()})"
             )
         except Exception:
             return f"SigmondBins(name='{self.observable_info}', n_bins={self.num_bins})"

@@ -1,0 +1,18 @@
+{
+  "binary": "/home/jmeneghini/miniconda3/envs/lqcd_analysis/bin/sigmond_batch",
+  "binary_sha256": "5b1648b47556cca32b7c9bb8341fc2954cc07f16422e81d0968fec00036b63c8",
+  "sigmond_commit": "926e10ee52a2becef96c2f8ec96a729487089d55",
+  "generator_version": 3,
+  "fixture_seed": 271,
+  "numeric_type": "complex",
+  "case": "cn_connected_a",
+  "generator_sha256": "c05cc6f933a763dae683c376aada0246e85bcd68b4b892111d244bab02bec066",
+  "artifacts": {
+    "task.xml": "04ddfb55a3182752dee51582420d944e01def881c2d5fce74199a3451606aef3",
+    "log.xml": "f28c74af702bc4eef59961a0470e1d5acbe8dfe8bd7cbdcec314f611578f5520",
+    "input.hdf5": "acc9a6b7c62dcb7704bf88a126a989cd59e1efd989c64c346aa24ed792916093",
+    "arrays.npz": "fadd9fd9b1d6ce4ffa16e889a7bdb8ee81c2a016402073771c5dc73ba5c7802a",
+    "rotated.hdf5": "d15120e6b3259e25b9b0ec258537841c866d4b5a245235b61408ba43da51170e",
+    "pivot.hdf5": "70069e5ebb731d34b978a9fc2dd1b1dd1cc60402941d9f74d4e2f61ff7892a2e"
+  }
+}

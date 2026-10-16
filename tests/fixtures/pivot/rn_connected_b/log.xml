@@ -1,0 +1,517 @@
+<LogSigMonD>
+ <ProjectName>ss_pivot_oracle</ProjectName>
+ <StartDateTime>Wed_Oct__7_22:18:02_2026</StartDateTime>
+
+<BeginTasks>****************************************</BeginTasks>
+
+<Task>
+ <Count>0</Count>
+
+<DoCorrMatrixRotation>
+   <SinglePivot>
+      <InitiateNew>
+         <SinglePivotInitiate>
+            <CorrelatorMatrixInfo>
+               <HermitianMatrix/>
+               <SubtractVEV/>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 0</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 1</GIOperatorString>
+               <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 2</GIOperatorString>
+            </CorrelatorMatrixInfo>
+            <NormTime>1</NormTime>
+            <MetricTime>1</MetricTime>
+            <DiagonalizeTime>3</DiagonalizeTime>
+            <MinimumInverseConditionNumber>1e-08</MinimumInverseConditionNumber>
+            <NegativeEigenvalueAlarm>-5e-08</NegativeEigenvalueAlarm>
+            <CheckMetricErrors/>
+         </SinglePivotInitiate>
+         <CreatePivot>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <DiagonalCorrelatorFractionalErrors>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 0</GIOperatorString>
+                  <MetricTimeFractionalError>1.79423163549e-05</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>3.83333737804e-05</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 1</GIOperatorString>
+                  <MetricTimeFractionalError>1.82338798575e-05</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>2.8485924478e-05</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+               <DiagonalCorrelator>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 2</GIOperatorString>
+                  <MetricTimeFractionalError>4.1148107262e-05</MetricTimeFractionalError>
+                  <MatrixTimeFractionalError>0.000113087718976</MatrixTimeFractionalError>
+               </DiagonalCorrelator>
+            </DiagonalCorrelatorFractionalErrors>
+            <RescaledMetricConditionVariation>
+               <MetricEigenvalue>
+                  <Level>0</Level>
+                  <MCEstimate>
+                     <ResamplingMode>Jackknife</ResamplingMode>
+                     <FullEstimate>0.00291399697447</FullEstimate>
+                     <SampleAverage>0.00291375219354</SampleAverage>
+                     <SymmetricError>1.24155806747e-05</SymmetricError>
+                  </MCEstimate>
+               </MetricEigenvalue>
+               <MetricEigenvalue>
+                  <Level>1</Level>
+                  <MCEstimate>
+                     <ResamplingMode>Jackknife</ResamplingMode>
+                     <FullEstimate>0.77750751829</FullEstimate>
+                     <SampleAverage>0.77750718885</SampleAverage>
+                     <SymmetricError>2.67037052232e-05</SymmetricError>
+                  </MCEstimate>
+               </MetricEigenvalue>
+               <MetricEigenvalue>
+                  <Level>2</Level>
+                  <MCEstimate>
+                     <ResamplingMode>Jackknife</ResamplingMode>
+                     <FullEstimate>2.21957848474</FullEstimate>
+                     <SampleAverage>2.21957905896</SampleAverage>
+                     <SymmetricError>2.73982532177e-05</SymmetricError>
+                  </MCEstimate>
+               </MetricEigenvalue>
+            </RescaledMetricConditionVariation>
+            <AnalyzeMetric>
+               <NumberOfOperators>3</NumberOfOperators>
+               <ReturnCode>Success</ReturnCode>
+               <MetricAllEigenvalues>
+                  <Value>0.00291399697446</Value>
+                  <Value>0.77750751829</Value>
+                  <Value>2.21957848474</Value>
+               </MetricAllEigenvalues>
+               <MetricRank>3</MetricRank>
+               <MetricRetainedEigenvalues>
+                  <Value>0.00291399697446</Value>
+                  <Value>0.77750751829</Value>
+                  <Value>2.21957848474</Value>
+               </MetricRetainedEigenvalues>
+            </AnalyzeMetric>
+            <AnalyzeMatrix>
+               <ReturnCode>Success</ReturnCode>
+               <GMatrixAllEigenvalues>
+                  <Value>0.368618907271</Value>
+                  <Value>0.501469747631</Value>
+                  <Value>0.671670819238</Value>
+               </GMatrixAllEigenvalues>
+               <GMatrixRank>3</GMatrixRank>
+               <GMatrixRetainedEigenvalues>
+                  <Value>0.671670819238</Value>
+                  <Value>0.501469747631</Value>
+                  <Value>0.368618907271</Value>
+               </GMatrixRetainedEigenvalues>
+            </AnalyzeMatrix>
+         </CreatePivot>
+         <WritePivotToFile>
+            <PivotFileName>/tmp/tmpetocgtnk/pivot.hdf5[pivot]</PivotFileName>
+            <Overwrite/>
+            <FileFormat>default</FileFormat>
+         </WritePivotToFile>
+         <TransformationMatrix>
+            <ImprovedOperators>
+               <ImprovedOperator>
+                  <OpName>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 0</GIOperatorString>
+                  </OpName>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 0</GIOperatorString>
+                     <Coefficient>3.12545920676</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 1</GIOperatorString>
+                     <Coefficient>1.51275962925</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 2</GIOperatorString>
+                     <Coefficient>-1.79912022951</Coefficient>
+                  </OpTerm>
+               </ImprovedOperator>
+               <ImprovedOperator>
+                  <OpName>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 1</GIOperatorString>
+                  </OpName>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 0</GIOperatorString>
+                     <Coefficient>4.99511472329</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 1</GIOperatorString>
+                     <Coefficient>3.02850006741</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 2</GIOperatorString>
+                     <Coefficient>-2.65340855252</Coefficient>
+                  </OpTerm>
+               </ImprovedOperator>
+               <ImprovedOperator>
+                  <OpName>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 2</GIOperatorString>
+                  </OpName>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 0</GIOperatorString>
+                     <Coefficient>1.7639171053</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 1</GIOperatorString>
+                     <Coefficient>1.0246792428</Coefficient>
+                  </OpTerm>
+                  <OpTerm>
+                     <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 TEST 2</GIOperatorString>
+                     <Coefficient>-0.352367346854</Coefficient>
+                  </OpTerm>
+               </ImprovedOperator>
+            </ImprovedOperators>
+         </TransformationMatrix>
+      </InitiateNew>
+   </SinglePivot>
+   <DoRotation>
+      <VEVRotation>Success</VEVRotation>
+      <CorrelatorRotation>
+         <TimeValue>0</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>1</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>2</TimeValue>
+         <Status>Success</Status>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>3</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>8.91113297951e-12</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>0</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>4</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>0.313022527158</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>0</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>5</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>0.33847595089</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>0</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+      <CorrelatorRotation>
+         <TimeValue>6</TimeValue>
+         <Status>Success</Status>
+         <OffDiagonalChecks>
+            <ResamplingMode>Jackknife</ResamplingMode>
+            <MaximumDeviationFromZero>
+               <RelativeToError>0.80376711504</RelativeToError>
+            </MaximumDeviationFromZero>
+            <PercentDeviationsFromZero>
+               <GreaterThanOneSigma>0</GreaterThanOneSigma>
+               <GreaterThanTwoSigma>0</GreaterThanTwoSigma>
+               <GreaterThanThreeSigma>0</GreaterThanThreeSigma>
+               <GreaterThanFourSigma>0</GreaterThanFourSigma>
+            </PercentDeviationsFromZero>
+         </OffDiagonalChecks>
+      </CorrelatorRotation>
+   </DoRotation>
+   <WriteRotated>
+      <WriteBinsToFile>
+         <FileName>/tmp/tmpetocgtnk/rotated.hdf5[rotated]</FileName>
+         <NumberObservablesToWrite>36</NumberObservablesToWrite>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 0</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 1</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <VEV>
+                  <GIOperatorString>isosinglet S=0 P=(0,0,0) A1g_1 ROT 2</GIOperatorString>
+               </VEV>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 0} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 1} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=0 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=1 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=2 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=3 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=4 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=5 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <Write>
+            <MCObservable>
+               <CorrT>GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} GI{isosinglet S=0 P=(0,0,0) A1g_1 ROT 2} time=6 HermMat</CorrT>
+               <Arg>Re</Arg>
+            </MCObservable>
+            <Success/>
+         </Write>
+         <NumberObservablesSuccessfullyWrittenToFile>36</NumberObservablesSuccessfullyWrittenToFile>
+      </WriteBinsToFile>
+   </WriteRotated>
+</DoCorrMatrixRotation>
+
+</Task>
+ <FinishDateTime>Wed_Oct__7_22:18:02_2026</FinishDateTime>
+</LogSigMonD>
+

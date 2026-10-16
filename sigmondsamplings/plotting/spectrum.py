@@ -13,22 +13,35 @@ level index.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Hashable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
+from pydantic import field_serializer
 
 import slat.plotting as slp
-from slat import COLORS, IndexedCycle, get_irrep_latex_str
+from slat import get_irrep_latex_str
+from slat.plotting.lifecycle import figure_factory
+from slat.plotting.style import resolve_colors
 
 from ..energy_level_collection import SingleEnsembleEnergyCollection
+from ..plot_contracts import SpectrumOptions, SpectrumStyle
 from ..sampling import SigmondSampling
 from ..utils import stacked_positions
-from ._util import resolve_axes
+from ._util import _full_sample_and_bounds, energy_level_hover_text, resolve_axes
+from .markers import HMarker, _PreparedMarker, _snapshot_marker, draw_hmarker
 
-__all__ = ["HMarker", "SectorSpectrumPlotter", "SpectrumPlotter", "SpectrumStyle"]
+__all__ = [
+    "HMarker",
+    "PreparedSpectrum",
+    "SectorSpectrumPlotter",
+    "SpectrumPlotter",
+    "SpectrumStyle",
+    "draw_spectrum",
+    "prepare_spectrum",
+]
 
 
 GroupKey = str | Callable[[SigmondSampling], Hashable]
@@ -40,56 +53,63 @@ ExcludedSpec = Iterable[tuple[int, str, int]]
 ExcludedLevels = ExcludedPredicate | ExcludedSpec
 
 
-@dataclass
-class HMarker:
-    """A horizontal marker line on the spectrum plot.
-
-    Args:
-        y: Vertical position (energy value).
-        label: Text drawn at the right edge of the line. LaTeX allowed.
-        group: Outer group key this marker belongs to. When set, the line
-            spans only the columns of that outer group. When None, the
-            line spans the full plot width.
-        color: Line color.
-        linestyle: Line style string (``"-"``, ``"--"``, ``":"``, ``"-."``).
-        linewidth: Line width in points.
-        alpha: Line and label transparency.
-    """
-
-    y: float
-    label: str | None = None
-    group: Hashable | None = None
-    color: str = "black"
-    linestyle: str = "--"
-    linewidth: float = 1.0
-    alpha: float = 0.7
+@dataclass(frozen=True)
+class PreparedLevel:
+    central: float
+    bounds: tuple[float, float]
+    color_key: int
+    excluded: bool
+    hover: str
 
 
-@dataclass
-class SpectrumStyle:
-    """Styling configuration for SpectrumPlotter.
+class _PreparedStyle(SpectrumStyle):
+    model_config = {**SpectrumStyle.model_config, "frozen": True}
 
-    Any value left as None falls back to the backend's own default where
-    applicable.
-    """
+    @field_serializer("errorbar_kwargs")
+    def _serialize_native(self, value):
+        return _native_kwargs(value)
 
-    col_spacing: float = 1.0
-    outer_gap: float = 1.5
-    stack_width: float = 0.3
-    capsize: float = 5.0
-    markersize: float = 6.0
-    capthick: float = 1.5
-    linewidth: float = 1.5
-    fontsize: float | None = None
-    excluded_color: str = "lightgrey"
-    outer_label_offset: float = -50.0
-    grid_alpha: float = 0.3
-    ypad_frac: float = 0.05
-    color_cycle: Iterable[str] | None = None
-    errorbar_kwargs: dict[str, Any] = field(default_factory=dict)
-    marker_label_fontsize: float | None = None
-    marker_label_pad: float = 4.0
-    marker_edge_pad: float = 0.3
+
+def _freeze(value):
+    """Freeze drawing metadata only; sampling buffers never enter the payload."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list | tuple):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, np.ndarray):
+        copied = value.copy()
+        copied.flags.writeable = False
+        return copied
+    return value
+
+
+def _native_kwargs(value):
+    if isinstance(value, Mapping):
+        return {key: _native_kwargs(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_native_kwargs(item) for item in value)
+    return value
+
+
+@dataclass(frozen=True)
+class PreparedSpectrum:
+    """Immutable drawing values, styles and metadata, independent of source edits."""
+    style: SpectrumStyle
+    #: ``(outer_key, column_key, x)`` per drawn column, in drawing order.
+    columns: tuple[tuple[Hashable, Hashable, float], ...]
+    levels: tuple[tuple[PreparedLevel, ...], ...]
+    outer_midpoints: Mapping
+    outer_ranges: Mapping
+    column_ranges: Mapping
+    x_end: float
+    x_range: tuple[float, float]
+    energy_range: tuple[float, float]
+    ylabel: str
+    statistics: Mapping
+    #: Range-expanding markers with the x span each covers.
+    markers: tuple[tuple[_PreparedMarker, tuple[float, float]], ...]
+    column_label_fn: LabelFn | None
+    outer_label_fn: LabelFn | None
 
 
 class SpectrumPlotter:
@@ -124,7 +144,7 @@ class SpectrumPlotter:
                 f"got {type(collection).__name__}"
             )
         self.collection = collection
-        self.style = style or SpectrumStyle()
+        self.style = SpectrumStyle.model_validate(style or {})
         self._is_excluded = self._build_excluded_predicate(excluded_levels)
 
     @staticmethod
@@ -136,17 +156,12 @@ class SpectrumPlotter:
         if callable(excluded_levels):
             return excluded_levels
 
-        spec_set = set()
-        for entry in excluded_levels:
-            psq, irrep, level_or_levels = entry
-
-            # Check if the third element is a collection of levels (like a list)
-            if isinstance(level_or_levels, list | tuple | set):
-                for level in level_or_levels:
-                    spec_set.add((psq, irrep, level))
-            else:
-                # Fallback for a single integer level index
-                spec_set.add((psq, irrep, level_or_levels))
+        # The third entry is one level index or a collection of them.
+        spec_set = {
+            (psq, irrep, level)
+            for psq, irrep, levels in excluded_levels
+            for level in (levels if isinstance(levels, list | tuple | set) else (levels,))
+        }
 
         def _match(sampling: SigmondSampling) -> bool:
             obs = sampling.observable_info
@@ -165,10 +180,14 @@ class SpectrumPlotter:
         outer_label_fn: LabelFn | None = None,
         markers: list[HMarker] | None = None,
         energy_type: str | None = None,
+        error_metric: str | None = None,
+        confidence_level: float | None = None,
+        percentiles: tuple[float, float] | None = None,
+        xlim: tuple[float, float] | None = None,
+        ylim: tuple[float, float] | None = None,
         axes: slp.Axes | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
-        ax: Any = None,
     ) -> slp.Axes:
         """
         Plot the spectrum.
@@ -186,46 +205,112 @@ class SpectrumPlotter:
             outer_label_fn: Map outer key to annotation label below columns.
             markers: Horizontal marker lines. Each HMarker with
                 ``group=None`` spans the full plot; those with a group key
-                span only the columns of that outer group.
-            energy_type: Restrict y-axis label to one energy type when the
-                collection mixes types.
+                span only the columns of that outer group, and those with a
+                ``column`` key as well span only that one column. Markers whose
+                group or column is not drawn are dropped.
+            energy_type: Select this energy type before plotting. All plotted
+                levels must share an energy type and reference normalization.
+            error_metric: 'error' or 'confidence_interval'; defaults to rc.
+                Central points always use the full-sample value.
+            confidence_level: Equal-tail percentile interval, e.g. 0.68.
+            percentiles: Explicit percentile bounds, e.g. (16, 84), computed
+                from bootstrap resamples. Exclusive with confidence_level.
+            xlim, ylim: Explicit limits. Otherwise existing explicit axes limits
+                are preserved; automatic y limits include marker lines/bands.
             axes: Axes to draw on (creates a figure if None).
             figsize: Figure size (adaptive default if None).
             backend: Backend for this call (uses the active one if None).
-            ax: Deprecated alias for ``axes``.
 
         Returns:
             The Axes drawn on.
         """
+        # Preserve explicit limits of caller-supplied axes before preparation.
+        if axes is not None:
+            axes = slp.wrap(axes)
+            xlim = xlim if xlim is not None else axes.get_limits("x", explicit_only=True)
+            ylim = ylim if ylim is not None else axes.get_limits("y", explicit_only=True)
+        prepared = self.prepare(
+            group_by=group_by, groups=groups, outer_sort_key=outer_sort_key,
+            inner_sort_key=inner_sort_key, column_label_fn=column_label_fn,
+            outer_label_fn=outer_label_fn, markers=markers,
+            options=SpectrumOptions(energy_type=energy_type, error_metric=error_metric,
+                                    confidence_level=confidence_level, percentiles=percentiles),
+            xlim=xlim, ylim=ylim,
+        )
+        return draw_spectrum(prepared, axes=axes, figsize=figsize, backend=backend)
+
+    def prepare(self, *, options=None, group_by=None, groups=None,
+                outer_sort_key=None, inner_sort_key=None, column_label_fn=None,
+                outer_label_fn=None, markers=None, xlim=None, ylim=None) -> PreparedSpectrum:
+        """Compute statistics, hover data and final range once, without a figure."""
+        options = SpectrumOptions.model_validate(options or {})
+        statistics = options.resolved()
+        statistics.pop("energy_type", None)
+        statistics.pop("hover_confidence_level", None)
+        interval = statistics["error_metric"] == "confidence_interval"
+        if options.hover_confidence_level is not None and interval:
+            raise ValueError("hover_confidence_level applies only to Gaussian errors; interval plots reuse their bounds")
         if (group_by is None) == (groups is None):
             raise ValueError("Provide exactly one of `group_by` or `groups`")
-
-        nested = self._resolve_groups(
-            group_by=group_by,
-            groups=groups,
-            outer_sort_key=outer_sort_key,
-            inner_sort_key=inner_sort_key,
+        nested = self._resolve_groups(group_by=group_by, groups=groups,
+                                      outer_sort_key=outer_sort_key, inner_sort_key=inner_sort_key)
+        nested = self._select_energy_type(nested, options.energy_type)
+        columns, midpoints, ranges, x_end = self._layout(nested)
+        column_ranges = {(outer, col): (x, x) for outer, col, x, _ in columns}
+        placed = tuple(
+            (_snapshot_marker(m), span)
+            for m in markers or ()
+            if (span := _marker_range(m, self.style, ranges, column_ranges, x_end)) is not None
         )
-
-        columns, outer_midpoints, outer_ranges, x_end = self._layout(nested)
-
-        if axes is None and ax is None:
-            fig_w = max(6.0, len(columns) * 1.2)
-            figsize = figsize or (fig_w, 6.0)
-        axes = resolve_axes(axes, ax, figsize=figsize, backend=backend)
-
-        self._seed_axes_limits(axes, columns, x_end)
-        self._draw_columns(axes, columns)
-        self._draw_xticks(axes, columns, column_label_fn)
-        self._draw_outer_labels(axes, outer_midpoints, outer_label_fn)
-        if markers:
-            self._draw_markers(axes, markers, outer_ranges, x_end)
-        self._set_ylabel(axes, energy_type)
-
-        axes.set(xlim=(-self.style.col_spacing, x_end))
-        axes.grid(True, alpha=self.style.grid_alpha, axis="y")
-
-        return axes
+        hover_confidence = None
+        if not interval:
+            from ..rcparams import rc
+            hover_confidence = options.hover_confidence_level or rc["plot.confidence_level"]
+        values = []
+        for _, _, _, sub in columns:
+            levels = []
+            for sampling in sub:
+                central, bounds = _full_sample_and_bounds(sampling, statistics)
+                # CI bounds double as hover percentiles; Gaussian bounds do not.
+                hover = energy_level_hover_text(sampling,
+                    percentiles=statistics.get("percentiles"),
+                    confidence_level=statistics.get("confidence_level", hover_confidence),
+                    interval_bounds=bounds if interval else None)
+                levels.append(PreparedLevel(central, bounds,
+                    sampling.observable_info.level_index or 0, self._is_excluded(sampling), hover))
+            values.append(tuple(levels))
+        y_range = ylim if ylim is not None else self.style.ylim
+        if y_range is None:
+            ys = [v for column in values for level in column for v in (level.central, *level.bounds)]
+            for marker, _ in placed:
+                ys.append(marker.y)
+                if marker.band is not None:
+                    ys.extend(marker.band)
+            lo, hi = min(ys), max(ys)
+            pad = self.style.ypad_frac * (hi - lo) if hi > lo else 1.0
+            y_range = (lo-pad, hi+pad)
+        recorded = {"central": "full_sample", **statistics}
+        if hover_confidence is not None:
+            recorded["hover_confidence_level"] = hover_confidence
+        style = _PreparedStyle.model_validate(self.style.model_dump())
+        object.__setattr__(style, "errorbar_kwargs", _freeze(style.errorbar_kwargs))
+        return PreparedSpectrum(
+            style=style,
+            columns=tuple((outer, col, x) for outer, col, x, _ in columns),
+            levels=tuple(values),
+            outer_midpoints=_freeze(midpoints),
+            outer_ranges=_freeze(ranges),
+            column_ranges=_freeze(column_ranges),
+            x_end=x_end,
+            x_range=tuple(xlim if xlim is not None else
+                          self.style.xlim or (-self.style.col_spacing, x_end)),
+            energy_range=tuple(y_range),
+            ylabel=self._ylabel([s for _, _, _, sub in columns for s in sub]),
+            statistics=_freeze(recorded),
+            markers=placed,
+            column_label_fn=column_label_fn,
+            outer_label_fn=outer_label_fn,
+        )
 
     def _resolve_groups(
         self,
@@ -237,6 +322,8 @@ class SpectrumPlotter:
     ) -> list[tuple[Hashable, list[tuple[Hashable, SingleEnsembleEnergyCollection]]]]:
         """Normalize inputs to an ordered [(outer_key, [(col_key, coll), ...])]."""
         if groups is not None:
+            if not groups:
+                raise ValueError("No energy levels to plot")
             first_val = next(iter(groups.values()))
             if isinstance(first_val, Mapping):
                 nested_raw = groups
@@ -270,6 +357,46 @@ class SpectrumPlotter:
             out.append((ok, [(ik, inner_map[ik]) for ik in inner_keys]))
         return out
 
+    @staticmethod
+    def _select_energy_type(nested, energy_type):
+        selected = []
+        for outer_key, inner in nested:
+            columns = []
+            for key, sub in inner:
+                if not isinstance(sub, SingleEnsembleEnergyCollection):
+                    raise TypeError("Every spectrum group must be a SingleEnsembleEnergyCollection")
+                if energy_type is not None:
+                    sub = sub.filter(energy_type=energy_type)
+                if len(sub):
+                    columns.append((key, sub))
+            if columns:
+                selected.append((outer_key, columns))
+        if not selected:
+            raise ValueError(f"No energy levels to plot for energy_type={energy_type!r}")
+        return selected
+
+    @staticmethod
+    def _ylabel(samplings):
+        quantities = {
+            (s.observable_info.energy_type, s.observable_info.ref_particle) for s in samplings
+        }
+        if len(quantities) != 1:
+            raise ValueError(
+                "Spectrum levels must share one energy type and reference normalization; "
+                "select/filter compatible data before plotting"
+            )
+        obs = samplings[0].observable_info
+        if obs.energy_type is None:
+            raise ValueError("Spectrum levels must specify their energy type")
+        latex = obs.specify_latex_str(
+            include_irrep=False,
+            include_psq=False,
+            include_particles=False,
+            include_level_index=False,
+            is_single_hadron=False,
+        )
+        return f"${latex}$"
+
     def _layout(
         self,
         nested: list[tuple[Hashable, list[tuple[Hashable, SingleEnsembleEnergyCollection]]]],
@@ -283,9 +410,7 @@ class SpectrumPlotter:
         outer_midpoints: dict[Hashable, float] = {}
         outer_ranges: dict[Hashable, tuple[float, float]] = {}
         x = 0.0
-        for i, (outer_key, inner) in enumerate(nested):
-            if i > 0:
-                x += self.style.outer_gap
+        for outer_key, inner in nested:
             start = x
             for col_key, sub in inner:
                 columns.append((outer_key, col_key, x, sub))
@@ -295,189 +420,22 @@ class SpectrumPlotter:
             outer_ranges[outer_key] = (start, end)
         return columns, outer_midpoints, outer_ranges, x
 
-    def _seed_axes_limits(self, axes: slp.Axes, columns, x_end) -> None:
-        """Set limits up front: marker_extent needs a data range to work from."""
-        all_ys = np.array([s.mean for _, _, _, sub in columns for s in sub])
-        all_yerrs = np.array([s.error for _, _, _, sub in columns for s in sub])
-        if len(all_ys) == 0:
-            return
-        y_lo = float(np.min(all_ys - all_yerrs))
-        y_hi = float(np.max(all_ys + all_yerrs))
-        pad = self.style.ypad_frac * (y_hi - y_lo) if y_hi > y_lo else 1.0
-        axes.set(ylim=(y_lo - pad, y_hi + pad), xlim=(-self.style.col_spacing, x_end))
-
-    def _color_cycle(self):
-        if self.style.color_cycle is not None:
-            return IndexedCycle(self.style.color_cycle)
-        return IndexedCycle(COLORS)
-
-    @staticmethod
-    def _hover_text(sampling: SigmondSampling) -> str:
-        obs = sampling.observable_info
-        return (
-            f"{obs.irrep} d²={obs.psq} level {obs.level_index}<br>"
-            f"{sampling.mean:.6g} ± {sampling.error:.2g}"
-        )
-
-    def _draw_columns(self, axes: slp.Axes, columns) -> None:
-        marker_extent = axes.marker_extent(self.style.markersize)
-
-        for _, _, x_center, sub in columns:
-            ys = np.array([s.mean for s in sub])
-            yerrs = np.array([s.error for s in sub])
-            xs = stacked_positions(
-                ys,
-                yerrs,
-                x=x_center,
-                width=self.style.stack_width,
-                marker_extent=marker_extent,
-            )
-            color_cycle = self._color_cycle()
-            for xi, yi, yerri, samp in zip(xs, ys, yerrs, sub):
-                cycled = next(color_cycle)
-                color = self.style.excluded_color if self._is_excluded(samp) else cycled
-                axes.errorbar(
-                    xi,
-                    yi,
-                    yerr=yerri,
-                    color=color,
-                    marker="o",
-                    capsize=self.style.capsize,
-                    width=self.style.linewidth,
-                    markersize=self.style.markersize,
-                    hover=[self._hover_text(samp)],
-                    native=self.style.errorbar_kwargs or None,
-                )
-
-    def _draw_xticks(self, axes: slp.Axes, columns, column_label_fn) -> None:
-        label_fn = column_label_fn or self._default_column_label
-        positions = [x for _, _, x, _ in columns]
-        labels = [label_fn(col_key) for _, col_key, _, _ in columns]
-        axes.ticks("x", positions, labels, rotation=45, fontsize=self.style.fontsize)
-
-    def _draw_outer_labels(self, axes: slp.Axes, outer_midpoints, outer_label_fn) -> None:
-        if all(k is None for k in outer_midpoints):
-            return
-        label_fn = outer_label_fn or self._default_outer_label
-        fs = self.style.fontsize if self.style.fontsize is not None else 10
-        # The offset is in points below the axes; convert once to axes fraction
-        # so the label lands in the same place on either backend.
-        y = axes.point_size(self.style.outer_label_offset, "y", units="axes")
-        for outer_key, mid_x in outer_midpoints.items():
-            axes.text(
-                mid_x,
-                y,
-                label_fn(outer_key),
-                # x in data units so the label tracks its columns, y below the axes.
-                coords=("data", "axes"),
-                ha="center",
-                va="top",
-                fontsize=fs,
-            )
-
-    def _draw_markers(
-        self,
-        axes: slp.Axes,
-        markers: list[HMarker],
-        outer_ranges: dict[Hashable, tuple[float, float]],
-        x_end: float,
-    ) -> None:
-        pad = self.style.marker_edge_pad
-        label_fs = self.style.marker_label_fontsize or self.style.fontsize
-        label_offset = axes.point_size(self.style.marker_label_pad, "x", units="data")
-
-        for m in markers:
-            if m.group is not None:
-                if m.group not in outer_ranges:
-                    continue
-                x_start, x_stop = outer_ranges[m.group]
-                x_start -= pad
-                x_stop += pad
-            else:
-                x_start = -self.style.col_spacing + pad
-                x_stop = x_end - self.style.col_spacing + pad
-
-            axes.hlines(
-                m.y,
-                x_start,
-                x_stop,
-                color=m.color,
-                style=m.linestyle,
-                width=m.linewidth,
-                alpha=m.alpha,
-                zorder=1,
-            )
-
-            if m.label is not None:
-                axes.text(
-                    x_stop + label_offset,
-                    m.y,
-                    m.label,
-                    ha="left",
-                    va="center",
-                    fontsize=label_fs,
-                    color=m.color,
-                    alpha=m.alpha,
-                )
-
-    def _set_ylabel(self, axes: slp.Axes, energy_type: str | None) -> None:
-        energy_types = self.collection.energy_types
-        if energy_type is not None:
-            if energy_type not in energy_types:
-                raise ValueError(f"energy_type '{energy_type}' not in collection")
-            energy_types = [energy_type]
-
-        if len(energy_types) == 1:
-            latex = self.collection[0].observable_info.specify_latex_str(
-                include_irrep=False,
-                include_psq=False,
-                include_particles=False,
-                include_level_index=False,
-            )
-            axes.set(ylabel=f"${latex}$")
-        else:
-            logging.warning(
-                f"Multiple energy types found ({energy_types}), using generic 'E' label"
-            )
-            axes.set(ylabel="E")
-
-    @staticmethod
-    def _default_column_label(key: Hashable) -> str:
-        return str(key)
-
-    @staticmethod
-    def _default_outer_label(key: Hashable) -> str:
-        return str(key)
-
 
 class SectorSpectrumPlotter(SpectrumPlotter):
     """
     Preset plotter grouping by PSQ (outer) then irrep (inner).
 
-    Reproduces the original `plot_spectrum` layout with PSQ annotations below
-    the irrep columns.
+    Irrep columns are evenly spaced, with vertical separators between PSQ
+    groups and PSQ annotations below the columns.
     """
 
-    def plot(
-        self,
-        *,
-        markers: list[HMarker] | None = None,
-        energy_type: str | None = None,
-        axes: slp.Axes | None = None,
-        figsize: tuple[float, float] | None = None,
-        backend: str | None = None,
-        ax: Any = None,
-    ) -> slp.Axes:
+    def plot(self, **kwargs: Any) -> slp.Axes:
+        """:meth:`SpectrumPlotter.plot` with the PSQ/irrep grouping and labels fixed."""
         return super().plot(
             group_by=("psq", "irrep"),
             column_label_fn=self._irrep_label,
             outer_label_fn=self._psq_label,
-            markers=markers,
-            energy_type=energy_type,
-            axes=axes,
-            figsize=figsize,
-            backend=backend,
-            ax=ax,
+            **kwargs,
         )
 
     @staticmethod
@@ -487,3 +445,184 @@ class SectorSpectrumPlotter(SpectrumPlotter):
     @staticmethod
     def _irrep_label(irrep: Hashable) -> str:
         return f"${get_irrep_latex_str(irrep)}$"
+
+
+def prepare_spectrum(collection, *, options=None, style=None, excluded_levels=None,
+                     overlays=None, group_by=("psq", "irrep"), **kwargs) -> PreparedSpectrum:
+    """Prepare a sector spectrum; ordinary overlays participate in auto limits."""
+    plotter = SectorSpectrumPlotter(collection, style=style, excluded_levels=excluded_levels)
+    return plotter.prepare(options=options, group_by=group_by, markers=overlays,
+                           column_label_fn=plotter._irrep_label,
+                           outer_label_fn=plotter._psq_label, **kwargs)
+
+
+@figure_factory
+def draw_spectrum(prepared: PreparedSpectrum, *, overlays=None, axes=None,
+                  figsize=None, backend=None) -> slp.Axes:
+    """Draw prepared values. Additional overlays never expand the fixed range.
+
+    Pass ordinary range-expanding overlays to preparation; pass range-derived
+    markers (such as NI levels) here. No replacement style is accepted.
+    """
+    # Overlays whose group or column is not drawn are skipped, as in preparation.
+    placed = [
+        (_snapshot_marker(m), span)
+        for m in overlays or ()
+        if (span := _marker_range(m, prepared.style, prepared.outer_ranges,
+                                  prepared.column_ranges, prepared.x_end)) is not None
+    ]
+    axes = resolve_axes(axes,
+                        figsize=figsize or (max(6., len(prepared.columns)*1.2), 6.), backend=backend)
+    # Limits first: point_size and marker_extent depend on them.
+    axes.set(xlim=prepared.x_range, ylim=prepared.energy_range)
+    _draw_columns(axes, prepared)
+    _draw_xticks(axes, prepared)
+    _draw_group_separators(axes, prepared)
+    _draw_outer_labels(axes, prepared)
+    _draw_markers(axes, prepared.style, [*prepared.markers, *placed])
+    axes.set(ylabel=prepared.ylabel)
+    if axes.style.grid:
+        # Vertical lines between irrep columns mean nothing; keep only the
+        # horizontal ones.
+        axes.grid(False, axis="x")
+    return axes
+
+
+def _fontsize(style: SpectrumStyle, specific: float | None) -> float | None:
+    """A label-specific font size, else the style-wide one (None: backend default)."""
+    return specific if specific is not None else style.fontsize
+
+
+def _marker_range(
+    m: HMarker,
+    style: SpectrumStyle,
+    outer_ranges: dict[Hashable, tuple[float, float]],
+    column_ranges: dict[tuple[Hashable, Hashable], tuple[float, float]],
+    x_end: float,
+) -> tuple[float, float] | None:
+    """The x span a marker covers, or None when its group/column is not drawn."""
+    pad = style.marker_edge_pad
+    if m.column is not None:
+        span = column_ranges.get((m.group, m.column))
+    elif m.group is not None:
+        span = outer_ranges.get(m.group)
+    else:
+        return (-style.col_spacing + pad, x_end - style.col_spacing + pad)
+    if span is None:
+        return None
+    return (span[0] - pad, span[1] + pad)
+
+
+def _draw_columns(axes: slp.Axes, prepared: PreparedSpectrum) -> None:
+    style = prepared.style
+    marker_extent = axes.marker_extent(style.markersize)
+    colors = resolve_colors(style.color_cycle, axes.style).items
+
+    for (_, _, x_center), values in zip(prepared.columns, prepared.levels):
+        ys = np.array([level.central for level in values])
+        bounds = np.array([level.bounds for level in values])
+        # Adapt exact asymmetric intervals to the existing symmetric stacking
+        # helper without changing its lane-assignment algorithm.
+        lo = np.minimum(bounds[:, 0], ys)
+        hi = np.maximum(bounds[:, 1], ys)
+        xs = stacked_positions(
+            (lo + hi) / 2,
+            (hi - lo) / 2,
+            x=x_center,
+            width=style.stack_width,
+            marker_extent=marker_extent,
+        )
+        for xi, level in zip(xs, values):
+            yi, (lower, upper) = level.central, level.bounds
+            cycled = colors[level.color_key % len(colors)]
+            color = style.excluded_color if level.excluded else cycled
+            hover = [level.hover]
+            if not lower <= yi <= upper:
+                # A percentile interval need not contain the full-sample value.
+                # Draw its exact endpoints separately instead of clipping it
+                # or passing negative errors to a backend.
+                axes.vlines(xi, lower, upper, color=color, linewidth=style.linewidth)
+                cap = abs(axes.point_size(style.capsize, "x"))
+                axes.hlines(
+                    [lower, upper], xi - cap, xi + cap, color=color, linewidth=style.linewidth
+                )
+                axes.points(
+                    [xi], [yi], color=color, markersize=style.markersize, marker="o", hover=hover
+                )
+                continue
+            axes.errorbar(
+                xi,
+                yi,
+                yerr=np.array([[yi - lower], [upper - yi]]),
+                color=color,
+                marker="o",
+                capsize=style.capsize,
+                linewidth=style.linewidth,
+                markersize=style.markersize,
+                hover=hover,
+                native=_native_kwargs(style.errorbar_kwargs) or None,
+            )
+
+
+def _draw_xticks(axes: slp.Axes, prepared: PreparedSpectrum) -> None:
+    label_fn = prepared.column_label_fn or str
+    positions = [x for _, _, x in prepared.columns]
+    labels = [label_fn(col_key) for _, col_key, _ in prepared.columns]
+    fs = _fontsize(prepared.style, prepared.style.column_label_fontsize)
+    axes.ticks("x", positions, labels, rotation=45, fontsize=fs)
+
+
+def _draw_outer_labels(axes: slp.Axes, prepared: PreparedSpectrum) -> None:
+    if all(k is None for k in prepared.outer_midpoints):
+        return
+    style = prepared.style
+    label_fn = prepared.outer_label_fn or str
+    fs = _fontsize(style, style.outer_label_fontsize)
+    # The offset is in points below the axes; convert once to axes fraction
+    # so the label lands in the same place on either backend.
+    y = axes.point_size(style.outer_label_offset, "y", units="axes")
+    for outer_key, mid_x in prepared.outer_midpoints.items():
+        axes.text(
+            mid_x,
+            y,
+            label_fn(outer_key),
+            # x in data units so the label tracks its columns, y below the axes.
+            coords=("data", "axes"),
+            ha="center",
+            va="top",
+            fontsize=fs,
+        )
+
+
+def _draw_group_separators(axes: slp.Axes, prepared: PreparedSpectrum) -> None:
+    """Divide adjacent outer groups halfway between their columns."""
+    style = prepared.style
+    ranges = list(prepared.outer_ranges.values())
+    ymin = -abs(axes.point_size(style.group_separator_tick_length, "y", units="axes"))
+    for (_, previous_end), (next_start, _) in zip(ranges, ranges[1:]):
+        axes.axvline(
+            (previous_end + next_start) / 2,
+            ymin=ymin,
+            color=style.group_separator_color,
+            linewidth=style.group_separator_linewidth,
+            linestyle=style.group_separator_linestyle,
+            zorder=0,
+        )
+
+
+def _draw_markers(
+    axes: slp.Axes, style: SpectrumStyle, markers: list[tuple[HMarker, tuple[float, float]]]
+) -> None:
+    label_fs = _fontsize(style, style.marker_label_fontsize)
+    label_offset = axes.point_size(style.marker_label_pad, "x", units="data")
+    for m, (x_start, x_stop) in markers:
+        draw_hmarker(
+            axes,
+            m,
+            x_start,
+            x_stop,
+            x_stop + label_offset,
+            ha="left",
+            va="center",
+            fontsize=label_fs,
+        )

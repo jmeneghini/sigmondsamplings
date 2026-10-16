@@ -34,17 +34,21 @@ from __future__ import annotations
 import contextlib
 import importlib
 import importlib.util
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from types import ModuleType
 from typing import Any
 
-from .base import FEATURES, Axes, Coords, Figure, Origin, UnsupportedFeature
+from .base import Axes, Coords, Figure, FigureSpec, Origin, UnsupportedFeature
+from .export import BackendExports, ExportCapability, export_capabilities
+from .lifecycle import figure_scope, track_figure
 from .recording import Mark, Recorder, record
 from .style import PlotStyle, get_style, set_style, style_context
-from .text import ensure_math, strip_math, to_display
+from .text import ensure_math
 
 __all__ = [
-    "FEATURES",
+    "export_capabilities",
+    "BackendExports",
+    "ExportCapability",
     "Axes",
     "Coords",
     "Figure",
@@ -53,17 +57,18 @@ __all__ = [
     "PlotStyle",
     "Recorder",
     "UnsupportedFeature",
+    "as_figure",
     "available",
     "backend",
     "current",
     "ensure_math",
     "figure",
+    "figure_scope",
     "get_style",
     "record",
     "set_style",
-    "strip_math",
+    "show",
     "style_context",
-    "to_display",
     "use",
     "wrap",
 ]
@@ -82,12 +87,11 @@ _loaded: dict[str, ModuleType] = {}
 
 def available() -> list[str]:
     """Backend names that can actually be used in this environment."""
-    names = []
-    for name, requirement in (("matplotlib", "matplotlib"), ("plotly", "plotly")):
-        if importlib.util.find_spec(requirement) is not None:
-            names.append(name)
-    names.append("recording")
-    return names
+    return [
+        name
+        for name in _MODULES
+        if name not in _REQUIRES or importlib.util.find_spec(_REQUIRES[name]) is not None
+    ]
 
 
 def current() -> str:
@@ -95,10 +99,25 @@ def current() -> str:
     return _current
 
 
-def use(name: str) -> str:
-    """Set the process-wide default backend; returns the previous name."""
+def _require(name: str) -> None:
+    """Fail unless ``name`` is a known backend whose dependency is installed."""
     if name not in _MODULES:
         raise ValueError(f"Unknown backend {name!r}. Known: {sorted(_MODULES)}")
+    requirement = _REQUIRES.get(name)
+    if requirement is not None and importlib.util.find_spec(requirement) is None:
+        raise ImportError(
+            f"The {name!r} backend needs {requirement}. "
+            f"Install it, or pick another backend: {available()}"
+        )
+
+
+def use(name: str) -> str:
+    """Set the process-wide default backend; returns the previous name.
+
+    An unknown name raises ``ValueError``, a missing dependency ``ImportError``,
+    here rather than at the first figure.
+    """
+    _require(name)
     global _current
     previous, _current = _current, name
     return previous
@@ -116,15 +135,9 @@ def backend(name: str) -> Iterator[str]:
 
 def _module(name: str | None) -> ModuleType:
     name = name or _current
-    if name not in _MODULES:
-        raise ValueError(f"Unknown backend {name!r}. Known: {sorted(_MODULES)}")
     if name not in _loaded:
-        requirement = _REQUIRES.get(name)
-        if requirement is not None and importlib.util.find_spec(requirement) is None:
-            raise ImportError(
-                f"The {name!r} backend needs {requirement}. "
-                f"Install it, or pick another backend: {available()}"
-            )
+        # figure(backend=...) and wrap(backend=...) arrive here without use().
+        _require(name)
         _loaded[name] = importlib.import_module(_MODULES[name], __package__)
     return _loaded[name]
 
@@ -146,7 +159,7 @@ def figure(
 
     Args:
         rows, cols: Grid shape.
-        figsize: Size in inches. Plotly converts it to pixels via ``style.dpi``.
+        figsize: Size in inches. Plotly lays it out at 100 px per inch.
         height_ratios: Relative row heights, top to bottom.
         width_ratios: Relative column widths, left to right.
         sharex, sharey: Share axis ranges across the grid.
@@ -154,25 +167,27 @@ def figure(
         constrained_layout: matplotlib layout engine; ignored by plotly.
         backend: Backend name; defaults to the active one.
     """
-    return _module(backend).make_figure(
-        rows,
-        cols,
-        figsize=figsize,
-        height_ratios=height_ratios,
-        width_ratios=width_ratios,
+    style = style or get_style()
+    if figsize is not None:
+        style = style.replace(figsize=tuple(figsize))
+    spec = FigureSpec(
+        rows=rows,
+        cols=cols,
+        style=style,
+        height_ratios=None if height_ratios is None else tuple(height_ratios),
+        width_ratios=None if width_ratios is None else tuple(width_ratios),
         sharex=sharex,
         sharey=sharey,
-        style=style,
         constrained_layout=constrained_layout,
     )
+    return track_figure(_module(backend).make_figure(spec))
 
 
 def wrap(obj: Any, *, style: PlotStyle | None = None, backend: str | None = None) -> Axes | Figure:
     """Adopt an existing native object as an :class:`Axes` or :class:`Figure`.
 
-    This is what keeps legacy ``ax=`` keywords working: a caller holding a raw
-    ``plt.Axes`` can hand it to a plot function that now speaks this API.
-    Already-wrapped objects pass through unchanged.
+    A caller holding a raw ``plt.Axes`` can hand it as ``axes=`` to a plot
+    function that speaks this API. Already-wrapped objects pass through unchanged.
     """
     if isinstance(obj, Axes | Figure):
         return obj
@@ -186,3 +201,28 @@ def wrap(obj: Any, *, style: PlotStyle | None = None, backend: str | None = None
                 return _module(name).wrap(obj, style=style)
         raise TypeError(f"No backend can wrap {type(obj).__name__}")
     return _module(backend).wrap(obj, style=style)
+
+
+def as_figure(obj: Any, *, style: PlotStyle | None = None) -> Figure:
+    """The :class:`Figure` behind whatever a plot function returned.
+
+    Accepts an :class:`Axes` (its figure), a :class:`Figure`, or a native
+    figure or axes that :func:`wrap` can adopt.
+    """
+    wrapped = wrap(obj, style=style)
+    return wrapped.figure if isinstance(wrapped, Axes) else wrapped
+
+
+def show(figures: Iterable[Any]) -> None:
+    """Display figures, each normalised with :func:`as_figure`.
+
+    ``plt.show()`` displays every open matplotlib figure and blocks, so it is
+    called once for all of them, last; every other figure is shown on its own.
+    """
+    normalised = [as_figure(obj) for obj in figures]
+    matplotlib = [fig for fig in normalised if fig.backend == "matplotlib"]
+    for fig in normalised:
+        if fig.backend != "matplotlib":
+            fig.show()
+    if matplotlib:
+        matplotlib[0].show()

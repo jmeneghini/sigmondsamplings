@@ -41,6 +41,9 @@ if TYPE_CHECKING:
     from ..plotting import SamplingPlotter
     from ..sampling import SigmondSampling
     from ..stats import SamplingStats
+    from ..data import SigmondData
+    from ..info import SectorInfo
+    from ..metadata import EnergyTarget
 
 __all__ = ["FitResult"]
 
@@ -50,6 +53,36 @@ __all__ = ["FitResult"]
 #: well below any direction the data meaningfully constrains: at a ratio of 1e-6 the
 #: ``JᵀJ`` inversion behind the covariance has already lost ~12 of 16 digits.
 RANK_RTOL = 1e-6
+
+
+def _prediction_order_key(sampling):
+    info = sampling.observable_info
+    return (info.name, info.index, info.op_type, info.re_im, info.ensemble_info.name)
+
+
+def _claim_groups(filename: str | Path, groups: list[str], overwrite: bool) -> None:
+    """Clear the way for the ``write_*`` methods to write ``groups`` into ``filename``.
+
+    They all append, so ``params``/``chi2``/``theory``/``jacobian`` can share one
+    file. A group that is already there is an error unless ``overwrite``, in which
+    case it is deleted outright — so a rewrite never leaves stale observables
+    behind or trips over the old group's sampling info.
+    """
+    import h5py
+
+    if not Path(filename).exists():
+        return
+    with h5py.File(str(filename), "a") as handle:
+        for group in groups:
+            if group not in handle:
+                continue
+            if not overwrite:
+                raise ValueError(
+                    f"group {group!r} already exists in {str(filename)!r}; "
+                    "pass overwrite=True to replace it"
+                )
+            del handle[group]
+
 
 
 @dataclass
@@ -130,6 +163,12 @@ class FitResult:
     log_reader: Any = (
         None  #: optimagic SQLiteLogReader for the full-sample fit (if trace_path is set)
     )
+    #: Name of the coord used as the independent variable (e.g. ``"time"``), copied
+    #: from :attr:`SamplingFit.x_name`. ``None`` for fits not built by ``from_data``.
+    x_name: str | None = None
+    #: The independent-variable values, one per fitted observable (and so per
+    #: :attr:`theory` entry). Written with the theory and read back by :meth:`from_hdf5`.
+    x: np.ndarray | None = None
 
     # ------------------------------------------------------------------
     # scalar fit diagnostics
@@ -305,22 +344,33 @@ class FitResult:
     def write_params(
         self, filename: str | Path, group: str = "params", overwrite: bool = False
     ) -> None:
-        """Write fitted parameter samplings to an HDF5 file."""
+        """Write fitted parameter samplings to ``group`` of an HDF5 file.
+
+        The file is appended to, not truncated; an existing ``group`` is an error
+        unless ``overwrite``, which replaces it.
+        """
         from ..observable_collection import ObservableCollection
 
+        _claim_groups(filename, [group], overwrite)
         ObservableCollection(list(self.params)).to_hdf5(
-            str(filename), group=group, overwrite=overwrite, create_backups=False
+            str(filename), group=group, mode="a", create_backups=False
         )
+
 
     def write_chi2(
         self, filename: str | Path, group: str = "chi2", overwrite: bool = False
     ) -> None:
-        """Write the chi-squared sampling to an HDF5 file."""
+        """Write the chi-squared sampling to ``group`` of an HDF5 file.
+
+        Appends like :meth:`write_params`.
+        """
         from ..observable_collection import ObservableCollection
 
+        _claim_groups(filename, [group], overwrite)
         ObservableCollection([self.chi_squared]).to_hdf5(
-            str(filename), group=group, overwrite=overwrite, create_backups=False
+            str(filename), group=group, mode="a", create_backups=False
         )
+
 
     def write_theory(
         self, filename: str | Path, group: str = "theory", overwrite: bool = False
@@ -329,11 +379,56 @@ class FitResult:
 
         Multi-ensemble theory (from multi-ensemble fits) writes each ensemble
         to a separate group via :meth:`~MultiEnsembleCollection.to_hdf5`.
-        Raises ``ValueError`` when no theory is available.
+        :attr:`x` and :attr:`x_name` ride along as the group attributes ``X``
+        and ``XName``. ``PredictionOrder`` preserves their alignment independently
+        of HDF5 key ordering. Appends like :meth:`write_params`. Raises ``ValueError``
+        when no theory is available.
         """
         if self.theory is None:
             raise ValueError("No theory predictions available (objective has no model).")
-        self.theory.to_hdf5(str(filename), group=group, overwrite=overwrite, create_backups=False)
+        _claim_groups(filename, self.theory.hdf5_group_names(group), overwrite)
+        self.theory.to_hdf5(str(filename), group=group, mode="a", create_backups=False)
+
+        import h5py
+        import json
+
+        with h5py.File(str(filename), "a") as handle:
+            if group in handle:
+                handle[group].attrs["PredictionOrder"] = json.dumps([_prediction_order_key(p) for p in self.theory])
+                if self.x is not None and self.x_name is not None:
+                    handle[group].attrs["X"] = np.asarray(self.x, dtype=float)
+                    handle[group].attrs["XName"] = str(self.x_name)
+
+    def theory_series(self, *, sector_info: SectorInfo | None = None,
+                      target: EnergyTarget | None = None, label: str | None = None,
+                      coordinate_label: str | None = None) -> SigmondData:
+        """:attr:`theory` as a 1-D ``SigmondData`` over :attr:`x_name`, coords :attr:`x`.
+
+        This is the fitted model in the same form as the data it was fitted to,
+        so the same calculators apply (e.g. ``effective_energy(result.theory_series())``).
+        Wraps the stored predictions exactly without reevaluation or a callable,
+        including reloaded and synthetic results. Physical context is explicit;
+        without ``sector_info`` or ``target``, the prediction sector is empty.
+
+        Raises:
+            ValueError: No theory, or no ``x`` (a fit built by ``from_model``).
+        """
+        from ..predictions import _prediction_descriptor, _wrap_predictions
+
+        if self.theory is None:
+            raise ValueError("No theory predictions available (objective has no model).")
+        if self.x is None or self.x_name is None:
+            raise ValueError(
+                "this fit result has no x values; only fits built by SamplingFit.from_data "
+                "(or read back with their theory) carry them"
+            )
+        theory = list(self.theory)
+        if len(theory) != len(self.x):
+            raise ValueError(f"{len(theory)} theory values for {len(self.x)} x values")
+        descriptor = _prediction_descriptor(theory, self.x, self.x_name,
+                        sector_info=sector_info, target=target, label=label,
+                        coordinate_label=coordinate_label)
+        return _wrap_predictions(theory, self.x, self.x_name, descriptor)
 
     def write_jacobian(
         self, filename: str | Path, group: str = "jacobian", overwrite: bool = False
@@ -359,15 +454,10 @@ class FitResult:
                 "one (resampled fits and HDF5 round-trips do not)."
             )
         jac = np.asarray(self.residual_jacobian, dtype=float)
+        _claim_groups(filename, [group], overwrite)
         with h5py.File(str(filename), "a") as handle:
-            if group in handle:
-                if not overwrite:
-                    raise ValueError(
-                        f"group {group!r} already exists in {str(filename)!r}; "
-                        "pass overwrite=True to replace it"
-                    )
-                del handle[group]
             grp = handle.create_group(group)
+
             dset = grp.create_dataset("Jacobian", data=jac)
             dset.attrs["FreeParamNames"] = np.array(
                 list(self.free_param_names), dtype=h5py.string_dtype()
@@ -495,6 +585,7 @@ class FitResult:
             chi2_file: HDF5 file written by :meth:`write_chi2` (optional).
             chi2_group: Group inside ``chi2_file`` (default ``"chi2"``).
             theory_file: HDF5 file written by :meth:`write_theory` (optional).
+                Also restores :attr:`x` / :attr:`x_name` when they were written.
             theory_group: Group inside ``theory_file`` (default ``"theory"``).
             jacobian_file: HDF5 file written by :meth:`write_jacobian` (optional).
                 Without it :attr:`residual_jacobian` — and so the degeneracy
@@ -544,8 +635,26 @@ class FitResult:
         # --- theory ---
         theory = None
         if theory_file is not None:
+            import h5py
+
             theory_loader = SigmondLoader(filename=str(theory_file), group=theory_group)
-            theory = SamplingStats(list(theory_loader.observables))
+            theory_values = list(theory_loader.observables)
+            with h5py.File(str(theory_file), "r") as handle:
+                attrs = handle[theory_group].attrs if theory_group in handle else {}
+                if "PredictionOrder" in attrs:
+                    import json
+                    order = [tuple(key) for key in json.loads(attrs["PredictionOrder"])]
+                    by_key = {_prediction_order_key(p):p for p in theory_values}
+                    if len(set(order)) != len(order) or set(order) != set(by_key):
+                        raise ValueError("Stored prediction order contradicts theory observables")
+                    theory_values = [by_key[key] for key in order]
+                if "X" in attrs and "XName" in attrs:
+                    name = attrs["XName"]
+                    kwargs.setdefault("x", np.asarray(attrs["X"], dtype=float))
+                    kwargs.setdefault(
+                        "x_name", name.decode() if isinstance(name, bytes) else str(name)
+                    )
+            theory = SamplingStats(theory_values)
 
         # --- residual Jacobian ---
         if jacobian_file is not None:

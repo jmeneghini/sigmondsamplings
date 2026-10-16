@@ -110,7 +110,9 @@ class SigmondSampling(SigmondData):
         """
         return self._ufloat(self._require_scalar("to_ufloat").data[resamp_idx])
 
-    def pdg_format(self, format_spec: str = ".2uS", resamp_idx=0) -> str:
+    def pdg_format(
+        self, format_spec: str = ".2uS", resamp_idx=0, *, central: str | None = None
+    ) -> str:
         """
         Format value and error using PDG conventions via uncertainties package.
 
@@ -122,6 +124,8 @@ class SigmondSampling(SigmondData):
                        - '.1uL': LaTeX notation
                        - '.1ue': Scientific notation
             resamp_idx: Index of the data to use (default 0 = full sample)
+            central: A :meth:`central` metric shown instead of ``resamp_idx``'s
+                value, e.g. ``"mean"``
 
         Returns:
             str: Formatted string using PDG conventions
@@ -131,6 +135,8 @@ class SigmondSampling(SigmondData):
         Raises:
             ImportError: If uncertainties package is not available
         """
+        if central is not None:
+            return super().pdg_format(format_spec, central=central)
         if self.is_complex:
             return self._complex_pdg_format(format_spec, resamp_idx=resamp_idx)
         ufloat_obj = self.to_ufloat(resamp_idx=resamp_idx)
@@ -171,6 +177,11 @@ class SigmondSampling(SigmondData):
         ``EnergyLevelMixin.create_ref``.
         """
         from .energy_levels import EnergyObsInfo, SHEnergyObsInfo
+        from .arithmetic import DerivedObsInfo, arithmetic_info
+        from .metadata import AtObsInfo
+
+        if isinstance(self.observable_info, (DerivedObsInfo, AtObsInfo)):
+            return arithmetic_info("reference", [self.observable_info, samp.observable_info])
 
         new_obs_info = self.observable_info.copy()
         if isinstance(new_obs_info, EnergyObsInfo):
@@ -188,13 +199,26 @@ class SigmondSampling(SigmondData):
         """Create a reference sampling for the given particle."""
         new_ref = self / samp
         # Build from self.observable_info (not new_ref's) to preserve the subclass type.
-        # __array_ufunc__ replaces observable_info with a plain ObservableInfo when the
-        # two operands have different observable_infos, so new_ref.observable_info would
-        # lose EnergyObsInfo/SHEnergyObsInfo.
-        new_ref.observable_info = self.ref_observable_info(samp)
+        # Generic arithmetic describes a derived ratio; this domain method
+        # explicitly establishes its energy/reference role.
+        if new_ref.ndim:
+            from .arithmetic import arithmetic_info
+            new_ref.observable_info = arithmetic_info("reference", [self.observable_info, samp.observable_info])
+            infos = np.empty(new_ref.shape, dtype=object)
+            for index in np.ndindex(new_ref.shape):
+                positions = dict(zip(new_ref.dims, index))
+                numerator = self.isel(**{dim: positions[dim] for dim in self.dims}) if self.ndim else self
+                denominator = samp.isel(**{dim: positions[dim] for dim in samp.dims}) if samp.ndim else samp
+                infos[index] = numerator.ref_observable_info(denominator)
+            new_ref = new_ref._with_replaced_infos(infos)
+        else:
+            new_ref.observable_info = self.ref_observable_info(samp)
         return new_ref
 
     def __repr__(self):
         if self.ndim:
             return self._array_repr()
-        return f"SigmondSampling(name='{str(self.observable_info)}', full={self.full_sample_value:.6f}, mean={self.mean:.6f}, error={self.error:.6f})"
+        return (
+            f"SigmondSampling(name='{self.observable_info}', value={self.pdg_format()}, "
+            f"method='{self.sampling_info.method}', N={self.sampling_info.num_resamplings})"
+        )

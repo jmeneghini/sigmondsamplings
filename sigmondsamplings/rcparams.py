@@ -46,17 +46,12 @@ ensembles.xml_file      None                  Path to the KnownEnsembles XML dat
 from __future__ import annotations
 
 import os
-import sys
+import tomllib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pragma: no cover - older Python
-    import tomli as tomllib
 
 __all__ = [
     "rc",

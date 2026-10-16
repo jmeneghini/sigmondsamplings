@@ -510,7 +510,7 @@ class SamplingFit:
         resample_minimizer: MinimizerConfig | None = None,
         use_correlation: bool = True,
         sampling_info: SamplingInfo | None = None,
-        ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
+        ensemble_info: EnsembleInfo | None = None,
     ) -> SamplingFit:
         """Build a fit from a 1-D ``SigmondData`` series + an :class:`XModel`.
 
@@ -542,7 +542,7 @@ class SamplingFit:
             resample_minimizer=resample_minimizer,
             use_correlation=use_correlation,
             sampling_info=sampling_info,
-            ensemble_info=ensemble_info,
+            ensemble_info=data.ensemble_info if ensemble_info is None else ensemble_info,
         )
         fit.x_name, fit.x = x_name, x_values
         return fit
@@ -1255,6 +1255,7 @@ class SamplingFit:
         samplings: list[SigmondSampling] = []
         for i, (name, spec) in enumerate(self.param_set.values.items()):
             obs = spec.observable_info(name)
+            obs.ensemble_info = self.ensemble_info
             samplings.append(
                 SigmondSampling(
                     data=param_matrix[i],
@@ -1307,6 +1308,8 @@ class SamplingFit:
             records=records,
             optimize_results=optimize_results,
             trace_path=trace_path,
+            x_name=self.x_name,
+            x=None if self.x is None else np.array(self.x, copy=True),
         )
 
     def _theory_stats(

@@ -431,26 +431,7 @@ def rebin_data(bins: np.ndarray, rebin_size: int) -> np.ndarray:
     return np.mean(reshaped, axis=1)
 
 
-def markersize_to_ydata(ax, ms):
-    """
-    Convert a matplotlib markersize (points) into a vertical size in y-data units.
-    """
-    fig = ax.figure
-
-    # points -> pixels
-    pixel_dy = ms * fig.dpi / 72.0
-
-    # pixels -> data units
-    p0 = ax.transData.inverted().transform((0, 0))
-    p1 = ax.transData.inverted().transform((0, pixel_dy))
-
-    dy = abs(p1[1] - p0[1])
-    return dy
-
-
-def stacked_positions(
-    y, yerr, x=None, width=0.16, pad=0.0, marker_extent=None, markersize=None, ax=None
-):
+def stacked_positions(y, yerr, x=None, width=0.16, pad=0.0, marker_extent=None):
     """Compute jittered x-positions that stack overlapping data points into columns.
 
     Only points whose y-intervals (y ± yerr) overlap with at least one other
@@ -482,12 +463,6 @@ def stacked_positions(
         area in addition to ``yerr`` and ``pad``. Obtain it from
         ``slat.plotting.Axes.marker_extent``; this keeps the function free of
         any backend dependency.
-    markersize : float or None
-        Deprecated matplotlib-only spelling of the above: a marker size in
-        points, converted using ``ax``. Ignored when ``marker_extent`` is given.
-    ax : matplotlib Axes or None
-        Axes used to convert ``markersize`` into y-data units. Required when
-        ``markersize`` is provided; ignored otherwise.
 
     Returns
     -------
@@ -501,14 +476,7 @@ def stacked_positions(
         yerr = np.full_like(y, yerr)
 
     # Optional marker-size contribution to the per-point vertical extent
-    if marker_extent is not None:
-        marker_half = marker_extent / 2
-    elif markersize is not None:
-        if ax is None:
-            raise ValueError("ax must be provided when markersize is given")
-        marker_half = markersize_to_ydata(ax, markersize) / 2
-    else:
-        marker_half = 0.0
+    marker_half = marker_extent / 2 if marker_extent is not None else 0.0
 
     # 1. Standardize x to an array of group centers
     if x is None:

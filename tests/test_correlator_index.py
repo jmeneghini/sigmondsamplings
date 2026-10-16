@@ -11,13 +11,13 @@ from correlator_data import BOOT, ENS, JACK, OPS, ckey, observable, series, vev
 
 from sigmondsamplings import SigmondLoader, SigmondWriter
 from sigmondsamplings.correlators import (
-    BasicOperator,
+    BasicLapHOperator,
+    CorrelatorAtTimeInfo,
     CorrelatorIndex,
-    CorrelatorKey,
-    CorrelatorMatrixSpec,
+    CorrelatorInfo,
+    CorrelatorMatrixInfo,
     CorrelatorObsInfo,
-    CorrelatorPair,
-    VEVKey,
+    VEVInfo,
     VEVObsInfo,
 )
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo
@@ -25,6 +25,12 @@ from sigmondsamplings.lazy import LazyDataMixin, materialize, stack_data
 from sigmondsamplings.sampling import SigmondSampling
 
 RNG = np.random.default_rng(5)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rng():
+    global RNG
+    RNG = np.random.default_rng(5)
 
 
 def _store(times=(3, 4, 5), n=2, herm=True):
@@ -45,14 +51,15 @@ def test_index_metadata_and_lookup():
     index = CorrelatorIndex.from_collection(items)
     assert index.operators == OPS[:2]
     assert index.times == (3, 4, 5)
-    assert CorrelatorPair(OPS[1], OPS[0]) in index.pairs
+    assert CorrelatorInfo(OPS[1], OPS[0]) in index.correlator_infos
     assert index.vev_operators == (OPS[0],)
     key = ckey(1, 0, 4, herm=True)
-    assert index.get(key) is items[6]
-    assert key in index and VEVKey(OPS[0]) in index and len(index) == 13
-    assert index.series_times(key.pair, hermitian=True) == (3, 4, 5)
+    assert index.get(key).observable_info == items[6].observable_info
+    np.testing.assert_array_equal(index.get(key).data, items[6].data)
+    assert key in index and VEVInfo(OPS[0]) in index and len(index) == 13
+    assert index.series_times(key.correlator, hermitian=True) == (3, 4, 5)
     assert index.ensemble_info == ENS and index.sampling_info == JACK and not index.is_bins
-    assert "12 correlators" in repr(index)
+    assert "4 correlators" in repr(index)
     with pytest.raises(KeyError):
         index.get(ckey(0, 1, 9, herm=True))
 
@@ -93,7 +100,7 @@ def test_correlator_infos_parse_lazily_and_tolerate_bad_names():
     renamed = built.copy()
     renamed.name = built.name + "_x"
     assert renamed.key is None and built.key == ckey(1, 0, 7)
-    vinfo = VEVObsInfo(key=VEVKey(OPS[2]))
+    vinfo = VEVObsInfo(key=VEVInfo(OPS[2]))
     assert vinfo.operator == OPS[2] and vinfo.obs_kind == "vev"
 
 
@@ -126,8 +133,8 @@ def test_empty_index():
 
 
 def test_channels_group_candidate_bases():
-    moving = BasicOperator.from_sigmond("pion P=(0,0,1) A2m_1 SS_0")
-    other = CorrelatorKey(CorrelatorPair(moving, moving), 3)
+    moving = BasicLapHOperator.from_sigmond("pion P=(0,0,1) A2m_1 SS_0")
+    other = CorrelatorAtTimeInfo(CorrelatorInfo(moving, moving), 3)
     items = _store(times=(3,), n=3) + [observable(other, series(RNG))]
     channels = CorrelatorIndex.from_collection(items).channels
     assert list(channels.values()) == [OPS, (moving,)]  # the pi-pi operator shares the channel
@@ -169,7 +176,7 @@ def test_correlators_take_part_in_collection_queries(lazy_file):
     assert len(at3) == 9 and all(o.observable_info.time == 3 for o in at3)
     assert len(obs.filter(obs_kind="vev")) == 3
     assert len(obs.filter(irrep="A1um", psq=0)) == len(obs)
-    assert len(obs.filter(obs_kind="correlator").group_by("pair")) == 9
+    assert len(obs.filter(obs_kind="correlator").group_by("correlator")) == 9
     assert not any(o.is_materialized for o in obs)
 
 
@@ -210,9 +217,9 @@ def test_materialize_reads_lazy_records_into_one_block(lazy_file):
 def test_one_time_request_reads_only_its_cells(lazy_file):
     path, originals = lazy_file
     loader = SigmondLoader(str(path), lazy=True)
-    spec = CorrelatorMatrixSpec(OPS[:2])
-    matrix = loader.correlators.matrix(spec, times=[3])
-    read = [o for o in loader.observables if isinstance(o, LazyDataMixin) and o.is_materialized]
+    matrix_info = CorrelatorMatrixInfo(OPS[:2])
+    matrix = loader.correlators.matrix(matrix_info, times=[3])
+    read = [o for o in loader.correlators._by_key.values() if isinstance(o, LazyDataMixin) and o.is_materialized]
     assert len(read) == 4  # both directions of every 2x2 cell at t=3, no VEVs
     assert matrix.times == (3,)
 
@@ -226,7 +233,7 @@ def test_re_im_fusion_and_orientation(lazy_file):
     assert np.array_equal(stored.data, originals[key.to_sigmond()].data)
     flipped = index.get(key.flipped())
     assert np.array_equal(flipped.data, originals[key.flipped().to_sigmond()].data)
-    c = index.correlator(CorrelatorPair(OPS[0], OPS[1]), hermitian=True)
+    c = index.correlator(CorrelatorInfo(OPS[0], OPS[1]), hermitian=True)
     expected = 0.5 * (stored.data + np.conj(flipped.data))
     assert np.allclose(c.sel(time=4).data, expected)
 
@@ -234,40 +241,36 @@ def test_re_im_fusion_and_orientation(lazy_file):
 def test_matrix_write_read_round_trip(tmp_path, lazy_file):
     path, _ = lazy_file
     index = SigmondLoader(str(path), lazy=True).correlators
-    spec = CorrelatorMatrixSpec(OPS, subtract_vev=True)
-    matrix = index.matrix(spec, times=[2, 3, 4])
+    matrix_info = CorrelatorMatrixInfo(OPS, subtract_vev=True)
+    matrix = index.matrix(matrix_info, times=[2, 3, 4])
     out = tmp_path / "connected.hdf5"
     matrix.write(out, group="conn")
     reloaded = SigmondLoader(str(out), lazy=True).correlators
-    assert reloaded.matrix(spec, times=[2, 3, 4]).vevs is None  # stored SubVEV: VEVs on request
-    again = reloaded.matrix(spec, times=[2, 3, 4], include_vevs=True)
+    # Stored SubVEV: VEVs only on request.
+    assert reloaded.matrix(matrix_info, times=[2, 3, 4]).vevs is None
+    again = reloaded.matrix(matrix_info, times=[2, 3, 4], include_vevs=True)
     assert again.key_form == "HermMat SubVEV"
     assert again.operators == matrix.operators and again.times == matrix.times
     assert np.allclose(again.values.data, matrix.values.data)
     assert np.allclose(again.vevs.data, matrix.vevs.data)
     names = [info.name for info in again.values.infos.flat]
     assert names == [info.name for info in matrix.values.infos.flat]
-    assert CorrelatorKey.from_sigmond(names[1]).subtract_vev
+    assert CorrelatorAtTimeInfo.from_sigmond(names[1]).subtract_vev
 
 
-def test_readme_correlator_example_runs(tmp_path, monkeypatch):
-    """The README's correlation-matrix snippets are executable documentation."""
-    import re
+def test_correlator_example_runs(tmp_path, monkeypatch):
+    """The linked matrix example runs without the optional fitting library."""
+    import runpy
     from pathlib import Path
 
-    from sigmondsamplings.correlators import BasicOperator
-
-    readme = (Path(__file__).parents[1] / "README.md").read_text()
-    section = readme.split("### Work with Correlation Matrices", 1)[1].split("\n### ", 1)[0]
-    blocks = re.findall(r"```python\n(.*?)```", section, flags=re.S)
-    assert len(blocks) == 2
+    example = Path(__file__).parents[1] / "examples" / "correlator_matrix.py"
 
     ops = [
-        BasicOperator.from_sigmond("pion P=(0,0,0) A1um_1 SD_5 D4"),
-        BasicOperator.from_sigmond("pion P=(0,0,0) A1um_1 SS_1"),
+        BasicLapHOperator.from_sigmond("pion P=(0,0,0) A1um_1 SD_5 D4"),
+        BasicLapHOperator.from_sigmond("pion P=(0,0,0) A1um_1 SS_1"),
     ]
     items = [
-        observable(CorrelatorKey(CorrelatorPair(a, b), t, True), series(RNG))
+        observable(CorrelatorAtTimeInfo(CorrelatorInfo(a, b), t, True), series(RNG))
         for t in range(3, 22)
         for a in ops
         for b in ops
@@ -276,13 +279,6 @@ def test_readme_correlator_example_runs(tmp_path, monkeypatch):
         str(tmp_path / "corrs.hdf5"), items, group="corrs"
     )
     monkeypatch.chdir(tmp_path)
-    pytest.importorskip("optimagic")
-
-    namespace = {"np": np}
-    for block in blocks:
-        exec(compile(block, "README.md", "exec"), namespace)
+    namespace = runpy.run_path(str(example))
     assert namespace["matrix"].times == tuple(range(4, 21))
     assert len(namespace["at_t8"]) == 4
-    fit = namespace["fit"]
-    assert fit.x_name == "time" and list(fit.x) == list(range(4, 21))
-    assert len(fit.objective.stats) == 17

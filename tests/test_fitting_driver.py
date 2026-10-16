@@ -337,6 +337,86 @@ def test_write_jacobian_requires_overwrite_and_a_jacobian(tmp_path):
         resampled.write_jacobian(tmp_path / "other.h5")
 
 
+def test_all_write_methods_share_one_file(tmp_path):
+    # every write_* appends, so the full result round-trips from a single file
+    from dataclasses import replace
+
+    result = replace(_fit().fit_full_sample(rng=0), x=T, x_name="t")
+    h5 = tmp_path / "results.h5"
+    result.write_params(h5)
+    result.write_chi2(h5)
+    result.write_theory(h5)
+    result.write_jacobian(h5)
+
+    loaded = FitResult.from_hdf5(
+        h5, chi2_file=h5, theory_file=h5, jacobian_file=h5, num_data_residuals=len(T)
+    )
+    assert loaded.param_names == result.param_names
+    assert loaded.best_params == pytest.approx(result.best_params)
+    assert loaded.chi2 == pytest.approx(result.chi2)
+    assert loaded.best_theory == pytest.approx(result.best_theory)
+    assert loaded.residual_jacobian == pytest.approx(result.residual_jacobian)
+    assert loaded.free_param_names == result.free_param_names
+    assert loaded.x_name == "t"
+    np.testing.assert_array_equal(loaded.x, T)
+
+
+def test_write_methods_replace_only_with_overwrite(tmp_path):
+    from dataclasses import replace
+
+    result = replace(_fit().fit_full_sample(rng=0), x=T, x_name="t")
+    h5 = tmp_path / "results.h5"
+    writers = [result.write_params, result.write_chi2, result.write_theory]
+    for write in writers:
+        write(h5)
+    for write in writers:
+        with pytest.raises(ValueError, match="already exists"):
+            write(h5)
+
+    # a rewrite replaces the whole group: the old one's observables and sampling
+    # info are gone, and the other groups are untouched
+    other = replace(
+        _fit("jackknife", n_resamp=30).fit_full_sample(rng=0), x=T[:4], x_name="t2"
+    )
+    other = replace(other, theory=SamplingStats(list(other.theory)[:4]))
+    other.write_theory(h5, overwrite=True)
+    loaded = FitResult.from_hdf5(h5, chi2_file=h5, theory_file=h5)
+    assert len(loaded.theory) == 4
+    info = loaded.theory.sampling_info
+    assert (info.method, info.num_resamplings) == ("jackknife", 30)
+
+    assert loaded.x_name == "t2"
+    assert loaded.chi2 == pytest.approx(result.chi2)
+    assert loaded.best_params == pytest.approx(result.best_params)
+
+
+def test_multi_ensemble_theory_appends(tmp_path):
+    from dataclasses import replace
+
+    from sigmondsamplings.info import EnsembleInfo
+
+    result = _fit().fit_full_sample(rng=0)
+    theory = []
+    for ens in (EnsembleInfo("ens_a", 100), EnsembleInfo("ens_b", 100)):
+        for s in result.theory:
+            info = ObservableInfo(s.observable_info.name, s.observable_info.index, ensemble_info=ens)
+            theory.append(SigmondSampling(s.data, info, s.sampling_info))
+    result = replace(result, theory=SamplingStats(theory))
+    assert result.theory.hdf5_group_names("theory") == ["theory_ens_a", "theory_ens_b"]
+
+    h5 = tmp_path / "results.h5"
+    result.write_params(h5)
+    result.write_theory(h5)
+    with pytest.raises(ValueError, match="already exists"):
+        result.write_theory(h5)
+    result.write_theory(h5, overwrite=True)
+
+    loaded = FitResult.from_hdf5(h5, theory_file=h5, theory_group="theory_ens_b")
+    assert loaded.best_params == pytest.approx(result.best_params)
+    assert len(loaded.theory) == len(T)
+
+
+
 def test_full_sample_full_value_is_best_fit():
     result = _fit().fit_full_sample(rng=0)
     assert result.param("A").full_sample_value == pytest.approx(A_TRUE, abs=1e-3)

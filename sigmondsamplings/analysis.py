@@ -79,6 +79,21 @@ class _Analyzer:
     def mean(self, data: np.ndarray) -> np.ndarray:
         return self.resamples(data).mean(axis=-1)
 
+    def central(self, data: np.ndarray, metric: str) -> np.ndarray:
+        """The central estimate named by ``metric``."""
+        if metric == "full_sample_value":
+            return self.full(data)
+        if metric == "mean":
+            return self.mean(data)
+        if metric == "median":
+            return np.median(self.resamples(data), axis=-1)
+        if metric == "bias_corrected_mean":
+            return self.full(data) - self.bias(data)
+        raise ValueError(
+            f"unknown central metric {metric!r}; use one of "
+            "'full_sample_value', 'mean', 'median', 'bias_corrected_mean'"
+        )
+
     def variance_scale(self, n: int) -> float:
         """Factor on the ``ddof=1`` (co)variance of ``n`` resamples."""
         raise NotImplementedError
@@ -88,8 +103,14 @@ class _Analyzer:
         n = res.shape[-1]
         return res.std(axis=-1, ddof=1) * np.sqrt(self.variance_scale(n))
 
+    def percentile_interval(self, data: np.ndarray, percentiles: tuple[float, float]):
+        """``(lower, upper)`` percentiles of the resamples (of the bins, for raw bins)."""
+        lower, upper = np.percentile(self.resamples(data), percentiles, axis=-1)
+        return lower, upper
+
     def confidence_interval(self, data: np.ndarray, confidence_level: float = 0.68):
-        raise ValueError("Confidence intervals are only supported for bootstrap resampling")
+        alpha = 1 - confidence_level
+        return self.percentile_interval(data, (100 * alpha / 2, 100 * (1 - alpha / 2)))
 
     def bias(self, data: np.ndarray) -> np.ndarray:
         raise ValueError("Bootstrap bias is only available for bootstrap resampling")
@@ -107,18 +128,15 @@ class _Analyzer:
         """Hook run before a ufunc is applied; resamples accept any ufunc."""
 
 
-def _percentile_interval(values: np.ndarray, confidence_level: float):
-    alpha = 1 - confidence_level
-    lower, upper = np.percentile(values, [100 * alpha / 2, 100 * (1 - alpha / 2)], axis=-1)
-    return lower, upper
-
-
 class _JackknifeAnalyzer(_Analyzer):
     method = "jackknife"
 
     def variance_scale(self, n: int) -> float:
         # sigmond jack_analyze: (1 - 1/n) * sum((x - avg)^2) == (n-1)^2/n * var_ddof1
         return (n - 1) ** 2 / n
+
+    def percentile_interval(self, data: np.ndarray, percentiles: tuple[float, float]):
+        raise ValueError("Confidence intervals are only supported for bootstrap resampling")
 
 
 class _BootstrapAnalyzer(_Analyzer):
@@ -127,9 +145,6 @@ class _BootstrapAnalyzer(_Analyzer):
     def variance_scale(self, n: int) -> float:
         # sigmond boot_analyze: sum((x - avg)^2) / (nb - 1) == var_ddof1
         return 1.0
-
-    def confidence_interval(self, data: np.ndarray, confidence_level: float = 0.68):
-        return _percentile_interval(self.resamples(data), confidence_level)
 
     def bias(self, data: np.ndarray) -> np.ndarray:
         return self.mean(data) - self.full(data)
@@ -155,9 +170,6 @@ class _BinsAnalyzer(_Analyzer):
         if data.shape[-1] < 2:
             return np.full(data.shape[:-1], np.nan)
         return super().error(data)
-
-    def confidence_interval(self, data: np.ndarray, confidence_level: float = 0.68):
-        return _percentile_interval(data, confidence_level)
 
     def incompatibilities(self, a, b) -> list[str]:
         errors = []

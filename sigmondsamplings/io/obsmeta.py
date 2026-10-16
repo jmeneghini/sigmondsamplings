@@ -34,9 +34,13 @@ _DTYPE = "dtype"
 def _jsonable(value):
     """Coerce a numpy scalar/array attr value to JSON-serializable Python."""
     if isinstance(value, np.generic):
-        return value.item()
+        return _jsonable(value.item())
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return _jsonable(value.tolist())
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(item) for item in value]
     return value
 
 
@@ -62,7 +66,10 @@ def read(group: h5py.Group) -> dict[str, dict]:
     meta: dict[str, dict] = {}
     for raw in group[DATASET][:]:
         row = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
-        meta[row.pop(_KEY)] = row
+        key = row.pop(_KEY)
+        if key in meta and meta[key] != row:
+            raise ValueError(f"Conflicting metadata records for dataset {key!r}")
+        meta[key] = row
     return meta
 
 

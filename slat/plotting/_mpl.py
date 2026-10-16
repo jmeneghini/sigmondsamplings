@@ -4,19 +4,15 @@ from __future__ import annotations
 
 import base64
 import io
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 
-from .base import FEATURES, Axes, Coords, Figure, Origin
+from .base import Axes, Coords, Figure, FigureSpec
 from .style import PlotStyle, get_style
 
 __all__ = ["MatplotlibAxes", "MatplotlibFigure", "make_figure", "wrap"]
-
-# matplotlib does everything.
-_SUPPORTED = FEATURES
 
 
 def _merge(base: dict[str, Any], native: dict[str, Any] | None) -> dict[str, Any]:
@@ -31,12 +27,10 @@ class MatplotlibAxes(Axes):
     """An :class:`~slat.plotting.base.Axes` backed by ``matplotlib.axes.Axes``."""
 
     backend = "matplotlib"
-    supported = _SUPPORTED
 
-    def __init__(self, ax, figure: MatplotlibFigure, style: PlotStyle):
+    def __init__(self, ax, figure: MatplotlibFigure):
         self._ax = ax
         self._figure = figure
-        self._style = style
 
     @property
     def figure(self) -> MatplotlibFigure:
@@ -47,33 +41,21 @@ class MatplotlibAxes(Axes):
         return self._ax
 
     # ------------------------------------------------------------------
-    # Marks
+    # Marks (hover is plotly-only; matplotlib ignores it)
     # ------------------------------------------------------------------
 
-    def line(
-        self,
-        x,
-        y,
-        *,
-        color=None,
-        width=None,
-        style="-",
-        marker=None,
-        markersize=None,
-        label=None,
-        alpha=None,
-        zorder=None,
-        hover=None,
-        native=None,
+    def _line(
+        self, x, y, *, color, linewidth, linestyle, marker, markersize, label, alpha, zorder,
+        hover, fill, native,
     ) -> None:
-        # hover is plotly-only; matplotlib silently ignores it.
         kwargs = _merge(
             {
                 "color": color,
-                "linewidth": width,
-                "linestyle": style,
+                "linewidth": linewidth,
+                "linestyle": linestyle,
                 "marker": marker,
                 "markersize": markersize,
+                "markerfacecolor": None if fill else "none",
                 "label": label,
                 "alpha": alpha,
                 "zorder": zorder,
@@ -82,25 +64,16 @@ class MatplotlibAxes(Axes):
         )
         self._ax.plot(x, y, **kwargs)
 
-    def points(
-        self,
-        x,
-        y,
-        *,
-        color=None,
-        size=None,
-        marker="o",
-        label=None,
-        alpha=None,
-        zorder=None,
-        hover=None,
-        native=None,
+    def _points(
+        self, x, y, *, color, markersize, marker, label, alpha, zorder, hover, fill, native
     ) -> None:
-        # `size` is a diameter in points; scatter wants an area.
+        # `markersize` is a diameter in points; scatter wants an area. With
+        # facecolors="none", scatter takes `color` as the edge color only.
         kwargs = _merge(
             {
                 "color": color,
-                "s": None if size is None else size**2,
+                "facecolors": None if fill else "none",
+                "s": None if markersize is None else markersize**2,
                 "marker": marker,
                 "label": label,
                 "alpha": alpha,
@@ -110,24 +83,9 @@ class MatplotlibAxes(Axes):
         )
         self._ax.scatter(x, y, **kwargs)
 
-    def errorbar(
-        self,
-        x,
-        y,
-        *,
-        yerr=None,
-        xerr=None,
-        color=None,
-        marker="o",
-        markersize=None,
-        capsize=None,
-        width=None,
-        style=None,
-        label=None,
-        alpha=None,
-        zorder=None,
-        hover=None,
-        native=None,
+    def _errorbar(
+        self, x, y, *, yerr, xerr, color, marker, markersize, capsize, linewidth, linestyle,
+        label, alpha, zorder, hover, fill, native,
     ) -> None:
         kwargs = _merge(
             {
@@ -136,10 +94,11 @@ class MatplotlibAxes(Axes):
                 "color": color,
                 "marker": marker,
                 "markersize": markersize,
+                "markerfacecolor": None if fill else "none",
                 "capsize": capsize,
-                "elinewidth": width,
-                # style=None means markers only, matching the fmt="o" idiom.
-                "linestyle": style if style is not None else "none",
+                "elinewidth": linewidth,
+                # linestyle=None means markers only, matching the fmt="o" idiom.
+                "linestyle": linestyle if linestyle is not None else "none",
                 "label": label,
                 "alpha": alpha,
                 "zorder": zorder,
@@ -148,32 +107,22 @@ class MatplotlibAxes(Axes):
         )
         self._ax.errorbar(x, y, **kwargs)
 
-    def band(self, x, lo, hi, *, color=None, alpha=0.25, label=None, zorder=None, native=None):
+    def _band(self, x, lo, hi, *, color, alpha, label, zorder, native) -> None:
         kwargs = _merge(
             {"color": color, "alpha": alpha, "label": label, "zorder": zorder},
             native,
         )
         self._ax.fill_between(x, lo, hi, **kwargs)
 
-    def bar(self, x, height, *, width=0.8, color=None, label=None, alpha=None, native=None):
+    def _bar(self, x, height, *, width, color, label, alpha, hover, native) -> None:
         kwargs = _merge(
             {"width": width, "color": color, "label": label, "alpha": alpha},
             native,
         )
         self._ax.bar(x, height, **kwargs)
 
-    def polygon(
-        self,
-        x,
-        y,
-        *,
-        facecolor=None,
-        edgecolor=None,
-        linewidth=None,
-        alpha=None,
-        label=None,
-        zorder=None,
-        native=None,
+    def _polygon(
+        self, x, y, *, facecolor, edgecolor, linewidth, alpha, label, zorder, native
     ) -> None:
         kwargs = _merge(
             {
@@ -188,77 +137,41 @@ class MatplotlibAxes(Axes):
         )
         self._ax.fill(x, y, **kwargs)
 
-    def hlines(
-        self,
-        y,
-        xmin,
-        xmax,
-        *,
-        color=None,
-        style="-",
-        width=None,
-        alpha=None,
-        label=None,
-        zorder=None,
-        native=None,
-    ) -> None:
-        kwargs = _merge(
+    @staticmethod
+    def _collection_kwargs(color, linestyle, linewidth, alpha, label, zorder, native):
+        """hlines/vlines draw a LineCollection, whose properties are plural."""
+        return _merge(
             {
                 "colors": color,
-                "linestyles": style,
-                "linewidths": width,
+                "linestyles": linestyle,
+                "linewidths": linewidth,
                 "alpha": alpha,
                 "label": label,
                 "zorder": zorder,
             },
             native,
         )
+
+    def _hlines(
+        self, y, xmin, xmax, *, color, linestyle, linewidth, alpha, label, zorder, hover, native
+    ) -> None:
+        kwargs = self._collection_kwargs(color, linestyle, linewidth, alpha, label, zorder, native)
         self._ax.hlines(y, xmin, xmax, **kwargs)
 
-    def vlines(
-        self,
-        x,
-        ymin,
-        ymax,
-        *,
-        color=None,
-        style="-",
-        width=None,
-        alpha=None,
-        label=None,
-        zorder=None,
-        native=None,
+    def _vlines(
+        self, x, ymin, ymax, *, color, linestyle, linewidth, alpha, label, zorder, native
     ) -> None:
-        kwargs = _merge(
-            {
-                "colors": color,
-                "linestyles": style,
-                "linewidths": width,
-                "alpha": alpha,
-                "label": label,
-                "zorder": zorder,
-            },
-            native,
-        )
+        kwargs = self._collection_kwargs(color, linestyle, linewidth, alpha, label, zorder, native)
         self._ax.vlines(x, ymin, ymax, **kwargs)
 
-    def axhline(
-        self,
-        y,
-        *,
-        color=None,
-        style="-",
-        width=None,
-        alpha=None,
-        label=None,
-        zorder=None,
-        native=None,
+    def _axhline(
+        self, y, *, color, linestyle, linewidth, alpha, label, zorder, hover, native
     ) -> None:
         kwargs = _merge(
             {
                 "color": color,
-                "linestyle": style,
-                "linewidth": width,
+                "linestyle": linestyle,
+                "linewidth": linewidth,
                 "alpha": alpha,
                 "label": label,
                 "zorder": zorder,
@@ -267,23 +180,17 @@ class MatplotlibAxes(Axes):
         )
         self._ax.axhline(y, **kwargs)
 
-    def axvline(
-        self,
-        x,
-        *,
-        color=None,
-        style="-",
-        width=None,
-        alpha=None,
-        label=None,
-        zorder=None,
-        native=None,
+    def _axvline(
+        self, x, *, ymin, ymax, color, linestyle, linewidth, alpha, label, zorder, hover, native
     ) -> None:
         kwargs = _merge(
             {
+                "ymin": ymin,
+                "ymax": ymax,
+                "clip_on": not (ymin < 0.0 or ymax > 1.0),
                 "color": color,
-                "linestyle": style,
-                "linewidth": width,
+                "linestyle": linestyle,
+                "linewidth": linewidth,
                 "alpha": alpha,
                 "label": label,
                 "zorder": zorder,
@@ -292,20 +199,11 @@ class MatplotlibAxes(Axes):
         )
         self._ax.axvline(x, **kwargs)
 
-    def heatmap(
-        self,
-        values,
-        *,
-        x=None,
-        y=None,
-        cmap="viridis",
-        vmin=None,
-        vmax=None,
-        origin: Origin = "lower",
-        colorbar=True,
-        colorbar_label=None,
-        native=None,
+    def _heatmap(
+        self, values, *, x, y, cmap, vmin, vmax, origin, colorbar, colorbar_label, hover, native
     ) -> None:
+        # NaN cells are masked by imshow/pcolormesh and drawn in the colormap's
+        # "bad" color, transparent by default.
         values = np.asarray(values)
         kwargs = _merge({"cmap": cmap, "vmin": vmin, "vmax": vmax}, native)
 
@@ -315,26 +213,15 @@ class MatplotlibAxes(Axes):
             nrows, ncols = values.shape
             xs = np.arange(ncols) if x is None else np.asarray(x)
             ys = np.arange(nrows) if y is None else np.asarray(y)
-            grid = values if origin == "lower" else values[::-1]
-            mappable = self._ax.pcolormesh(xs, ys, grid, shading="auto", **kwargs)
+            mappable = self._ax.pcolormesh(xs, ys, values, shading="auto", **kwargs)
+            if origin == "upper" and not self._ax.yaxis_inverted():
+                # Flip the axis, not the values, so values[i] stays at y[i].
+                self._ax.invert_yaxis()
 
         if colorbar:
             self._figure.native.colorbar(mappable, ax=self._ax, label=colorbar_label)
 
-    def text(
-        self,
-        x,
-        y,
-        s,
-        *,
-        coords: Coords | tuple[Coords, Coords] = "data",
-        ha="left",
-        va="bottom",
-        fontsize=None,
-        color=None,
-        alpha=None,
-        native=None,
-    ) -> None:
+    def _text(self, x, y, s, *, coords, ha, va, fontsize, color, alpha, native) -> None:
         kwargs = _merge(
             {
                 "ha": ha,
@@ -360,49 +247,32 @@ class MatplotlibAxes(Axes):
             self._ax.transAxes if yc == "axes" else self._ax.transData,
         )
 
-    def contour(
-        self,
-        x,
-        y,
-        z,
-        *,
-        levels,
-        labels=False,
-        colors=None,
-        filled=False,
-        linewidths=None,
-        native=None,
-    ) -> None:
+    def _contour(self, x, y, z, *, levels, labels, colors, filled, linewidth, native) -> None:
         kwargs = _merge({"levels": list(levels), "colors": colors}, native)
         if filled:
             self._ax.contourf(x, y, z, **kwargs)
             return
-        cs = self._ax.contour(x, y, z, linewidths=linewidths, **kwargs)
+        cs = self._ax.contour(x, y, z, linewidths=linewidth, **kwargs)
         if labels:
-            self._ax.clabel(cs, inline=True, fontsize=self._style.tick_fontsize or 8)
+            self._ax.clabel(cs, inline=True, fontsize=self.style.tick_fontsize or 8)
 
     # ------------------------------------------------------------------
     # Configuration
     # ------------------------------------------------------------------
 
-    def set(
-        self,
-        *,
-        xlabel=None,
-        ylabel=None,
-        title=None,
-        xlim=None,
-        ylim=None,
-        xscale=None,
-        yscale=None,
-    ) -> None:
-        fs = self._style.label_fontsize
+    def _limits(self, axis, explicit_only):
+        if explicit_only and getattr(self._ax, f"get_autoscale{axis}_on")():
+            return None
+        return tuple(getattr(self._ax, f"get_{axis}lim")())
+
+    def _set(self, *, xlabel, ylabel, title, xlim, ylim, xscale, yscale, label_fontsize) -> None:
+        fs = label_fontsize if label_fontsize is not None else self.style.label_fontsize
         if xlabel is not None:
             self._ax.set_xlabel(xlabel, fontsize=fs)
         if ylabel is not None:
             self._ax.set_ylabel(ylabel, fontsize=fs)
         if title is not None:
-            self._ax.set_title(title, fontsize=self._style.title_fontsize)
+            self._ax.set_title(title, fontsize=self.style.title_fontsize)
         if xlim is not None:
             self._ax.set_xlim(*xlim)
         if ylim is not None:
@@ -412,16 +282,8 @@ class MatplotlibAxes(Axes):
         if yscale is not None:
             self._ax.set_yscale(yscale)
 
-    def ticks(
-        self,
-        axis: Literal["x", "y"],
-        positions: Sequence[float],
-        labels: Sequence[str] | None = None,
-        *,
-        rotation: float = 0.0,
-        fontsize: float | None = None,
-    ) -> None:
-        fontsize = fontsize if fontsize is not None else self._style.tick_fontsize
+    def _ticks(self, axis, positions, labels, *, rotation, fontsize) -> None:
+        fontsize = fontsize if fontsize is not None else self.style.tick_fontsize
         setter = self._ax.set_xticks if axis == "x" else self._ax.set_yticks
         label_setter = self._ax.set_xticklabels if axis == "x" else self._ax.set_yticklabels
         setter(list(positions))
@@ -431,11 +293,15 @@ class MatplotlibAxes(Axes):
                 kwargs["ha"] = "right"
             label_setter(list(labels), **{k: v for k, v in kwargs.items() if v is not None})
 
-    def grid(self, show=True, *, axis="both", alpha=None) -> None:
-        alpha = alpha if alpha is not None else self._style.grid_alpha
-        self._ax.grid(show, axis=axis, alpha=alpha)
+    def _grid(self, show, *, axis, alpha) -> None:
+        if not show:
+            # Any line property passed with False turns the grid back on.
+            self._ax.grid(False, axis=axis)
+            return
+        alpha = alpha if alpha is not None else self.style.grid_alpha
+        self._ax.grid(True, axis=axis, alpha=alpha)
 
-    def legend(self, show=True, *, loc=None, ncol=1, frameon=False, fontsize=None) -> None:
+    def _legend(self, show, *, loc, ncol, frameon, fontsize) -> None:
         if not show:
             legend = self._ax.get_legend()
             if legend is not None:
@@ -445,9 +311,9 @@ class MatplotlibAxes(Axes):
         _, labels = self._ax.get_legend_handles_labels()
         if not labels:
             return
-        fontsize = fontsize if fontsize is not None else self._style.legend_fontsize
-        kwargs = _merge({"loc": loc, "ncol": ncol, "frameon": frameon, "fontsize": fontsize}, None)
-        self._ax.legend(**kwargs)
+        fontsize = fontsize if fontsize is not None else self.style.legend_fontsize
+        kwargs = {"loc": loc, "ncol": ncol, "frameon": frameon, "fontsize": fontsize}
+        self._ax.legend(**{k: v for k, v in kwargs.items() if v is not None})
 
     def point_size(self, points: float, axis="y", *, units: Coords = "data") -> float:
         """Exact: points -> pixels -> data units (or axes fraction) via the transform."""
@@ -456,11 +322,14 @@ class MatplotlibAxes(Axes):
             bbox = self._ax.get_window_extent()
             extent = bbox.width if axis == "x" else bbox.height
             return pixels / extent if extent else 0.0
+        bbox = self._ax.get_window_extent()
+        centre = np.array([bbox.x0 + bbox.width / 2, bbox.y0 + bbox.height / 2])
+        displaced = centre.copy()
+        index = 0 if axis == "x" else 1
+        displaced[index] += abs(pixels)
         inverse = self._ax.transData.inverted()
-        origin = inverse.transform((0, 0))
-        if axis == "x":
-            return inverse.transform((pixels, 0))[0] - origin[0]
-        return inverse.transform((0, pixels))[1] - origin[1]
+        offset = inverse.transform(displaced)[index] - inverse.transform(centre)[index]
+        return float(np.copysign(abs(offset), points))
 
 
 class MatplotlibFigure(Figure):
@@ -470,8 +339,8 @@ class MatplotlibFigure(Figure):
 
     def __init__(self, fig, axes_grid, style: PlotStyle):
         self._fig = fig
-        self._axes = [[MatplotlibAxes(ax, self, style) for ax in row] for row in axes_grid]
         self._style = style
+        self._axes = [[MatplotlibAxes(ax, self) for ax in row] for row in axes_grid]
 
     @property
     def native(self):
@@ -487,8 +356,13 @@ class MatplotlibFigure(Figure):
     def hide(self, row: int, col: int) -> None:
         self._axes[row][col].native.set_visible(False)
 
-    def suptitle(self, text: str, **kwargs: Any) -> None:
-        self._fig.suptitle(text, **kwargs)
+    def suptitle(self, text: str, *, fontsize: float | None = None) -> None:
+        fontsize = fontsize if fontsize is not None else self.style.title_fontsize
+        self._fig.suptitle(text, **({} if fontsize is None else {"fontsize": fontsize}))
+
+    def set_size(self, width: float, height: float) -> None:
+        self._fig.set_size_inches(width, height)
+        self._style = self._style.replace(figsize=(width, height))
 
     def save(self, path: str | Path, *, dpi: float | None = None) -> None:
         self._fig.savefig(str(path), dpi=dpi or self._style.dpi, bbox_inches="tight")
@@ -510,45 +384,37 @@ class MatplotlibFigure(Figure):
         plt.close(self._fig)
 
 
-def make_figure(
-    rows: int = 1,
-    cols: int = 1,
-    *,
-    figsize: tuple[float, float] | None = None,
-    height_ratios: Sequence[float] | None = None,
-    width_ratios: Sequence[float] | None = None,
-    sharex: bool = False,
-    sharey: bool = False,
-    style: PlotStyle | None = None,
-    constrained_layout: bool = True,
-) -> MatplotlibFigure:
-    """Create a matplotlib figure with a ``rows`` x ``cols`` grid of axes."""
+def make_figure(spec: FigureSpec) -> MatplotlibFigure:
+    """Create a matplotlib figure with a ``spec.rows`` x ``spec.cols`` grid of axes."""
     import matplotlib.pyplot as plt
 
-    style = style or get_style()
+    style = spec.style
     fig, axes_array = plt.subplots(
-        rows,
-        cols,
-        figsize=figsize or style.figsize,
+        spec.rows,
+        spec.cols,
+        figsize=style.figsize,
         dpi=style.dpi,
         squeeze=False,
-        sharex=sharex,
-        sharey=sharey,
+        sharex=spec.sharex,
+        sharey=spec.sharey,
         gridspec_kw={
             k: v
-            for k, v in (("height_ratios", height_ratios), ("width_ratios", width_ratios))
+            for k, v in (("height_ratios", spec.height_ratios), ("width_ratios", spec.width_ratios))
             if v is not None
         },
-        constrained_layout=constrained_layout,
+        constrained_layout=spec.constrained_layout,
     )
+    if style.grid:
+        for ax in axes_array.flat:
+            ax.grid(True, alpha=style.grid_alpha)
     return MatplotlibFigure(fig, axes_array, style)
 
 
 def wrap(obj, *, style: PlotStyle | None = None) -> MatplotlibAxes | MatplotlibFigure:
     """Adopt an existing ``plt.Axes`` or ``plt.Figure``.
 
-    This is what keeps the legacy ``ax=`` keyword working: callers holding a
-    raw matplotlib Axes can hand it straight to the new API.
+    Callers holding a raw matplotlib Axes can pass it as ``axes=`` to any plot
+    function.
     """
     import matplotlib.axes
     import matplotlib.figure

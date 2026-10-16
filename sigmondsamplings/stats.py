@@ -285,7 +285,12 @@ class SamplingStats(MultiEnsembleCollection):
         delta = max_val - min_val
         # silly work around for delta being zero
         if np.isclose(delta.full_sample_value, 0.0):
-            delta.data = np.full_like(delta.data, 10 * np.max(self.val.error))
+            from .arithmetic import arithmetic_info
+            fallback = 10 * np.max(self.val.error)
+            delta.data = np.full_like(delta.data, fallback)
+            delta = delta.with_observable_info(arithmetic_info("range_buffer_fallback", [
+                min_val.observable_info, max_val.observable_info, fallback,
+            ]))
         diff = delta * buffer
         min_buff = min_val - diff
         max_buff = max_val + diff

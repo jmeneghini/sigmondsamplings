@@ -17,13 +17,13 @@ element -- which a smoke test that only checks "it didn't raise" will miss.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .base import FEATURES, Axes, Figure
-from .style import PlotStyle, get_style
+from .base import Axes, Figure, FigureSpec
+from .style import PlotStyle
 
 __all__ = ["Mark", "Recorder", "RecordingAxes", "RecordingFigure", "make_figure", "record", "wrap"]
 
@@ -98,7 +98,6 @@ class RecordingAxes(Axes):
     """An :class:`~slat.plotting.base.Axes` that records instead of drawing."""
 
     backend = "recording"
-    supported = FEATURES
 
     def __init__(self, figure: RecordingFigure, row: int, col: int):
         self._figure = figure
@@ -119,55 +118,64 @@ class RecordingAxes(Axes):
         if _active is not None:
             _active.add(mark)
 
-    def line(self, x, y, **kwargs) -> None:
+    # Each hook records its mark under the public name, with every argument
+    # resolved: defaults appear in ``Mark.kwargs`` as the backends receive them.
+
+    def _line(self, x, y, **kwargs) -> None:
         self._record("line", x, y, **kwargs)
 
-    def points(self, x, y, **kwargs) -> None:
+    def _points(self, x, y, **kwargs) -> None:
         self._record("points", x, y, **kwargs)
 
-    def errorbar(self, x, y, **kwargs) -> None:
+    def _errorbar(self, x, y, **kwargs) -> None:
         self._record("errorbar", x, y, **kwargs)
 
-    def band(self, x, lo, hi, **kwargs) -> None:
+    def _band(self, x, lo, hi, **kwargs) -> None:
         self._record("band", x, lo, hi, **kwargs)
 
-    def bar(self, x, height, **kwargs) -> None:
+    def _bar(self, x, height, **kwargs) -> None:
         self._record("bar", x, height, **kwargs)
 
-    def polygon(self, x, y, **kwargs) -> None:
+    def _polygon(self, x, y, **kwargs) -> None:
         self._record("polygon", x, y, **kwargs)
 
-    def hlines(self, y, xmin, xmax, **kwargs) -> None:
+    def _hlines(self, y, xmin, xmax, **kwargs) -> None:
         self._record("hlines", y, xmin, xmax, **kwargs)
 
-    def vlines(self, x, ymin, ymax, **kwargs) -> None:
+    def _vlines(self, x, ymin, ymax, **kwargs) -> None:
         self._record("vlines", x, ymin, ymax, **kwargs)
 
-    def axhline(self, y, **kwargs) -> None:
+    def _axhline(self, y, **kwargs) -> None:
         self._record("axhline", y, **kwargs)
 
-    def axvline(self, x, **kwargs) -> None:
+    def _axvline(self, x, **kwargs) -> None:
         self._record("axvline", x, **kwargs)
 
-    def heatmap(self, values, **kwargs) -> None:
+    def _heatmap(self, values, **kwargs) -> None:
         self._record("heatmap", values, **kwargs)
 
-    def text(self, x, y, s, **kwargs) -> None:
+    def _text(self, x, y, s, **kwargs) -> None:
         self._record("text", x, y, s, **kwargs)
 
-    def contour(self, x, y, z, **kwargs) -> None:
+    def _contour(self, x, y, z, **kwargs) -> None:
         self._record("contour", x, y, z, **kwargs)
 
-    def set(self, **kwargs) -> None:
+    def _set(self, **kwargs) -> None:
         self._record("set", **kwargs)
 
-    def ticks(self, axis, positions, labels=None, **kwargs) -> None:
+    def _limits(self, axis, explicit_only):
+        for mark in reversed(self.native):
+            if mark.kind == "set" and mark.kwargs.get(f"{axis}lim") is not None:
+                return tuple(mark.kwargs[f"{axis}lim"])
+        return None
+
+    def _ticks(self, axis, positions, labels, **kwargs) -> None:
         self._record("ticks", axis, positions, labels, **kwargs)
 
-    def grid(self, show=True, **kwargs) -> None:
+    def _grid(self, show, **kwargs) -> None:
         self._record("grid", show, **kwargs)
 
-    def legend(self, show=True, **kwargs) -> None:
+    def _legend(self, show, **kwargs) -> None:
         self._record("legend", show, **kwargs)
 
     def point_size(self, points: float, axis="y", *, units="data") -> float:
@@ -182,7 +190,7 @@ class RecordingFigure(Figure):
 
     def __init__(self, rows: int, cols: int, style: PlotStyle):
         self.marks: list[Mark] = []
-        self.style = style
+        self._style = style
         self._shape = (rows, cols)
         self._axes = [[RecordingAxes(self, r, c) for c in range(cols)] for r in range(rows)]
         self.hidden: list[tuple[int, int]] = []
@@ -205,8 +213,11 @@ class RecordingFigure(Figure):
     def hide(self, row: int, col: int) -> None:
         self.hidden.append((row, col))
 
-    def suptitle(self, text: str, **kwargs: Any) -> None:
+    def suptitle(self, text: str, *, fontsize: float | None = None) -> None:
         self.title = text
+
+    def set_size(self, width: float, height: float) -> None:
+        self._style = self._style.replace(figsize=(width, height))
 
     def save(self, path: str | Path, *, dpi: float | None = None) -> None:
         self.saved.append(Path(path))
@@ -221,23 +232,9 @@ class RecordingFigure(Figure):
         pass
 
 
-def make_figure(
-    rows: int = 1,
-    cols: int = 1,
-    *,
-    figsize: tuple[float, float] | None = None,
-    height_ratios: Sequence[float] | None = None,
-    width_ratios: Sequence[float] | None = None,
-    sharex: bool = False,
-    sharey: bool = False,
-    style: PlotStyle | None = None,
-    constrained_layout: bool = True,
-) -> RecordingFigure:
-    """Create a recording figure with a ``rows`` x ``cols`` grid."""
-    style = style or get_style()
-    if figsize is not None:
-        style = style.replace(figsize=figsize)
-    return RecordingFigure(rows, cols, style)
+def make_figure(spec: FigureSpec) -> RecordingFigure:
+    """Create a recording figure with a ``spec.rows`` x ``spec.cols`` grid."""
+    return RecordingFigure(spec.rows, spec.cols, spec.style)
 
 
 def wrap(obj, *, style: PlotStyle | None = None):

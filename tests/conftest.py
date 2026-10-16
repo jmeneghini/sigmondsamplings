@@ -55,3 +55,19 @@ def samplings_file(tmp_path, observables):
     path = tmp_path / "samplings.hdf5"
     observables.to_hdf5(str(path), overwrite=True, mode="w")
     return path
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "sigmond_oracle: requires optional Sigmond reference runtime")
+
+
+@pytest.fixture
+def sigmond_bindings():
+    from sigmond_oracle import bindings
+    return bindings()
+
+
+@pytest.fixture
+def sigmond_binary():
+    from sigmond_oracle import binary
+    return binary()

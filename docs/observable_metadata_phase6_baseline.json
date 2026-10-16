@@ -1,0 +1,685 @@
+{
+  "revision": "5b7841572aa93523dd1a9fbb02a8abd1e625df23",
+  "fingerprint": "241e6a5cf066ddbc60a08cd1d04341b76efe7780bc75245bcfdc4a368c04e832",
+  "date": "2026-10-13",
+  "phase": 6,
+  "baseline_command": "python -m pytest -q --tb=short",
+  "fingerprint_method": "SHA-256 of compact JSON sorted [path, SHA-256(content)] pairs from git ls-files --cached --others --exclude-standard; missing tracked files use deleted",
+  "results": {
+    "failed": [
+      {
+        "id": "tests.test_cli_query::test_energy_sector_is_tuple_and_collection_helpers_use_it",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_collection_filter_accepts_sector_tuple_as_scalar",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_where_normalizes_tuple_valued_attrs_from_collection",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_where_parses_comma_separated_tuple_values",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_where_rejects_comma_as_tuple_separator",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_to_dataframe_excludes_default_observable_attrs",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_to_dataframe_merges_default_and_requested_excluded_attrs",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_dataframe_can_recover_explicit_default_excluded_column",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_attr_records_lists_ordered_attributes_with_occurrence_counts",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_unique_records_handles_numeric_unique_values_as_lists",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_generic_plot_writes_queried_collection",
+        "reason": "AssertionError: \nassert 1 == 0\n +  where 1 = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.exit_code"
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_energy_spectrum_plot_writes_queried_collection",
+        "reason": "AssertionError: \nassert 1 == 0\n +  where 1 = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.exit_code"
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_rejects_plot_with_non_collection_output_mode",
+        "reason": "assert 'Use only one of' in ''\n +  where '' = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.output"
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_reports_old_comma_tuple_syntax_as_parameter_error",
+        "reason": "assert \"must use ':'\" in ''\n +  where '' = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.output"
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_reports_unknown_where_attr_with_suggestion",
+        "reason": "assert \"Unknown --where attribute 'obs_type'\" in ''\n +  where '' = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.output"
+      },
+      {
+        "id": "tests.test_cli_query::test_cli_reports_empty_collection_before_plotting",
+        "reason": "assert 'Query matched no observables' in ''\n +  where '' = <Result RuntimeError(\"sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'\")>.output"
+      },
+      {
+        "id": "tests.test_lazy_loader::test_construction_reads_no_datasets[path0]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_construction_reads_no_datasets[path1]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_construction_reads_no_datasets[path2]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_queries_read_no_datasets[path0]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_queries_read_no_datasets[path1]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_queries_read_no_datasets[path2]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_bins_num_bins_and_len_are_read_free",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_real_observable_reads_single_dataset",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_complex_observable_reads_re_and_im",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_data_is_cached_after_first_read",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_matches_eager_values[path0]",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_matches_eager_values[path1]",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_matches_eager_values[path2]",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_objects_are_instances_of_base[path0-SigmondSampling]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_objects_are_instances_of_base[path1-SigmondSampling]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_objects_are_instances_of_base[path2-SigmondBins]",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_as_energy_level_is_metadata_only",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_collection_as_energy_levels_is_metadata_only",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_loader_energy_observables_is_metadata_only",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_bins_obs_replace_is_metadata_only",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_collection_materialize_reads_all_values",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_repr_is_metadata_safe_until_materialized",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_copy_returns_eager_independent_object",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_lazy_loader::test_arithmetic_materializes_and_matches_eager",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_lazy_loader::test_lazy_roundtrips_through_hdf5",
+        "reason": "NotImplementedError: lazy=True is supported for HDF5 files only; fstream files load eagerly via sigmond_query."
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadCorrMatrixHDF5::test_kind_and_count",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadCorrMatrixHDF5::test_all_complex_corrt",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadCorrMatrixHDF5::test_sampling_info",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadCorrMatrixHDF5::test_ensemble_info",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadCorrMatrixHDF5::test_get_file_info",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadEnergyLevelsHDF5::test_kind_and_count",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadEnergyLevelsHDF5::test_all_real_simple_names",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadEnergyLevelsHDF5::test_known_observable_present",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadBinsHDF5::test_kind_and_count",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadBinsHDF5::test_objects_are_bins",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadBinsHDF5::test_get_file_info_sampling_is_none",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestSamplingsRoundTrip::test_corrt_complex_roundtrip",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestSamplingsRoundTrip::test_simple_real_roundtrip",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestBinsRoundTrip::test_corrt_bins_roundtrip",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestConvertFormat::test_convert_bins_hdf5_preserves_kind",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestAppendInPlace::test_append_hdf5_in_place",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestAppendInPlace::test_append_complex_corrt_in_place",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestAppendInPlace::test_append_existing_without_overwrite_raises",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestModifyInPlace::test_modify_observable_in_place",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestNestedRootPath::test_write_then_autodetect_nested_path",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestNestedRootPath::test_explicit_nested_path_loads",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_loader_writer.TestDefaultGroup::test_write_file_uses_default_group",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_real]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_real/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_complex]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_complex/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_connected_s]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_connected_s/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_connected_u]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_connected_u/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_connected_a]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_connected_a/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_connected_b]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_connected_b/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_reverse]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_reverse/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_mask]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_mask/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_metric_cut]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_metric_cut/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_improved]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_improved/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[cn_bootstrap]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/cn_bootstrap/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_real]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_real/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_reverse]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_reverse/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_metric_cut]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_metric_cut/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_improved]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_improved/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_bootstrap]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_bootstrap/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_connected_s]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_connected_s/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_connected_u]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_connected_u/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_connected_a]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_connected_a/input.hdf5'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_tracked_pivot_goldens[rn_connected_b]",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/fixtures/pivot/rn_connected_b/input.hdf5'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_repack_hdf5_samplings",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_convert_bins_preserves_kind",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/tetraquark_bins.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_output_extension_enforced",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_h5_output_extension_preserved",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_missing_output_extension_inherits_input_h5_extension",
+        "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5'"
+      },
+      {
+        "id": "tests.test_scripts.TestResolvePaths::test_absolute_path_kept",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5"
+      },
+      {
+        "id": "tests.test_scripts.TestResolvePaths::test_relative_resolved_against_base",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5"
+      },
+      {
+        "id": "tests.test_scripts.TestLoadAllSamplings::test_loads_keyed_by_name_and_index",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestLoadAllSamplings::test_duplicate_keys_overwrite_and_warn",
+        "reason": "RuntimeError: sigmond_query error with cmd 'sigmond_query -i /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5': [Errno 2] No such file or directory: 'sigmond_query'"
+      },
+      {
+        "id": "tests.test_scripts.TestCombineFiles::test_combine_two_files_unions_observables",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5"
+      },
+      {
+        "id": "tests.test_scripts.TestCombineFiles::test_non_hdf5_output_extension_adjusted",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5"
+      },
+      {
+        "id": "tests.test_scripts.TestCombineFiles::test_h5_output_extension_preserved",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5"
+      },
+      {
+        "id": "tests.test_scripts.TestCombineFiles::test_existing_output_without_overwrite_raises",
+        "reason": "FileNotFoundError: Input file not found: /Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/energy_levels_samplings.hdf5"
+      }
+    ],
+    "error": [
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_no_group_with_multiple_groups_raises",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      },
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_unknown_group_raises_and_lists_available",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      },
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_each_group_loads_its_own_group",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      },
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_group_load_matches_standalone_fixture",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      },
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_append_targets_one_group_only",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      },
+      {
+        "id": "tests.test_loader_writer.TestMultiRootGroupHDF5::test_modify_targets_one_group_only",
+        "reason": "failed on setup with \"FileNotFoundError: [Errno 2] Unable to synchronously open file (unable to open file: name = '/Users/johnmeneghini/code/lqcd/sigmondsamplings/tests/data/corr_matrix_samplings.hdf5', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)\""
+      }
+    ],
+    "skipped": [
+      {
+        "id": "tests.test_bins.TestFstreamBins::test_load_fstream_bins",
+        "reason": "sigmond_query and the tetraquark bins file must be available"
+      },
+      {
+        "id": "tests.test_bins.TestFstreamBins::test_fstream_roundtrip_to_hdf5",
+        "reason": "sigmond_query and the tetraquark bins file must be available"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[1-forward]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[1-symmetric]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[1-forward_const]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[1-symmetric_const]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[2-forward]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[2-symmetric]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[2-forward_const]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_effective::test_kernel_matches_sigmond_per_sample[2-symmetric_const]",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[pion P=(0,0,0) A1um_1 SD_5]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[pion P=(0,0,1) A2m_1 SS_0]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[pion P=(0,0,0) A1um_1 SD_5 D4]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[glueball P=(0,0,0) A1gp_1 TrEig]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[nucleon P=(0,0,0) G1g_2 DDL_3]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[kaon P=(0,1,1) A2_1 SD_3 D2]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[isotriplet_pion_pion A1um_1 CG_1 [P=(0,0,1) A1p LSD_1] [P=(0,0,-1) A2m TSD_2]]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[isotriplet_pion_pion A1um_1 [P=(0,0,1) A1p LSD_1] [P=(0,0,-1) A2m TSD_2 D2]]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[isotriplet-2_pion_pion_pion A1um_1 [P=(0,0,1) A2m SS_0] [P=(0,0,-1) A2m SS_0] [P=(0,0,0) A1um SS_0]]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[isodoublet_kaon_pion Eu_2 [P=(0,0,1) A2 SS_0] [P=(0,0,-1) A2m SS_0]]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[tquuuu1p P=(0,0,0) A1um_1 QDX_1]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[tquuuu1m P=(0,0,0) A1um_1 QDX_1 D2]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_basic_laph_strings_match_cpp[tqsudu2m P=(0,0,0) A1u_1 SS_1]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_gen_irrep_strings_match_cpp[isotriplet S=0 P=(0,0,0) A1um_1 ROT 2]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_gen_irrep_strings_match_cpp[isotriplet S=-1 PSQ=1 A2m ROT 2]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_gen_irrep_strings_match_cpp[isodoublet S=0 P=(0,0,0) G1g N[SS0] 0]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_gen_irrep_strings_match_cpp[isosinglet S=-2 P=(1,1,1) A1 x 32767]",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_tetraquark_short_output_matches_cpp",
+        "reason": "sigmond module not installed"
+      },
+      {
+        "id": "tests.test_correlator_labels::test_ss_written_keys_parse_in_cpp",
+        "reason": "sigmond_query not available"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadPionFstream::test_kind_and_count",
+        "reason": "sigmond_query not available"
+      },
+      {
+        "id": "tests.test_loader_writer.TestLoadPionFstream::test_names_contain_slashes",
+        "reason": "sigmond_query not available"
+      },
+      {
+        "id": "tests.test_loader_writer.TestConvertFormat::test_convert_fstream_smp_to_hdf5",
+        "reason": "sigmond_query not available"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_real]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_reverse]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_metric_cut]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_improved]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_bootstrap]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_connected_s]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_connected_u]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_connected_a]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_rn_build_and_rotation[rn_connected_b]",
+        "reason": "Sigmond real batch binary unavailable"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_live_overlap_samplings_and_energy_reorder",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_pivot_oracle::test_native_consumer_reads_ss_rotated_cn_file",
+        "reason": "Sigmond bindings unavailable: No module named 'sigmond'"
+      },
+      {
+        "id": "tests.test_plotting_backends.TestBackendSmoke::test_plotly_html_loads_mathjax[matplotlib]",
+        "reason": "MathJax is used by the Plotly HTML backend"
+      },
+      {
+        "id": "tests.test_plotting_final_rendering::test_irregular_contours_have_correct_rendered_boundaries[False]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_final_rendering::test_irregular_contours_have_correct_rendered_boundaries[True]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_final_rendering::test_wrapped_empty_native_grid_renders_and_point_size_uses_inner_extent",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_final_rendering::test_exported_html_zoom_callbacks_keep_groups_indices_and_dense_hover",
+        "reason": "could not import 'choreographer': No module named 'choreographer'"
+      },
+      {
+        "id": "tests.test_plotting_final_tiers::test_corner_failure_cleans_native_allocation",
+        "reason": "could not import 'corner': No module named 'corner'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[False-title]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[False-text]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[False-shape]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[False-nan]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[False-filtered]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[True-title]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[True-text]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[True-shape]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[True-nan]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_empty_cell_has_its_own_rendered_axes_and_frame[True-filtered]",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_plotting_tier9_rendering::test_exported_html_toggles_intervals_split_series_and_fits",
+        "reason": "could not import 'kaleido': No module named 'kaleido'"
+      },
+      {
+        "id": "tests.test_scripts.TestConvertToHDF5::test_convert_fstream_smp",
+        "reason": "sigmond_query not available"
+      },
+      {
+        "id": "tests.test_thread_budget::test_blas_and_omp_are_limited_independently",
+        "reason": "needs both a BLAS and an OpenMP runtime loaded"
+      },
+      {
+        "id": "tests.test_thread_budget::test_untouched_api_keeps_its_limit",
+        "reason": "needs an OpenMP runtime loaded"
+      },
+      {
+        "id": "tests.test_thread_budget::test_positional_limit_still_sets_both",
+        "reason": "no native thread pools loaded"
+      },
+      {
+        "id": "tests.test_thread_budget::test_thread_workers_are_pinned_from_inside_the_worker",
+        "reason": "needs an OpenMP runtime loaded"
+      }
+    ]
+  },
+  "baseline_summary": "96 failed, 1551 passed, 65 skipped, 16 warnings, 6 errors in 45.89s"
+}

@@ -1,5 +1,5 @@
 """
-Immutable operator/pair/key labels and their Sigmond short-form grammar.
+Immutable operator, correlator and key labels and their Sigmond short-form grammar.
 Where the Sigmond Python bindings or ``sigmond_query`` are installed, the
 canonical strings and SS-written keys are checked against Sigmond's own C++
 parser.
@@ -18,14 +18,14 @@ import numpy as np
 import pytest
 
 from sigmondsamplings.correlators import (
-    BasicOperator,
-    CorrelatorKey,
-    CorrelatorMatrixSpec,
-    CorrelatorPair,
-    GeneralOperator,
+    BasicLapHOperator,
+    CorrelatorAtTimeInfo,
+    CorrelatorInfo,
+    CorrelatorMatrixInfo,
+    GenIrrepOperator,
     Hadron,
     SigmondParseError,
-    VEVKey,
+    VEVInfo,
     operator_from_xml,
     parse_key,
     parse_operator,
@@ -35,6 +35,7 @@ from slat.sigmond_names import TETRAQUARK_SHORT
 
 try:
     import sigmond as _sigmond
+    _ = _sigmond.OperatorInfo, _sigmond.OpKind
 except ImportError:  # pragma: no cover - depends on the environment
     _sigmond = None
 
@@ -43,8 +44,8 @@ needs_sigmond_query = pytest.mark.skipif(
     shutil.which("sigmond_query") is None, reason="sigmond_query not available"
 )
 
-BL = BasicOperator.from_sigmond
-GI = GeneralOperator.from_sigmond
+BL = BasicLapHOperator.from_sigmond
+GI = GenIrrepOperator.from_sigmond
 
 BL_STRINGS = [
     "pion P=(0,0,0) A1um_1 SD_5",
@@ -80,16 +81,17 @@ GI_STRINGS = [
 
 
 @pytest.mark.parametrize("text", BL_STRINGS + BWD_STRINGS)
-def test_basic_parse_print_parse(text):
+def test_basic_laph_parse_print_parse(text):
     op = BL(text)
-    assert str(op) == text
+    expected = text.removesuffix(" D2") if text.startswith("tquuuu1m") else text
+    assert str(op) == expected
     assert BL(str(op)) == op
     assert hash(BL(str(op))) == hash(op)
-    assert op.coordinate == f"BL{{{text}}}"
+    assert op.coordinate == f"BL{{{expected}}}"
 
 
 @pytest.mark.parametrize("text", GI_STRINGS)
-def test_general_parse_print_parse(text):
+def test_gen_irrep_parse_print_parse(text):
     op = GI(text)
     assert str(op) == text
     assert GI(str(op)) == op
@@ -109,10 +111,10 @@ def test_flags_in_either_order_single_hadron():
 
 
 def test_vacuum_is_the_only_zero_hadron_label():
-    vac = BasicOperator.vacuum()
+    vac = BasicLapHOperator.vacuum()
     assert vac.is_vacuum and str(vac) == "" and BL("") == vac
     with pytest.raises(ValueError):
-        BasicOperator((), irrep="A1gp", row=1)
+        BasicLapHOperator((), irrep="A1gp", row=1)
 
 
 def test_derived_quantum_numbers():
@@ -127,7 +129,7 @@ def test_derived_quantum_numbers():
     assert single.hadrons[0].displacement == 2
 
 
-def test_general_momentum_forms():
+def test_gen_irrep_momentum_forms():
     psq0 = GI("isotriplet S=0 PSQ=0 A1um_1 ROT 0")
     assert psq0.momentum == (0, 0, 0) and str(psq0).count("P=(0,0,0)") == 1
     assert psq0 == GI("isotriplet S=0 P=(0,0,0) A1um_1 ROT 0")
@@ -137,9 +139,9 @@ def test_general_momentum_forms():
     assert psq1.channel != GI("isotriplet S=0 P=(0,0,1) A2m ROT 0").channel
     assert GI(GI_STRINGS[0]).with_index(5).index == 5
     with pytest.raises(ValueError):
-        GeneralOperator("triplet", 0, "A1um", "X")
+        GenIrrepOperator("triplet", 0, "A1um", "X")
     with pytest.raises(ValueError):
-        GeneralOperator("triplet", 0, "A1um", "X", momentum=(0, 0, 1), momentum_squared=2)
+        GenIrrepOperator("triplet", 0, "A1um", "X", momentum=(0, 0, 1), momentum_squared=2)
 
 
 def test_tetraquark_color():
@@ -171,14 +173,14 @@ def test_tetraquark_color():
         ),
     ],
 )
-def test_malformed_basic_reports_position(text, position, fragment):
+def test_malformed_basic_laph_reports_position(text, position, fragment):
     with pytest.raises(SigmondParseError) as info:
         BL(text)
     assert fragment in info.value.reason
     assert info.value.position == position
 
 
-def test_malformed_general_reports_position():
+def test_malformed_gen_irrep_reports_position():
     with pytest.raises(SigmondParseError) as info:
         GI("isotriplet P=(0,0,0) A1um_1 ROT 2 extra")
     assert info.value.position == 34 and "unexpected" in info.value.reason
@@ -189,11 +191,11 @@ def test_malformed_general_reports_position():
 
 
 def test_validation_is_not_limited_by_bitfields_until_export():
-    big = BasicOperator.single("pion", (200, 0, 0), "A2m", 20, "SD", 5000)
+    big = BasicLapHOperator.single("pion", (200, 0, 0), "A2m", 20, "SD", 5000)
     assert big.row == 20
     with pytest.raises(ValueError, match="limit"):
         big.to_sigmond()
-    long_name = GeneralOperator("triplet", 0, "A1um", "x" * 51, momentum=(0, 0, 0))
+    long_name = GenIrrepOperator("triplet", 0, "A1um", "x" * 51, momentum=(0, 0, 0))
     with pytest.raises(ValueError, match="name length"):
         long_name.to_sigmond()
     assert ops_mod.MAX_GI_NAME == 50
@@ -201,23 +203,23 @@ def test_validation_is_not_limited_by_bitfields_until_export():
 
 def test_semantic_validation():
     with pytest.raises(ValueError, match="irrep"):
-        BasicOperator.single("nucleon", (0, 0, 0), "A1g", 1, "SS")
+        BasicLapHOperator.single("nucleon", (0, 0, 0), "A1g", 1, "SS")
     with pytest.raises(ValueError, match="displacement"):
-        BasicOperator.single("pion", (0, 0, 0), "A1um", 1, "SS", 0, displacement=2)
+        BasicLapHOperator.single("pion", (0, 0, 0), "A1um", 1, "SS", 0, displacement=2)
     with pytest.raises(ValueError, match="row"):
-        BasicOperator.single("pion", (0, 0, 0), "A1um", 0, "SS")
+        BasicLapHOperator.single("pion", (0, 0, 0), "A1um", 0, "SS")
     with pytest.raises(ValueError, match="isospin"):
-        BasicOperator(BL(BL_STRINGS[6]).hadrons, irrep="A1um", row=1)
+        BasicLapHOperator(BL(BL_STRINGS[6]).hadrons, irrep="A1um", row=1)
     with pytest.raises(ValueError, match="backwards"):
         BL("glueball P=(0,0,0) A1gp_1 TrEig").with_backwards()
 
 
 def test_parse_operator_dispatch():
-    assert isinstance(parse_operator("pion P=(0,0,0) A1um_1 SS_0"), BasicOperator)
-    assert isinstance(parse_operator("isotriplet S=0 P=(0,0,0) A1um_1 ROT 0"), GeneralOperator)
+    assert isinstance(parse_operator("pion P=(0,0,0) A1um_1 SS_0"), BasicLapHOperator)
+    assert isinstance(parse_operator("isotriplet S=0 P=(0,0,0) A1um_1 ROT 0"), GenIrrepOperator)
     assert parse_operator("GI{isotriplet S=0 PSQ=1 A2m ROT 0}") == GI("isotriplet PSQ=1 A2m ROT")
-    assert isinstance(parse_operator("BL{pion P=(0,0,0) A1um_1 SS_0}"), BasicOperator)
-    with pytest.raises(ValueError, match="not a BL or GI"):
+    assert isinstance(parse_operator("BL{pion P=(0,0,0) A1um_1 SS_0}"), BasicLapHOperator)
+    with pytest.raises(ValueError, match="unknown flavor"):
         parse_operator("hello world")
 
 
@@ -232,7 +234,7 @@ def test_short_xml_round_trip_and_pickle(text):
 
 def test_identity_is_the_canonical_form():
     a = BL("pion P=(0,0,0) A1um_1 SD_5 D3")
-    b = BasicOperator.single("pion", (0, 0, 0), "A1um", 1, "SD", 5)
+    b = BasicLapHOperator.single("pion", (0, 0, 0), "A1um", 1, "SD", 5)
     assert a == b and hash(a) == hash(b) and {a: 1}[b] == 1
     assert a != BL("pion P=(0,0,0) A1um_1 SD_5 D4")
     assert a != GI("isotriplet S=0 P=(0,0,0) A1um_1 ROT 2")
@@ -257,15 +259,15 @@ SOURCE = GI("isotriplet S=0 P=(0,0,1) A2m_1 ROT 3")
 
 
 def test_correlator_key_short_form_sink_first_and_flag_order():
-    key = CorrelatorKey(CorrelatorPair(SINK, SOURCE), 25, hermitian=True, subtract_vev=True)
+    key = CorrelatorAtTimeInfo(CorrelatorInfo(SINK, SOURCE), 25, hermitian=True, subtract_vev=True)
     text = key.to_sigmond()
     assert text == (
         "<CorrT>BL{pion P=(0,0,1) A2m_1 SD_5 D4} "
         "GI{isotriplet S=0 P=(0,0,1) A2m_1 ROT 3} time=25 HermMat SubVEV</CorrT>"
     )
-    assert CorrelatorKey.from_sigmond(text) == key
+    assert CorrelatorAtTimeInfo.from_sigmond(text) == key
     swapped = text.replace("HermMat SubVEV", "SubVEV HermMat")
-    assert CorrelatorKey.from_sigmond(swapped) == key
+    assert CorrelatorAtTimeInfo.from_sigmond(swapped) == key
     assert key.sink == SINK and key.source == SOURCE
     assert key.flipped().sink == SOURCE
 
@@ -274,7 +276,7 @@ def test_brace_aware_scanning_handles_spaces_and_brackets():
     multi = BL(BL_STRINGS[6])
     gi = GI("isodoublet S=0 P=(0,0,0) G1g N[SS0] 0")
     text = f"<CorrT>  BL{{{multi}}}   GI{{{gi}}} time=3 </CorrT>"
-    key = CorrelatorKey.from_sigmond(text)
+    key = CorrelatorAtTimeInfo.from_sigmond(text)
     assert key.sink == multi and key.source == gi and key.time == 3
 
 
@@ -290,30 +292,30 @@ def test_brace_aware_scanning_handles_spaces_and_brackets():
 )
 def test_malformed_correlator_keys(body, fragment):
     with pytest.raises(SigmondParseError) as info:
-        CorrelatorKey.from_sigmond(f"<CorrT>{body}</CorrT>")
+        CorrelatorAtTimeInfo.from_sigmond(f"<CorrT>{body}</CorrT>")
     assert fragment in info.value.reason
 
 
 def test_vacuum_cannot_be_a_correlator_end():
     with pytest.raises(ValueError):
-        CorrelatorPair(BasicOperator.vacuum(), SINK)
+        CorrelatorInfo(BasicLapHOperator.vacuum(), SINK)
 
 
-def test_pair_short_form():
-    pair = CorrelatorPair(SINK, SOURCE)
-    assert CorrelatorPair.from_sigmond(pair.to_sigmond()) == pair
-    assert CorrelatorPair.from_sigmond(str(pair)) == pair
+def test_correlator_short_form():
+    corr = CorrelatorInfo(SINK, SOURCE)
+    assert CorrelatorInfo.from_sigmond(corr.to_sigmond()) == corr
+    assert CorrelatorInfo.from_sigmond(str(corr)) == corr
     with pytest.raises(SigmondParseError, match="after the source"):
-        CorrelatorPair.from_sigmond(f"{pair} time=3")
+        CorrelatorInfo.from_sigmond(f"{corr} time=3")
 
 
 def test_vev_keys():
-    v = VEVKey(SINK)
+    v = VEVInfo(SINK)
     assert (
         v.to_sigmond()
         == "<VEV><BLOperatorString>pion P=(0,0,1) A2m_1 SD_5 D4</BLOperatorString></VEV>"
     )
-    assert VEVKey.from_sigmond(v.to_sigmond()) == v
+    assert VEVInfo.from_sigmond(v.to_sigmond()) == v
     assert parse_key(v.to_sigmond()) == v
 
 
@@ -326,43 +328,43 @@ def test_parse_key_memoizes_operator_parses():
 
 
 def test_xml_escaped_names_parse():
-    gi = GeneralOperator("triplet", 0, "A1um", "a<b&c", momentum=(0, 0, 0))
-    key = CorrelatorKey(CorrelatorPair(gi, gi), 1)
+    gi = GenIrrepOperator("triplet", 0, "A1um", "a<b&c", momentum=(0, 0, 0))
+    key = CorrelatorAtTimeInfo(CorrelatorInfo(gi, gi), 1)
     text = key.to_sigmond()
     assert "&lt;" in text and "&amp;" in text
     assert parse_key(text) == key
 
 
 # ---------------------------------------------------------------------------
-# Matrix spec
+# Matrix info
 # ---------------------------------------------------------------------------
 
 P0 = BL("pion P=(0,0,0) A1um_1 SD_5")
 P1 = BL("pion P=(0,0,0) A1um_1 SS_0")
 
 
-def test_spec_validation():
-    spec = CorrelatorMatrixSpec((P0, P1))
-    assert spec.hermitian and not spec.subtract_vev and len(spec) == 2
-    assert spec.coordinates == (P0.coordinate, P1.coordinate)
+def test_matrix_info_validation():
+    matrix_info = CorrelatorMatrixInfo((P0, P1))
+    assert matrix_info.hermitian and not matrix_info.subtract_vev and len(matrix_info) == 2
+    assert matrix_info.coordinates == (P0.coordinate, P1.coordinate)
     with pytest.raises(ValueError, match="at least one"):
-        CorrelatorMatrixSpec(())
+        CorrelatorMatrixInfo(())
     with pytest.raises(ValueError, match="duplicate"):
-        CorrelatorMatrixSpec((P0, P0))
+        CorrelatorMatrixInfo((P0, P0))
     with pytest.raises(ValueError, match="vacuum"):
-        CorrelatorMatrixSpec((P0, BasicOperator.vacuum()))
+        CorrelatorMatrixInfo((P0, BasicLapHOperator.vacuum()))
     with pytest.raises(ValueError, match="channels"):
-        CorrelatorMatrixSpec((P0, BL("pion P=(0,0,1) A2m_1 SS_0")))
+        CorrelatorMatrixInfo((P0, BL("pion P=(0,0,1) A2m_1 SS_0")))
     with pytest.raises(ValueError, match="backward"):
-        CorrelatorMatrixSpec((P0, P1.with_backwards()))
+        CorrelatorMatrixInfo((P0, P1.with_backwards()))
     rot = GI("isotriplet S=0 P=(0,0,0) A1um_1 ROT 0")
-    assert CorrelatorMatrixSpec((P0, rot)).channel == P0.channel
+    assert CorrelatorMatrixInfo((P0, rot)).channel == P0.channel
 
 
-def test_spec_accepts_strings_and_writes_sigmond_xml():
-    spec = CorrelatorMatrixSpec(("pion P=(0,0,0) A1um_1 SD_5", P1))
-    assert spec.operators == (P0, P1)
-    xml = spec.to_sigmond_xml()
+def test_matrix_info_accepts_strings_and_writes_sigmond_xml():
+    matrix_info = CorrelatorMatrixInfo(("pion P=(0,0,0) A1um_1 SD_5", P1))
+    assert matrix_info.operators == (P0, P1)
+    xml = matrix_info.to_sigmond_xml()
     root = ET.fromstring(xml)
     assert [operator_from_xml(c) for c in root if c.tag.endswith("String")] == [P0, P1]
     assert root.find("HermitianMatrix") is not None and root.find("SubtractVEV") is None
@@ -375,14 +377,14 @@ def test_spec_accepts_strings_and_writes_sigmond_xml():
 
 @needs_sigmond_module
 @pytest.mark.parametrize("text", BL_STRINGS)
-def test_basic_strings_match_cpp(text):
+def test_basic_laph_strings_match_cpp(text):
     cpp = _sigmond.OperatorInfo(text, _sigmond.OpKind.BasicLapH)
-    assert str(BL(text)) == cpp.op_str()
+    assert BL(text).to_sigmond() == cpp.op_str()
 
 
 @needs_sigmond_module
 @pytest.mark.parametrize("text", GI_STRINGS)
-def test_general_strings_match_cpp(text):
+def test_gen_irrep_strings_match_cpp(text):
     cpp = _sigmond.OperatorInfo(text, _sigmond.OpKind.GenIrrep)
     assert str(GI(text)) == cpp.op_str()
 
@@ -394,7 +396,7 @@ def test_tetraquark_short_output_matches_cpp():
             for disp in ("", " D2", " D3", " D4"):
                 text = f"{stem}{color} P=(0,0,0) A1um_1 QDX_1{disp}"
                 cpp = _sigmond.OperatorInfo(text, _sigmond.OpKind.BasicLapH).op_str()
-                assert str(BL(text)) == cpp
+                assert BL(text).to_sigmond() == cpp
 
 
 def _sigmond_query_keys(path: str, group: str) -> list[str]:
@@ -423,12 +425,12 @@ def test_ss_written_keys_parse_in_cpp(tmp_path):
     ens = EnsembleInfo("ens_cpp", 20)
     si = SamplingInfo("jackknife", 20)
     keys = [
-        CorrelatorKey(CorrelatorPair(SINK, SOURCE), 5, True, True),
-        CorrelatorKey(CorrelatorPair(BL(BL_STRINGS[7]), BL(BL_STRINGS[11])), 0, False, True),
-        CorrelatorKey(CorrelatorPair(GI(GI_STRINGS[2]), BL(BL_STRINGS[3])), 12, True, False),
-        CorrelatorKey(CorrelatorPair(BL(BL_STRINGS[8]), GI(GI_STRINGS[1])), 3),
-        VEVKey(BL("eta P=(0,0,0) A1gp_1 SS_0")),
-        VEVKey(GI(GI_STRINGS[0])),
+        CorrelatorAtTimeInfo(CorrelatorInfo(SINK, SOURCE), 5, True, True),
+        CorrelatorAtTimeInfo(CorrelatorInfo(BL(BL_STRINGS[7]), BL(BL_STRINGS[11])), 0, False, True),
+        CorrelatorAtTimeInfo(CorrelatorInfo(GI(GI_STRINGS[2]), BL(BL_STRINGS[3])), 12, True, False),
+        CorrelatorAtTimeInfo(CorrelatorInfo(BL(BL_STRINGS[8]), GI(GI_STRINGS[1])), 3),
+        VEVInfo(BL("eta P=(0,0,0) A1gp_1 SS_0")),
+        VEVInfo(GI(GI_STRINGS[0])),
     ]
     # Every record is complex (Re and Im datasets): the installed sigmond_query
     # was seen to reject some files mixing real-only and complex records.

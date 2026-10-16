@@ -96,6 +96,65 @@ class TestStatistics:
         np.testing.assert_allclose(arr.bootstrap_bias.values, [c.bootstrap_bias for c in cells])
 
 
+class TestJoinedMetadata:
+    @pytest.mark.parametrize("axis", [-3, 2])
+    def test_stack_rejects_axis_outside_spatial_dims(self, cells, axis):
+        array = SigmondDataArray.from_samplings(cells, dim_names=["t"])
+        with pytest.raises(ValueError, match="stack axis out of bounds"):
+            np.stack([array, array], axis=axis)
+
+    @pytest.mark.parametrize("axis", [0, 1, -1])
+    @pytest.mark.parametrize("same_parent", [False, True])
+    def test_stack_preserves_cells(self, cells, axis, same_parent):
+        left = SigmondDataArray.from_samplings(cells[:2], obs_info="left", dim_names=["t"])
+        right = SigmondDataArray.from_samplings(
+            cells[2:], obs_info=left.observable_info if same_parent else "right", dim_names=["t"]
+        )
+        result = np.stack([left, right], axis=axis)
+        expected_infos = np.stack([left.infos, right.infos], axis=axis)
+        np.testing.assert_array_equal(result.data, np.stack([left.data, right.data], axis=axis % 2))
+        for index in np.ndindex(result.shape):
+            assert result[index].observable_info is expected_infos[index]
+        assert [c.observable_info for c in result.to_collection()] == list(expected_infos.flat)
+        if same_parent:
+            assert result.observable_info is left.observable_info
+
+    def test_concatenate_preserves_selection_and_collection_infos(self, cells):
+        left = SigmondDataArray.from_samplings(
+            cells[:2], obs_info="left", dim_names=["t"], coords={"t": [0, 1]}
+        )
+        right = SigmondDataArray.from_samplings(
+            cells[2:], obs_info="right", dim_names=["t"], coords={"t": [2, 3]}
+        )
+        result = np.concatenate([left, right])
+        np.testing.assert_array_equal(result.data, np.stack([c.data for c in cells]))
+        for i, cell in enumerate(cells):
+            assert result.sel(t=i).observable_info is cell.observable_info
+            assert result.to_collection()[i].observable_info is cell.observable_info
+        selected = result.sel(t=[3, 0])
+        assert selected[0].observable_info is cells[3].observable_info
+        assert selected[1].observable_info is cells[0].observable_info
+
+    def test_transpose_and_diagonal_preserve_joined_cells(self, cells):
+        left = SigmondDataArray.from_samplings(cells[:2], obs_info="left", dim_names=["t"])
+        right = SigmondDataArray.from_samplings(cells[2:], obs_info="right", dim_names=["t"])
+        joined = SigmondDataArray.stack([left, right], dim_name="row")
+        transposed = joined.transpose("t", "row")
+        for row in range(2):
+            for t in range(2):
+                assert transposed[t, row].observable_info is cells[2 * row + t].observable_info
+        diagonal = transposed.diagonal("t", "row")
+        assert diagonal[0].observable_info is cells[0].observable_info
+        assert diagonal[1].observable_info is cells[3].observable_info
+
+    def test_join_preserves_default_element_infos(self):
+        left = SigmondDataArray.from_data(np.zeros((2, N)), "left", None, dim_names=["t"])
+        right = SigmondDataArray.from_data(np.ones((2, N)), "right", None, dim_names=["t"])
+        result = np.concatenate([left, right])
+        for i, info in enumerate([*left.infos, *right.infos]):
+            assert result[i].observable_info is info
+
+
 class TestKindPreserved:
     def test_indexing_returns_cell_type(self, cells):
         arr = SigmondDataArray.from_samplings(cells, dim_names=["t"])
@@ -248,3 +307,11 @@ class TestVectorizedResample:
         ref = np.stack([blocks[:, i, :].reshape(3, -1).mean(-1) for i in idx], axis=-1)
         np.testing.assert_allclose(fast[:, 1:], ref, rtol=1e-12)
         np.testing.assert_allclose(fast[:, 0], blocks.reshape(3, -1).mean(-1), rtol=1e-12)
+
+
+class TestScalarText:
+    def test_str_and_repr_use_pdg_format(self, cells):
+        cell = cells[0]
+        assert str(cell) == cell.pdg_format()
+        assert f"value={cell.pdg_format()}" in repr(cell)
+        assert "±" not in str(cell) + repr(cell)

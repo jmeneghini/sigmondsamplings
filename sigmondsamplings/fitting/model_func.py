@@ -27,6 +27,9 @@ from ..sampling import SigmondSampling
 
 if TYPE_CHECKING:
     from ..stats import SamplingStats
+    from ..data import SigmondData
+    from ..info import SectorInfo
+    from ..metadata import EnergyTarget
 
 __all__ = [
     "SigmondModelFunc",
@@ -348,10 +351,9 @@ class SigmondModelFunc:
             var_to_use = var_to_use + f"_{{{index}}}"
 
         # Replace {VAR} placeholder with the actual variable
-        if "{VAR}" in self.latex_str:
-            return self.latex_str.replace("{VAR}", var_to_use)
-        elif "{var}" in self.latex_str:
-            return self.latex_str.replace("{var}", var_to_use)
+        if "{VAR}" in self.latex_str or "{var}" in self.latex_str:
+            from ..labels import coordinate_label
+            return coordinate_label(self.latex_str, var_to_use)
         else:
             # If no placeholder, return as-is (assumes it's already complete)
             return self.latex_str
@@ -383,8 +385,7 @@ class SigmondModelFunc:
 
         if isinstance(x_values, SigmondSampling):
             result = self.func(x_values, *params)
-            result.observable_info = self._result_info_for_x(x_values, None, output_info)
-            return result
+            return result.with_observable_info(self._result_info_for_x(x_values, None, output_info))
 
         sequence_values = self._coerce_sequence(x_values)
         if sequence_values is not None and all(
@@ -393,8 +394,7 @@ class SigmondModelFunc:
             results: list[SigmondSampling] = []
             for i, x_val in enumerate(sequence_values):
                 result = self.func(x_val, *params)
-                result.observable_info = self._result_info_for_x(x_val, i, output_info)
-                results.append(result)
+                results.append(result.with_observable_info(self._result_info_for_x(x_val, i, output_info)))
             return results
         if sequence_values is not None:
             if any(isinstance(x, SigmondSampling) for x in sequence_values):
@@ -414,10 +414,37 @@ class SigmondModelFunc:
         results = []
         for i, x_val in enumerate(x_values):
             result = self.func(x_val, *params)
-            result.observable_info = self._result_info_for_fixed_x(i, output_info)
-            results.append(result)
+            results.append(result.with_observable_info(self._result_info_for_fixed_x(i, output_info)))
 
         return results[0] if return_single else results
+
+    def series(self, x_values, dim: str = "time", *, sector_info: SectorInfo | None = None,
+               target: EnergyTarget | None = None, label: str | None = None,
+               coordinate_label: str | None = None) -> SigmondData:
+        """Evaluate once and wrap predictions as an immutable identified series.
+
+        Numeric coordinates retain fractional values. For sampled x inputs,
+        use their full-sample values as display coordinates. Physical context
+        is supplied explicitly; parameter names do not establish a sector.
+        The existing scalar/list-returning :meth:`__call__` is unchanged.
+        """
+        from ..predictions import _prediction_descriptor, _wrap_predictions
+        if isinstance(x_values, SigmondSampling):
+            coordinates = [x_values.full_sample_value]
+        else:
+            sequence = self._coerce_sequence(x_values)
+            if sequence is not None:
+                x_values = sequence
+                coordinates = [x.full_sample_value if isinstance(x, SigmondSampling) else x for x in sequence]
+            else:
+                coordinates = [x_values]
+        evaluated = self(x_values)
+        predictions = evaluated if isinstance(evaluated, list) else [evaluated]
+        descriptor = _prediction_descriptor(predictions, coordinates, dim,
+                        sector_info=sector_info, target=target,
+                        label=self.latex_str if label is None else label,
+                        coordinate_label=self.independent_var_latex if coordinate_label is None else coordinate_label)
+        return _wrap_predictions(predictions, coordinates, dim, descriptor)
 
     def _coerce_sequence(self, x_values) -> list | None:
         if isinstance(x_values, np.ndarray):

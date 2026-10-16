@@ -1,0 +1,18 @@
+{
+  "binary": "/tmp/ss-sigmond-rn/sigmond_batch",
+  "binary_sha256": "00bc9afd97709ad17bad5c0f7d8765a3ff298cbf47e42233a38a1133ba7a7661",
+  "sigmond_commit": "926e10ee52a2becef96c2f8ec96a729487089d55",
+  "generator_version": 3,
+  "fixture_seed": 271,
+  "numeric_type": "real",
+  "case": "rn_bootstrap",
+  "generator_sha256": "c05cc6f933a763dae683c376aada0246e85bcd68b4b892111d244bab02bec066",
+  "artifacts": {
+    "task.xml": "4e92dfd1e38a31f7f06c7c91a8903767878efc81ef67ca0e6c1f9a5c2d652966",
+    "log.xml": "48fde83d2a4514727cd7294e22be64dc0509765c852e7da3384d65a098e40a04",
+    "input.hdf5": "cbc252263e7977a0092874e72f2fffa2f6c4a2d9c9a10316baf8de5b251d240d",
+    "arrays.npz": "fe9e396d7f449b445c473815e0627d26e196235eff2b66659f524d955f48d879",
+    "rotated.hdf5": "9d44b0856ade86079d09b60d4014f3d8c31ca5ea2d95c29f5e239c8faa5df903",
+    "pivot.hdf5": "75579df72c2f364e4d63b8e77930324bd03ab7d5af6cb74822680db3e20c4633"
+  }
+}

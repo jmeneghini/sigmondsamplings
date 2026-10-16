@@ -13,6 +13,9 @@ MultiEnsembleEnergyCollection
 from __future__ import annotations
 
 import logging
+import math
+from copy import deepcopy
+from numbers import Real
 from collections.abc import Iterable, Mapping
 from typing import (
     TYPE_CHECKING,
@@ -152,6 +155,49 @@ class EnergyLevelMixin(_EnergyLevelCollectionBase):
                 f"Collection contains non-energy-level observable types: {invalid_types}"
             )
 
+    def with_level_indices(self, overwrite: bool = False):
+        """Assign ascending full-sample ranks on independent metadata copies.
+
+        Rank interacting energies within each ensemble and exact sector. Ties
+        retain input order; neither the collection nor its resamples are sorted.
+        Each sector must have known PSQ/irrep and one energy/reference convention.
+        Existing indices require ``overwrite=True``. Rotation indices remain
+        unchanged and must be unique when present within a group.
+        """
+        groups = {}
+        for position, sampling in enumerate(self):
+            info = sampling.observable_info
+            if not isinstance(info, EnergyObsInfo) or info.is_single_hadron or info.non_interacting:
+                raise ValueError("Level assignment requires interacting energy observables")
+            if info.psq is None or info.irrep is None:
+                raise ValueError("Level assignment requires known PSQ and irrep")
+            if info.energy_type is None:
+                raise ValueError("Level assignment requires an energy type")
+            if info.level_index is not None and not overwrite:
+                raise ValueError("Existing level indices require overwrite=True")
+            value = sampling.full_sample_value
+            if not isinstance(value, Real) or not math.isfinite(value):
+                raise ValueError("Level assignment requires finite real full-sample values")
+            groups.setdefault((info.ensemble_info, info.sector_info), []).append((position, info, value))
+
+        levels = {}
+        for entries in groups.values():
+            if len({(info.energy_type, info.ref_particle) for _, info, _ in entries}) != 1:
+                raise ValueError("Each sector requires one energy type and reference convention")
+            rotations = [info.rot_idx for _, info, _ in entries if info.rot_idx is not None]
+            if len(set(rotations)) != len(rotations):
+                raise ValueError("Repeated rotation indices make level assignment ambiguous")
+            for level, (position, _, _) in enumerate(sorted(entries, key=lambda entry: entry[2])):
+                levels[position] = level
+
+        copies = []
+        for position, sampling in enumerate(self):
+            info = deepcopy(sampling.observable_info)
+            info.level_index = levels[position]
+            info.update_name()
+            copies.append(sampling.with_observable_info(info))
+        return self._fast_load(copies, self._return_type)
+
     # -------------------------------------------------------------------------
     # Discovery Properties
     # -------------------------------------------------------------------------
@@ -266,7 +312,9 @@ class EnergyLevelMixin(_EnergyLevelCollectionBase):
         """
         return self.filter(
             predicate=lambda obs_info: (
-                isinstance(obs_info, EnergyObsInfo) and not isinstance(obs_info, SHEnergyObsInfo)
+                isinstance(obs_info, EnergyObsInfo)
+                and not obs_info.is_single_hadron
+                and not obs_info.non_interacting
             )
         )
 
@@ -585,8 +633,8 @@ class EnergyLevelMixin(_EnergyLevelCollectionBase):
                 key = (obs_info.irrep, obs_info.psq, obs_info.level_index)
                 if key in irrep_psq_levels_map:
                     particles = tuple(irrep_psq_levels_map[key])
-                    if obs_info.particles != particles:
-                        obs_info.particles = particles
+                    if obs_info.ni_particles != particles:
+                        obs_info.ni_particles = particles
                         obs_info.update_name(strict=False)
                         changed = True
         if changed:

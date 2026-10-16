@@ -35,7 +35,7 @@ import xarray as xr
 
 from .bins import SigmondBins
 from .data import SigmondData, _copy_infos, _kind_cls
-from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
+from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo, SectorInfo
 from .sampling import SigmondSampling
 
 SAMPLE_DIM = "sample"
@@ -75,8 +75,13 @@ class ArrayObsInfo(ObservableInfo):
         re_im: str = "re",
         ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         latex_str: str | None = None,
+        *,
+        sector_info: SectorInfo | None = None,
+        irrep: str | None = None,
+        psq: int | None = None,
     ):
-        super().__init__(name, index, op_type, re_im, ensemble_info, latex_str)
+        super().__init__(name, index, op_type, re_im, ensemble_info, latex_str,
+                         sector_info=sector_info, irrep=irrep, psq=psq)
         self.name_fn = name_fn or _default_element_name
 
     def __eq__(self, other):
@@ -115,6 +120,7 @@ class ArrayElementObsInfo(ObservableInfo):
             re_im=re_im if re_im is not None else parent.re_im,
             ensemble_info=ensemble_info if ensemble_info is not None else parent.ensemble_info,
             latex_str=latex_str,
+            sector_info=parent.sector_info,
         )
         self.parent = parent
         self.array_index = tuple(array_index)
@@ -634,6 +640,10 @@ def diagonal(obj: SigmondData, dim1: str, dim2: str, new_dim: str = "diagonal") 
     )
 
 
+def _contract(data, matrix, axis: int):
+    return np.moveaxis(np.tensordot(data, matrix, axes=([axis], [0])), -1, axis)
+
+
 def apply_matrix(
     obj: SigmondData,
     matrix,
@@ -667,7 +677,7 @@ def apply_matrix(
     if coords is not None and len(coords) != m.shape[1]:
         raise ValueError(f"coords has {len(coords)} labels for {m.shape[1]} outputs")
 
-    data = np.moveaxis(np.tensordot(obj.data, m, axes=([axis], [0])), -1, axis)
+    data = _contract(obj.data, m, axis)
     is_complex = obj.is_complex or np.iscomplexobj(m)
     if not is_complex:
         data = data.real
@@ -714,11 +724,9 @@ def to_collection(obj: SigmondData):
 def array_ufunc(self: SigmondData, ufunc: np.ufunc, inputs, operands) -> SigmondData:
     """Apply ``ufunc`` with at least one N-D operand, broadcasting spatial dims by name.
 
-    Labels must align exactly. Cell infos survive only when every N-D operand
-    has the same array info, dims and cells; otherwise placeholder cells are
-    built (under a ``mixed_operation`` info when the array infos differ).
+    Labels must align exactly. Each result cell gets derived metadata from
+    its corresponding broadcast operand cells, using the scalar policy.
     """
-    nd_ops = [op for op in operands if op.ndim]
     xin = [_to_xr(arg, with_cells=False) if isinstance(arg, SigmondData) else arg for arg in inputs]
     with xr.set_options(arithmetic_join="exact"):
         result = ufunc(*xin)
@@ -730,18 +738,39 @@ def array_ufunc(self: SigmondData, ufunc: np.ufunc, inputs, operands) -> Sigmond
     shape = tuple(result.shape[:-1])
     coords = {d: result.indexes[d].values for d in dims if d in result.indexes}
 
-    first = nd_ops[0]
-    if all(op.observable_info == first.observable_info for op in nd_ops):
-        obs_info = first.observable_info
-        same_cells = all(
-            op.dims == dims
-            and (op._infos is first._infos or np.array_equal(op._infos, first._infos))
-            for op in nd_ops
-        )
-        infos = first._infos if same_cells else _default_element_infos(obs_info, shape)
-    else:
-        obs_info = _mixed_obs_info([op.observable_info for op in nd_ops])
-        infos = _default_element_infos(obs_info, shape)
+    from .arithmetic import arithmetic_info
+    from .metadata import AtObsInfo, source_elements
+    # Built-in placeholder cells have no scalar time annotation. The named
+    # array coordinates establish their series context for time-wise arithmetic.
+    generic_sources = {}
+    for arg in operands:
+        if "time" in arg.dims and "time" in arg.coords and all(
+                isinstance(info, ArrayElementObsInfo) for info in arg.infos.flat):
+            try:
+                generic_sources[id(arg)] = source_elements(arg)
+            except ValueError:
+                # Empty or mixed-parent series have no common time source.
+                # Arithmetic still describes their individual cells.
+                pass
+    obs_info = arithmetic_info(ufunc.__name__, [arg.observable_info if isinstance(arg, SigmondData)
+                                               else arg for arg in inputs])
+    infos = np.empty(shape, dtype=object)
+    for index in np.ndindex(shape):
+        cell_inputs = []
+        for arg in inputs:
+            if isinstance(arg, SigmondData):
+                cell_index = tuple(index[dims.index(dim)] for dim in arg.dims)
+                info = arg.infos[cell_index]
+                if id(arg) in generic_sources:
+                    source_index = tuple(cell_index[i] for i, dim in enumerate(arg.dims) if dim != "time")
+                    time = arg.coords["time"][cell_index[arg.dims.index("time")]]
+                    info = AtObsInfo(generic_sources[id(arg)][source_index], "time", time,
+                                     ensemble_info=info.ensemble_info, index=info.index,
+                                     op_type=info.op_type, re_im=info.re_im)
+                cell_inputs.append(info)
+            else:
+                cell_inputs.append(arg)
+        infos[index] = arithmetic_info(ufunc.__name__, cell_inputs)
 
     is_complex = any(op.is_complex for op in operands) or np.iscomplexobj(result.values)
     return _kind_cls(self.sampling_info)._from_parts(
@@ -788,7 +817,6 @@ def _joined(arrays: Sequence[SigmondData], x: xr.DataArray, infos: np.ndarray) -
         obs_info = ArrayObsInfo("array", ensemble_info=_mixed_obs_info(array_infos).ensemble_info)
     else:
         obs_info = _mixed_obs_info(array_infos)
-        infos = _default_element_infos(obs_info, infos.shape)
     dims = tuple(x.dims[:-1])
     return _kind_cls(ref.sampling_info)._from_parts(
         x.values,
@@ -826,6 +854,11 @@ def stack(arrays, axis: int = 0, dim_name: str = "stack", coords: Sequence | Non
     if coords is not None and len(coords) != len(arrays):
         raise ValueError("coords length must match number of arrays")
 
+    # Normalize against spatial dims, before xarray sees the trailing sample axis.
+    if axis < 0:
+        axis += ref.ndim + 1
+    if not 0 <= axis <= ref.ndim:
+        raise ValueError(f"stack axis out of bounds for {ref.ndim} spatial dims")
     expanded = [_to_xr(a, with_cells=False).expand_dims({dim_name: 1}, axis=axis) for a in arrays]
     x = xr.concat(expanded, dim=dim_name, join="exact", coords="minimal", compat="override")
     if coords is not None:

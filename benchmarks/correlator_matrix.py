@@ -21,10 +21,10 @@ import numpy as np
 
 from sigmondsamplings import SigmondLoader, SigmondSampling, SigmondWriter
 from sigmondsamplings.correlators import (
-    BasicOperator,
+    BasicLapHOperator,
+    CorrelatorAtTimeInfo,
     CorrelatorIndex,
-    CorrelatorKey,
-    CorrelatorPair,
+    CorrelatorInfo,
 )
 from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
 
@@ -32,13 +32,15 @@ from sigmondsamplings.info import EnsembleInfo, ObservableInfo, SamplingInfo
 def build_file(path: Path, n_ops: int, n_times: int, n_samples: int) -> tuple:
     ens = EnsembleInfo("bench", n_samples - 1)
     info = SamplingInfo("bootstrap", n_samples - 1)
-    ops = tuple(BasicOperator.single("pion", (0, 0, 0), "A1um", 1, "SD", k) for k in range(n_ops))
+    ops = tuple(
+        BasicLapHOperator.single("pion", (0, 0, 0), "A1um", 1, "SD", k) for k in range(n_ops)
+    )
     rng = np.random.default_rng(0)
     items = []
     for t in range(n_times):
         for a in ops:
             for b in ops:
-                key = CorrelatorKey(CorrelatorPair(a, b), t, hermitian=True)
+                key = CorrelatorAtTimeInfo(CorrelatorInfo(a, b), t, hermitian=True)
                 data = rng.normal(size=n_samples) + 1j * rng.normal(size=n_samples)
                 obs = ObservableInfo(key.to_sigmond(), 0, "n", "re", ens)
                 items.append(SigmondSampling(data, obs, info, is_complex=True))
@@ -81,7 +83,9 @@ def main() -> None:
         shutil.copy(path, plain)
         with h5py.File(plain, "a") as f:
             del f["corrs/ObsMeta"]
-        timed("lazy load, no ObsMeta (Sigmond layout)", lambda: SigmondLoader(str(plain), lazy=True))
+        timed(
+            "lazy load, no ObsMeta (Sigmond layout)", lambda: SigmondLoader(str(plain), lazy=True)
+        )
         index = timed(
             "index build (metadata only)",
             lambda: CorrelatorIndex.from_collection(loader.observables),
@@ -92,6 +96,33 @@ def main() -> None:
         fresh = CorrelatorIndex.from_collection(SigmondLoader(str(path), lazy=True).observables)
         m = timed("full matrix, lazy reads (all times)", lambda: fresh.matrix(ops))
         timed("full matrix, data already in memory", lambda: fresh.matrix(ops))
+        coefficients = np.eye(args.ops, dtype=complex) + 0.1j
+        timed("square complex basis transform", lambda: m.transform(coefficients))
+
+        from sigmondsamplings.correlators import effective_energy
+        from sigmondsamplings.data import SigmondData
+
+        sparse = SigmondData.from_data(
+            np.broadcast_to(np.array([4.0, 2.0, 1.0])[:, None], (3, args.samples)),
+            "sparse",
+            m.sampling_info,
+            dim_names=("time",),
+            coords={"time": [1, 10**9, 10**9 + 1]},
+            ensemble_info=m.values.ensemble_info,
+        )
+        timed("sparse forward energy (span 1e9)", lambda: effective_energy(sparse))
+
+        import slat.plotting as slp
+        from sigmondsamplings.plotting import CorrelatorMatrixPlotter
+
+        for i in range(args.ops):
+            m.values.data[t_mid, i, i, 0] = abs(m.values.data[t_mid, i, i, 0]) + 1
+        with slp.record():
+            timed(
+                "one-time normalized heatmap",
+                lambda: CorrelatorMatrixPlotter(m).plot_heatmap(t_mid),
+            )
+
         size = m.values.data.nbytes / 2**20
         print(f"  assembled buffer {m.values.data.shape}: {size:.0f} MiB")
 

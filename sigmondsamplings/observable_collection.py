@@ -108,7 +108,9 @@ class PandasExportMixin:
             # Dynamically add all available ObsInfo attributes
             # This replaces the hardcoded list of attributes
             obs_info = s.observable_info
-            if hasattr(obs_info, "__dict__"):
+            if hasattr(obs_info, "public_attributes"):
+                attrs = obs_info.public_attributes()
+            elif hasattr(obs_info, "__dict__"):
                 attrs = vars(obs_info)
             elif hasattr(obs_info, "_asdict"):  # NamedTuple
                 attrs = obs_info._asdict()

@@ -3,18 +3,63 @@ Operators, correlators and correlation matrices for Sigmond data.
 
 Labels (:mod:`.operators`, :mod:`.keys`) and the correlator/VEV observable
 infos (:mod:`.observables`) are pure Python and import eagerly. The data layer
-(:mod:`.index`, :mod:`.matrix`), which needs NumPy and xarray, is imported on
-first use.
+(:mod:`.index`, :mod:`.matrix`) and the calculators (:mod:`.effective`), which
+need NumPy and xarray, are imported on first use.
 """
 
 from __future__ import annotations
 
-from .keys import CorrelatorKey, CorrelatorMatrixSpec, CorrelatorPair, VEVKey, parse_key
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .effective import EffectiveEnergyInfo as EffectiveEnergyInfo
+    from .effective import EffectiveEnergyWarning as EffectiveEnergyWarning
+    from .effective import effective_energy as effective_energy
+    from .effective import effective_time_offset as effective_time_offset
+    from .index import CorrelatorIndex as CorrelatorIndex
+    from .matrix import CorrelatorMatrix as CorrelatorMatrix
+    from .matrix import HermiticityCheck as HermiticityCheck
+    from .matrix import Transformation as Transformation
+    from .pivot import (
+        GEVPSolution as GEVPSolution,
+    )
+    from .pivot import (
+        NullSpaceCheck as NullSpaceCheck,
+    )
+    from .pivot import (
+        OffDiagonalCheck as OffDiagonalCheck,
+    )
+    from .pivot import (
+        PivotDiagnostics as PivotDiagnostics,
+    )
+    from .pivot import (
+        PivotError as PivotError,
+    )
+    from .pivot import (
+        PivotSettings as PivotSettings,
+    )
+    from .pivot import (
+        PivotWarning as PivotWarning,
+    )
+    from .pivot import (
+        SinglePivot as SinglePivot,
+    )
+    from .pivot import (
+        solve_gevp as solve_gevp,
+    )
+
+from .keys import (
+    CorrelatorAtTimeInfo,
+    CorrelatorInfo,
+    CorrelatorMatrixInfo,
+    VEVInfo,
+    parse_key,
+)
 from .observables import CorrelatorObsInfo, VEVObsInfo
 from .operators import (
-    BasicOperator,
+    BasicLapHOperator,
     Channel,
-    GeneralOperator,
+    GenIrrepOperator,
     Hadron,
     Operator,
     SigmondParseError,
@@ -23,24 +68,31 @@ from .operators import (
 )
 
 _LAZY = {
+    **dict.fromkeys(("SinglePivot", "GEVPSolution", "NullSpaceCheck", "OffDiagonalCheck",
+                     "PivotDiagnostics", "PivotError", "PivotSettings", "PivotWarning",
+                     "solve_gevp"), "pivot"),
     "CorrelatorIndex": "index",
     "CorrelatorMatrix": "matrix",
+    "EffectiveEnergyInfo": "effective",
+    "EffectiveEnergyWarning": "effective",
     "HermiticityCheck": "matrix",
     "Transformation": "matrix",
+    "effective_energy": "effective",
+    "effective_time_offset": "effective",
 }
 
 __all__ = [
-    "BasicOperator",
+    "BasicLapHOperator",
     "Channel",
-    "CorrelatorKey",
-    "CorrelatorMatrixSpec",
+    "CorrelatorAtTimeInfo",
+    "CorrelatorInfo",
+    "CorrelatorMatrixInfo",
     "CorrelatorObsInfo",
-    "CorrelatorPair",
-    "GeneralOperator",
+    "GenIrrepOperator",
     "Hadron",
     "Operator",
     "SigmondParseError",
-    "VEVKey",
+    "VEVInfo",
     "VEVObsInfo",
     "operator_from_xml",
     "parse_key",

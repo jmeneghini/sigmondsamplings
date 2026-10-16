@@ -28,12 +28,15 @@ from __future__ import annotations
 import warnings
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from .analysis import _Analyzer, analyzer_for
-from .info import INDEP_ENSEMBLE, EnsembleInfo, ObservableInfo, SamplingInfo
+from .info import EnsembleInfo, ObservableInfo, SamplingInfo
+
+if TYPE_CHECKING:
+    from .time_series import TimeSeriesView
 
 try:
     from uncertainties import ufloat
@@ -62,20 +65,6 @@ def _kind_cls(sampling_info: SamplingInfo | None) -> type[SigmondData]:
     from .sampling import SigmondSampling
 
     return SigmondSampling
-
-
-def _merged_observable_info(operands: list[SigmondData]) -> ObservableInfo:
-    """Observable info for the result of an operation on 0-d ``operands``."""
-    first_info = operands[0].observable_info
-    # TODO: this shouldn't preserve observable_info. However, this may have significant
-    # downstream consequences, so we should consider how to handle this in a future PR.
-    # For now, we preserve observable_info if all operands have the same one, and
-    # otherwise create a new one with a mixed name.
-    if all(s.observable_info == first_info for s in operands):
-        return first_info
-    if all(s.observable_info.ensemble_info == first_info.ensemble_info for s in operands):
-        return ObservableInfo("mixed_operation", 0, "n", "re", first_info.ensemble_info)
-    return ObservableInfo("mixed_operation", 0, "n", "re", INDEP_ENSEMBLE)
 
 
 class SigmondData:
@@ -278,19 +267,46 @@ class SigmondData:
         """Statistical error estimate, following sigmond's jack/boot_analyze."""
         return self._stat(self._analyzer.error)
 
-    def confidence_interval(self, confidence_level: float = 0.68) -> tuple:
-        """Percentile confidence interval (bootstrap resamples, or raw bins).
+    def central(self, metric: str = "full_sample_value"):
+        """The central estimate named by ``metric``.
 
         Args:
-            confidence_level: Confidence level (0.68 = 1σ, 0.95 = 2σ, etc.)
+            metric: ``"full_sample_value"``, ``"mean"`` (of the resamples),
+                ``"median"`` (of the resamples) or ``"bias_corrected_mean"``.
+
+        Raises:
+            ValueError: An unknown metric, or ``"bias_corrected_mean"`` for
+                data that is not bootstrap samplings.
+        """
+        return self._stat(lambda raw: self._analyzer.central(raw, metric))
+
+    def confidence_interval(
+        self,
+        confidence_level: float | None = None,
+        *,
+        percentiles: tuple[float, float] | None = None,
+    ) -> tuple:
+        """Percentile interval of the bootstrap resamples, or of the raw bins.
+
+        Args:
+            confidence_level: Equal-tail confidence level (0.68 = 1σ, 0.95 =
+                2σ, etc.); 0.68 when neither argument is given.
+            percentiles: Explicit ``(lower, upper)`` percentiles instead,
+                e.g. ``(16, 84)``.
 
         Returns:
             Tuple of (lower_bound, upper_bound)
 
         Raises:
-            ValueError: For jackknife samplings.
+            ValueError: Both arguments given, or jackknife samplings.
         """
-        lower, upper = self._analyzer.confidence_interval(self._as_numpy(), confidence_level)
+        if percentiles is None:
+            level = 0.68 if confidence_level is None else confidence_level
+            lower, upper = self._analyzer.confidence_interval(self._as_numpy(), level)
+        elif confidence_level is not None:
+            raise ValueError("pass confidence_level or percentiles, not both")
+        else:
+            lower, upper = self._analyzer.percentile_interval(self._as_numpy(), percentiles)
         if self._dims:
             nd = _nd()
             return nd.wrap_stat(self, lower), nd.wrap_stat(self, upper)
@@ -324,7 +340,7 @@ class SigmondData:
         """Return an uncertainties.ufloat built from (full_sample_value, error)."""
         return self._ufloat(self._require_scalar("to_ufloat").full_sample_value)
 
-    def pdg_format(self, format_spec: str = ".2uS") -> str:
+    def pdg_format(self, format_spec: str = ".2uS", *, central: str | None = None) -> str:
         """Format value and error using PDG conventions via the uncertainties package.
 
         Args:
@@ -334,12 +350,16 @@ class SigmondData:
                        - '.1uP': Pretty-print with ± symbol
                        - '.1uL': LaTeX notation
                        - '.1ue': Scientific notation
+            central: The central value shown, as a :meth:`central` metric;
+                None (the default) is the full-sample value.
 
         Complex data is formatted as ``re ± im i``, each part with its own error.
         """
         if self.is_complex:
-            return self._complex_pdg_format(format_spec)
-        return f"{self.to_ufloat():{format_spec}}"
+            return self._complex_pdg_format(format_spec, central=central)
+        if central is None:
+            return f"{self.to_ufloat():{format_spec}}"
+        return f"{self._ufloat(self._require_scalar('pdg_format').central(central)):{format_spec}}"
 
     def _complex_pdg_format(self, format_spec: str, **kwargs) -> str:
         """``re ± im i``: ``pdg_format`` of each part, with its own error."""
@@ -357,7 +377,7 @@ class SigmondData:
     def __str__(self):
         if self._dims:
             return repr(self)
-        return f"{self.full_sample_value:.6f} ± {self.error:.6f}"
+        return self.pdg_format()
 
     def _array_repr(self) -> str:
         return (
@@ -370,11 +390,27 @@ class SigmondData:
     # Transformations
     # ------------------------------------------------------------------
 
-    def to_real(self):
-        """Return a new instance holding only the real part of the data."""
-        if not self.is_complex:
-            return self
-        return self._new(self.data.real, self.observable_info, is_complex=False)
+    def component(self, component: Literal["real", "imag"]) -> SigmondData:
+        """Project a component, keeping array and cell metadata consistent."""
+        if component not in ("real", "imag"):
+            raise ValueError("component must be 'real' or 'imag'")
+        if component == "imag" and not self.is_complex:
+            raise ValueError("real data has no imaginary part")
+        info = self.observable_info.copy()
+        info.re_im = "re" if component == "real" else "im"
+        data = self.data.real if component == "real" else self.data.imag
+        out = self._new(data, info, is_complex=False)
+        if self.ndim:
+            infos = np.empty(self.shape, dtype=object)
+            for idx in np.ndindex(self.shape):
+                infos[idx] = self.infos[idx].copy()
+                infos[idx].re_im = info.re_im
+            out = out._with_replaced_infos(infos)
+        return out
+
+    def to_real(self) -> SigmondData:
+        """Return the real component with real component metadata."""
+        return self.component("real")
 
     def to_complex(self):
         """Return a new instance with the data promoted to complex dtype."""
@@ -498,6 +534,13 @@ class SigmondData:
     def to_collection(self):
         """Flatten to a SingleEnsembleCollection of single observables, row-major."""
         return _nd().to_collection(self)
+
+    @property
+    def ts(self) -> TimeSeriesView:
+        """Computed time-series access from the current cells and coordinates."""
+        from .time_series import TimeSeriesView
+
+        return TimeSeriesView(self)
 
     @property
     def obs(self):
@@ -641,7 +684,10 @@ class SigmondData:
             or any(np.iscomplexobj(arg) for arg in new_inputs)
             or np.iscomplexobj(result_data)
         )
-        return self._new(result_data, _merged_observable_info(operands), is_complex)
+        from .arithmetic import arithmetic_info
+        info = arithmetic_info(ufunc.__name__, [arg.observable_info if flag else arg
+                                               for arg, flag in zip(inputs, is_data)])
+        return self._new(result_data, info, is_complex)
 
     def __array_function__(self, func, types, args, kwargs):
         """``np.concatenate`` / ``np.stack`` of N-D objects keep labels; else plain numpy."""

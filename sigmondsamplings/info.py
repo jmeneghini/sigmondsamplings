@@ -8,7 +8,8 @@ sampling methods, and observables.
 import logging
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields, replace
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
@@ -507,6 +508,23 @@ class SamplingInfo:
         self.boot_skip = boot_skip
         self.extra_params = kwargs
 
+    @classmethod
+    def jackknife(cls, num_resamplings: int, **kwargs) -> "SamplingInfo":
+        """Jackknife sampling with ``num_resamplings`` (typically the number of configs)."""
+        return cls("jackknife", num_resamplings, **kwargs)
+
+    @classmethod
+    def jackknife_for(cls, ensemble: "EnsembleInfo", **kwargs) -> "SamplingInfo":
+        """Jackknife sampling sized to ``ensemble``'s number of bins (after rebinning)."""
+        return cls.jackknife(ensemble.num_bins, **kwargs)
+
+    @classmethod
+    def bootstrap(
+        cls, num_resamplings: int, seed: int = 0, boot_skip: int = 0, **kwargs
+    ) -> "SamplingInfo":
+        """Bootstrap sampling with ``num_resamplings`` resamples, RNG ``seed`` and ``boot_skip``."""
+        return cls("bootstrap", num_resamplings, seed=seed, boot_skip=boot_skip, **kwargs)
+
     @property
     def slug(self):
         """Fixed-width identifier for filenames."""
@@ -583,6 +601,8 @@ def register_obs_kind(kind: str, *aliases: str):
 _OBS_KIND_SOURCES = (
     "sigmondsamplings.energy_levels",
     "sigmondsamplings.correlators.observables",
+    "sigmondsamplings.metadata",
+    "sigmondsamplings.arithmetic",
 )
 
 
@@ -626,9 +646,6 @@ class ObservableInfo:
     is_single_hadron = False
     """bool: Whether this observable is a single hadron energy level."""
 
-    _reconstructs_own_label = False
-    """bool: Whether :attr:`latex_str` is regenerated from attrs, so need not be stored."""
-
     def __init__(
         self,
         name: str,
@@ -637,6 +654,10 @@ class ObservableInfo:
         re_im: str = "re",
         ensemble_info: EnsembleInfo = INDEP_ENSEMBLE,
         latex_str: str = None,
+        *,
+        sector_info: "SectorInfo | None" = None,
+        irrep: str | None = None,
+        psq: int | None = None,
     ):
         self.name = name
         self._index = int(index)
@@ -644,6 +665,49 @@ class ObservableInfo:
         self.re_im = re_im
         self.ensemble_info = ensemble_info
         self._latex_str = latex_str  # used for plotting
+        self._sector_info = normalize_sector(sector_info, irrep=irrep, psq=psq)
+
+    @property
+    def sector_info(self) -> "SectorInfo":
+        return self._sector_info
+
+    @sector_info.setter
+    def sector_info(self, value: "SectorInfo"):
+        if not isinstance(value, SectorInfo):
+            raise TypeError("sector_info must be a SectorInfo")
+        self._sector_info = value
+
+    @property
+    def isospin(self) -> str | None:
+        from slat.sigmond_names import ISOSPINS
+
+        return next((name for name, twoI in ISOSPINS.items() if twoI == self.twoI), None)
+
+    def public_attributes(self) -> dict[str, Any]:
+        """Public stored fields plus the physical facets used in analysis summaries."""
+        names = {name for name in vars(self) if not name.startswith("_")}
+        names.update(field.name for field in fields(SectorInfo))
+        names.update(("sector_info", "strangeness", "isospin"))
+        names.update(name for name in ("rot_idx", "obs_kind", "is_energy", "is_single_hadron")
+                     if hasattr(self, name))
+        return {name: getattr(self, name) for name in sorted(names)}
+
+    def to_attrs(self) -> dict[str, Any]:
+        attrs = {"obs_kind": self.obs_kind, "sector_info": self.sector_info.to_dict()}
+        if self._latex_str is not None:
+            attrs["latex_str"] = self._latex_str
+        for name in ("irrep", "psq"):
+            if getattr(self, name) is not None:
+                attrs[name] = getattr(self, name)
+        return attrs
+
+    @classmethod
+    def from_attrs(cls, base: "ObservableInfo", attrs) -> "ObservableInfo":
+        result = base.copy()
+        result.sector_info = sector_from_attrs(attrs, default=base.sector_info)
+        if attrs.get("latex_str") is not None:
+            result.latex_str = attrs["latex_str"]
+        return result
 
     @property
     def index(self):
@@ -656,7 +720,7 @@ class ObservableInfo:
     @property
     def latex_str(self) -> str:
         """LaTeX representation for plotting."""
-        if self._latex_str:
+        if self._latex_str is not None:
             return self._latex_str
         else:
             name = str(self.name).replace("_", r"\_")
@@ -703,6 +767,7 @@ class ObservableInfo:
             and self.op_type == other.op_type
             and self.re_im == other.re_im
             and self.ensemble_info == other.ensemble_info
+            and self.sector_info == other.sector_info
         )
 
     def __hash__(self):
@@ -714,10 +779,11 @@ class ObservableInfo:
                 self.op_type,
                 self.re_im,
                 self.ensemble_info if self.ensemble_info else None,
+                self.sector_info,
             )
         )
 
-    def _repr_latex__(self):
+    def _repr_latex_(self):
         """LaTeX representation for Jupyter notebooks."""
         if self.latex_str:
             return f"${self.latex_str}$"
@@ -725,7 +791,7 @@ class ObservableInfo:
             return self.__str__()
 
     def __repr__(self):
-        return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info}')"
+        return f"ObservableInfo(name='{self.name}', index={self.index}, ensemble='{self.ensemble_info}', sector_info={self.sector_info!r})"
 
     def __str__(self):
         return f"{self.name} {self.index}"  # Simple MCObs string format
@@ -765,6 +831,21 @@ class SectorInfo:
     # Continuum spin/parity
     twoJ: int | None = None  # 2 * total angular momentum
     par: int | None = None  # parity (±1)
+    psq: int | None = None
+    irrep: str | None = None
+
+    def __post_init__(self):
+        from slat import IRREP_LATEX_MAP
+
+        if self.psq is not None:
+            if isinstance(self.psq, bool) or not isinstance(self.psq, Integral) or self.psq < 0:
+                raise ValueError("PSQ must be a nonnegative integer")
+            object.__setattr__(self, "psq", int(self.psq))
+        if self.irrep is not None and self.irrep not in IRREP_LATEX_MAP:
+            raise ValueError(f"Invalid irrep: {self.irrep}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {name: value for name, value in asdict(self).items() if value is not None}
 
     @classmethod
     def from_sigmond_str(cls, s: str) -> "SectorInfo":
@@ -776,11 +857,9 @@ class SectorInfo:
         S=-1, S=0, etc.
         """
         res_dict = {}
-        twoI_str_map = {
-            "isosinglet": 0,
-            "isodoublet": 1,
-            "isotriplet": 2,
-        }
+        from slat.sigmond_names import ISOSPINS
+
+        twoI_str_map = {"iso" + name: twoI for name, twoI in ISOSPINS.items()}
         # search for isospin substring
         pattern = "(" + "|".join(twoI_str_map.keys()) + ")"
         match = re.search(pattern, s.lower())
@@ -815,6 +894,8 @@ class SectorInfo:
                 self.Cpar,
                 self.twoJ,
                 self.par,
+                self.psq,
+                self.irrep,
             )
         )
 
@@ -823,6 +904,8 @@ class SectorInfo:
         Two SectorInfo objects are compatible if they do not disagree on any field
         where BOTH have a specified (non-None) value.
         """
+        if not isinstance(other, SectorInfo):
+            return False
         for field in (
             "B",
             "Q",
@@ -834,6 +917,8 @@ class SectorInfo:
             "Cpar",
             "twoJ",
             "par",
+            "psq",
+            "irrep",
         ):
             a = getattr(self, field)
             b = getattr(other, field)
@@ -871,6 +956,10 @@ class SectorInfo:
             parts.append(f"J={J}")
         if self.par is not None:
             parts.append(f"P={self.par:+d}")
+        if self.psq is not None:
+            parts.append(f"PSQ={self.psq}")
+        if self.irrep is not None:
+            parts.append(f"irrep={self.irrep}")
 
         return "SectorInfo(" + (", ".join(parts) if parts else "unspecified") + ")"
 
@@ -880,12 +969,12 @@ class SectorInfo:
             "SectorInfo("
             f"B={self.B!r}, Q={self.Q!r}, S={self.S!r}, C={self.C!r}, "
             f"twoI={self.twoI!r}, twoI3={self.twoI3!r}, Gpar={self.Gpar!r}, Cpar={self.Cpar!r}, "
-            f"twoJ={self.twoJ!r}, par={self.par!r}"
+            f"twoJ={self.twoJ!r}, par={self.par!r}, psq={self.psq!r}, irrep={self.irrep!r}"
             ")"
         )
 
     def _repr_latex_(self) -> str:
-        """
+        r"""
         Jupyter rich display: returns a LaTeX math string.
 
         Example output:
@@ -925,7 +1014,79 @@ class SectorInfo:
         if self.par is not None:
             items.append(rf"P={'+ ' if self.par > 0 else '-'}".replace(" ", ""))
 
+        if self.psq is not None:
+            items.append(rf"\mathbf{{d}}^2={self.psq}")
+        if self.irrep is not None:
+            from slat import get_irrep_latex_str
+            items.append(get_irrep_latex_str(self.irrep))
         if not items:
             return r"$\mathrm{SectorInfo}:\ \text{unspecified}$"
 
         return r"$" + r",\ ".join(items) + r"$"
+
+
+def normalize_sector(sector_info=None, *, irrep=None, psq=None) -> SectorInfo:
+    """Merge legacy facets once; unknown values never erase specified physics."""
+    sector = SectorInfo() if sector_info is None else sector_info
+    if not isinstance(sector, SectorInfo):
+        raise TypeError("sector_info must be a SectorInfo")
+    updates = {}
+    legacy = SectorInfo(irrep=irrep, psq=psq)
+    for name in ("irrep", "psq"):
+        value = getattr(legacy, name)
+        known = getattr(sector, name)
+        if value is not None:
+            if known is not None and known != value:
+                raise ValueError(f"Conflicting sector {name}: {known!r} versus {value!r}")
+            if known is None:
+                updates[name] = value
+    return replace(sector, **updates) if updates else sector
+
+
+def sector_from_attrs(attrs, *, default=None) -> SectorInfo:
+    nested = attrs.get("sector_info")
+    sector = SectorInfo(**nested) if nested is not None else default
+    # Old general annotations may carry the other sector fields flat as well.
+    sector = normalize_sector(sector, irrep=attrs.get("irrep"), psq=attrs.get("psq"))
+    updates = {}
+    for field in fields(SectorInfo):
+        value = attrs.get(field.name)
+        if field.name in ("irrep", "psq") or value is None:
+            continue
+        known = getattr(sector, field.name)
+        if known is not None and known != value:
+            raise ValueError(f"Conflicting sector {field.name}: {known!r} versus {value!r}")
+        updates[field.name] = value
+    sector = replace(sector, **updates) if updates else sector
+    aliases = {"S": attrs.get("strangeness")}
+    if attrs.get("isospin") is not None:
+        from slat.sigmond_names import ISOSPINS
+
+        name = str(attrs["isospin"]).removeprefix("iso")
+        if name not in ISOSPINS:
+            raise ValueError(f"Unknown isospin: {attrs['isospin']!r}")
+        aliases["twoI"] = ISOSPINS[name]
+    updates = {}
+    for name, value in aliases.items():
+        if value is None:
+            continue
+        known = getattr(sector, name)
+        if known is not None and known != value:
+            raise ValueError(f"Conflicting sector {name}: {known!r} versus {value!r}")
+        updates[name] = value
+    return replace(sector, **updates) if updates else sector
+
+
+def _sector_facet(name):
+    def get(info):
+        return getattr(info.sector_info, name)
+
+    def set_(info, value):
+        info.sector_info = replace(info.sector_info, **{name: value})
+
+    return property(get, set_)
+
+
+for _field in fields(SectorInfo):
+    setattr(ObservableInfo, _field.name, _sector_facet(_field.name))
+ObservableInfo.strangeness = _sector_facet("S")

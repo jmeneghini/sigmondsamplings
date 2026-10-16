@@ -4,9 +4,9 @@ Immutable labels for Sigmond operators.
 Two operator kinds mirror Sigmond's ``BasicLapHOperatorInfo`` ("BL") and
 ``GenIrrepOperatorInfo`` ("GI"):
 
-- :class:`BasicOperator` -- a symmetry-projected single- or multi-hadron
+- :class:`BasicLapHOperator` -- a symmetry-projected single- or multi-hadron
   operator built from :class:`Hadron` constituents (or the vacuum).
-- :class:`GeneralOperator` -- a superposition (rotated or improved operator),
+- :class:`GenIrrepOperator` -- a superposition (rotated or improved operator),
   known only by its channel quantum numbers plus a name and an index.
 
 Both are frozen dataclasses. Defaults are resolved at construction, so
@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 from functools import lru_cache
+from typing import Literal
 
 from slat import get_irrep_latex_str
+from slat.constants import latex_to_unicode
 from slat.sigmond_names import (
     HADRON_FLAVORS,
     ISOSPINS,
@@ -43,8 +45,8 @@ from slat.sigmond_names import (
 
 __all__ = [
     "Hadron",
-    "BasicOperator",
-    "GeneralOperator",
+    "BasicLapHOperator",
+    "GenIrrepOperator",
     "Operator",
     "Channel",
     "SigmondParseError",
@@ -97,7 +99,7 @@ def _tokens(text: str, offset: int = 0) -> list[tuple[str, int]]:
 
 
 def _int(value, what: str) -> int:
-    if isinstance(value, bool) or int(value) != value:
+    if isinstance(value, bool) or getattr(value, "dtype", None) == "bool" or int(value) != value:
         raise TypeError(f"{what} must be an integer, got {value!r}")
     return int(value)
 
@@ -173,9 +175,16 @@ class _Label:
         return f"{type(self).__name__}({str(self)!r})"
 
     def __reduce__(self):
-        # Rebuild from the canonical text: the cached hash of a string is only
-        # valid within one process (hash randomization), so it must not be pickled.
-        return (parse_operator, (self._coordinate,))
+        # Rebuild from fields, including the process-local cached hash.
+        return (
+            _restore_label,
+            (type(self), {f.name: getattr(self, f.name) for f in fields(self) if f.init}),
+        )
+
+
+# Reconstruct fields so caches (including the process-local hash) are rebuilt.
+def _restore_label(cls, values):
+    return cls(**values)
 
 
 # ---------------------------------------------------------------------------
@@ -205,10 +214,11 @@ class Channel:
         return f"iso{self.isospin} S={self.strangeness} {mom} {self.irrep}{row}"
 
     def to_sector(self):
-        """The isospin and strangeness as a :class:`~sigmondsamplings.info.SectorInfo`."""
+        """Physical sector; the exact momentum vector and row remain on the channel."""
         from ..info import SectorInfo
 
-        return SectorInfo(S=self.strangeness, twoI=ISOSPINS[self.isospin])
+        return SectorInfo(S=self.strangeness, twoI=ISOSPINS[self.isospin],
+                          psq=self.momentum_squared, irrep=self.irrep)
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +228,7 @@ class Channel:
 
 @dataclass(frozen=True, slots=True)
 class Hadron:
-    """One constituent of a :class:`BasicOperator` (in its reference term).
+    """One constituent of a :class:`BasicLapHOperator` (in its reference term).
 
     ``displacement=None`` resolves to Sigmond's default: 0 for ``SS``/``VI``
     and glueballs, 3 for mesons, 2 otherwise. Tetraquarks take the long flavor
@@ -335,8 +345,8 @@ class Hadron:
         (color +1) or 24 (color -1) and then masks it to 5 bits when deciding
         whether the hadron is a meson, so some tetraquarks omit ``D3`` instead
         of ``D2``. Sigmond looks HDF5 records up by their exact key text, so
-        SS reproduces this to write identical keys; the parsed displacement is
-        the same either way.
+        SS reproduces this only in compatibility output. Python strings retain
+        the displacement because the parser defaults tetraquarks to D2.
         """
         if self.spatial_type in UNDISPLACED_SPATIAL:
             return 0
@@ -360,7 +370,7 @@ class Hadron:
 
     # -- output --------------------------------------------------------------
 
-    def _short_body(self, row: int | None) -> str:
+    def _short_body(self, row: int | None, *, compatibility: bool = False) -> str:
         """``P=(..) irrep[_row] type[_id [Dn]]``, as ``shortwrite_hadron``."""
         text = f"{_format_momentum(self.momentum)} {self.irrep}"
         if row is not None:
@@ -368,7 +378,12 @@ class Hadron:
         text += f" {self.spatial_type}"
         if not self.is_glueball:
             text += f"_{self.spatial_id}"
-            if self.displacement != self.default_displacement:
+            default = (
+                self.default_displacement
+                if compatibility or self.spatial_type in UNDISPLACED_SPATIAL
+                else (3 if self.is_meson else 2)
+            )
+            if self.displacement != default:
                 text += f" D{self.displacement}"
         return text
 
@@ -380,19 +395,19 @@ class Hadron:
 
 
 # ---------------------------------------------------------------------------
-# BasicOperator
+# BasicLapHOperator
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True, eq=False, repr=False)
-class BasicOperator(_Label):
+class BasicLapHOperator(_Label):
     """A basic LapH (BL) operator: the vacuum, one hadron, or several.
 
     For one hadron, ``irrep`` is the hadron's irrep (filled in when omitted)
     and ``isospin`` follows from the flavor, so it is stored as ``None``.
     For several hadrons, the total ``isospin``, ``irrep`` and ``row`` are
     required and ``iso_cg`` / ``lg_cg`` are the Clebsch-Gordan occurrence
-    ids. ``BasicOperator.vacuum()`` is the one zero-hadron label.
+    ids. ``BasicLapHOperator.vacuum()`` is the one zero-hadron label.
     """
 
     hadrons: tuple[Hadron, ...]
@@ -462,7 +477,7 @@ class BasicOperator(_Label):
     # -- constructors --------------------------------------------------------
 
     @classmethod
-    def vacuum(cls) -> BasicOperator:
+    def vacuum(cls) -> BasicLapHOperator:
         return cls(())
 
     @classmethod
@@ -478,13 +493,13 @@ class BasicOperator(_Label):
         *,
         color: int | None = None,
         backwards: bool = False,
-    ) -> BasicOperator:
+    ) -> BasicLapHOperator:
         """A one-hadron operator (the common case)."""
         hadron = Hadron(flavor, momentum, irrep, spatial_type, spatial_id, displacement, color)
         return cls((hadron,), row=row, backwards=backwards)
 
     @classmethod
-    def from_sigmond(cls, text: str) -> BasicOperator:
+    def from_sigmond(cls, text: str) -> BasicLapHOperator:
         """Parse Sigmond's short BL string (an optional ``BL{...}`` wrapper is accepted)."""
         return _parse_cached("BL", _unwrap(text, "BL"))
 
@@ -527,10 +542,8 @@ class BasicOperator(_Label):
             row=self.row,
         )
 
-    def with_backwards(self, backwards: bool = True) -> BasicOperator:
-        return BasicOperator(
-            self.hadrons, self.irrep, self.row, self.isospin, self.iso_cg, self.lg_cg, backwards
-        )
+    def with_backwards(self, backwards: bool = True) -> BasicLapHOperator:
+        return replace(self, backwards=backwards)
 
     @property
     def latex_str(self) -> str:
@@ -548,22 +561,63 @@ class BasicOperator(_Label):
         hadrons = r"\,".join(h.latex_str for h in self.hadrons)
         return rf"{hadrons}\,{get_irrep_latex_str(self.irrep)}"
 
+    @property
+    def compact_str(self) -> str:
+        """A short plain-text label for plots, e.g. ``ππ[(0,0,1),(0,0,-1)] CG1``.
+
+        Flavor symbols and momenta, plus what else distinguishes operators of
+        one channel: the spatial type and id of a single hadron, and for several
+        hadrons the Clebsch-Gordan ids and any non-``SS_0`` spatial parts.
+        Shorter than ``str(op)`` but not guaranteed unique; hover text and
+        tables use the full form.
+        """
+        if self.is_vacuum:
+            return "vacuum"
+
+        def symbol(h: Hadron) -> str:
+            return latex_to_unicode(HADRON_FLAVORS[h.flavor].latex)
+
+        def momentum(h: Hadron) -> str:
+            return "({},{},{})".format(*h.momentum)
+
+        def spatial(h: Hadron) -> str:
+            return h.spatial_type if h.is_glueball else f"{h.spatial_type}{h.spatial_id}"
+
+        if self.n_hadrons == 1:
+            h = self.hadrons[0]
+            text = f"{symbol(h)}{momentum(h)} {spatial(h)}"
+            return text + " bwd" if self.backwards else text
+        text = "".join(symbol(h) for h in self.hadrons)
+        text += "[" + ",".join(momentum(h) for h in self.hadrons) + "]"
+        if any((h.spatial_type, h.spatial_id) != ("SS", 0) for h in self.hadrons):
+            text += " " + ",".join(spatial(h) for h in self.hadrons)
+        if self.lg_cg:
+            text += f" CG{self.lg_cg}"
+        if self.iso_cg:
+            text += f" isoCG{self.iso_cg}"
+        return text + " bwd" if self.backwards else text
+
     # -- output --------------------------------------------------------------
 
     def __str__(self) -> str:
+        return self._short_string()
+
+    def _short_string(self, *, compatibility: bool = False) -> str:
         n = self.n_hadrons
         if n == 0:
             return ""
         if n == 1:
             h = self.hadrons[0]
-            text = f"{h.short_flavor} {h._short_body(self.row)}"
+            text = f"{h.short_flavor} {h._short_body(self.row, compatibility=compatibility)}"
             return text + " bwd" if self.backwards else text
         iso = f"iso{self.isospin}" + (f"-{self.iso_cg}" if self.iso_cg else "")
         flavors = "_".join(h.flavor for h in self.hadrons)
         total = f"{self.irrep}_{self.row}" + (f" CG_{self.lg_cg}" if self.lg_cg else "")
         if self.backwards:
             total += " bwd"
-        parts = " ".join(f"[{h._short_body(None)}]" for h in self.hadrons)
+        parts = " ".join(
+            f"[{h._short_body(None, compatibility=compatibility)}]" for h in self.hadrons
+        )
         return f"{iso}_{flavors} {total} {parts}"
 
     def _check_sigmond(self) -> None:
@@ -578,22 +632,22 @@ class BasicOperator(_Label):
     def to_sigmond(self) -> str:
         """Canonical short string, after checking Sigmond's encoding limits."""
         self._check_sigmond()
-        return str(self)
+        return self._short_string(compatibility=True)
 
     def to_xml(self) -> ET.Element:
-        """``<BLOperatorString>...</BLOperatorString>``."""
+        """Lossless Python XML; use ``to_sigmond()`` for compatibility key text."""
         el = ET.Element("BLOperatorString")
-        el.text = self.to_sigmond()
+        el.text = str(self)
         return el
 
 
 # ---------------------------------------------------------------------------
-# GeneralOperator
+# GenIrrepOperator
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True, eq=False, repr=False)
-class GeneralOperator(_Label):
+class GenIrrepOperator(_Label):
     """A general irrep (GI) operator: channel quantum numbers plus name and index.
 
     Give ``momentum`` (definite) or ``momentum_squared`` (``PSQ``-only); a
@@ -653,7 +707,7 @@ class GeneralOperator(_Label):
         self._finish("GI")
 
     @classmethod
-    def from_sigmond(cls, text: str) -> GeneralOperator:
+    def from_sigmond(cls, text: str) -> GenIrrepOperator:
         """Parse Sigmond's short GI string (an optional ``GI{...}`` wrapper is accepted)."""
         return _parse_cached("GI", _unwrap(text, "GI"))
 
@@ -680,22 +734,31 @@ class GeneralOperator(_Label):
     def backwards(self) -> bool:
         return False
 
-    def with_index(self, index: int) -> GeneralOperator:
-        return GeneralOperator(
-            self.isospin,
-            self.strangeness,
-            self.irrep,
-            self.name,
+    @classmethod
+    def from_channel(cls, channel: Channel, *, name: str, index: int = 0) -> GenIrrepOperator:
+        return cls(
+            channel.isospin,
+            channel.strangeness,
+            channel.irrep,
+            name,
             index,
-            self.momentum,
-            self.momentum_squared,
-            self.row,
+            channel.momentum,
+            channel.momentum_squared,
+            channel.row,
         )
+
+    def with_index(self, index: int) -> GenIrrepOperator:
+        return replace(self, index=index)
 
     @property
     def latex_str(self) -> str:
         """e.g. ``\\mathrm{ROT}_{2}\\,A_{1u}^{-}``."""
         return rf"\mathrm{{{self.name}}}_{{{self.index}}}\,{get_irrep_latex_str(self.irrep)}"
+
+    @property
+    def compact_str(self) -> str:
+        """A short plain-text label for plots, e.g. ``ROT 2``."""
+        return f"{self.name} {self.index}"
 
     def __str__(self) -> str:
         mom = (
@@ -729,7 +792,7 @@ class GeneralOperator(_Label):
         return el
 
 
-Operator = BasicOperator | GeneralOperator
+Operator = BasicLapHOperator | GenIrrepOperator
 """Either operator kind (a typing alias, not a wrapper class)."""
 
 
@@ -804,10 +867,10 @@ def _build(text: str, pos: int, factory, *args, **kwargs):
         raise SigmondParseError(text, pos, str(e)) from None
 
 
-def _parse_basic(text: str) -> BasicOperator:
+def _parse_basic(text: str) -> BasicLapHOperator:
     toks = _tokens(text)
     if not toks:
-        return BasicOperator.vacuum()
+        return BasicLapHOperator.vacuum()
     head = toks[0][0]
     if head == "glueball":
         return _parse_glueball(text, toks)
@@ -816,7 +879,7 @@ def _parse_basic(text: str) -> BasicOperator:
     return _parse_multi_hadron(text)
 
 
-def _parse_glueball(text: str, toks) -> BasicOperator:
+def _parse_glueball(text: str, toks) -> BasicLapHOperator:
     if len(toks) != 4:
         pos = toks[4][1] if len(toks) > 4 else len(text)
         raise SigmondParseError(text, pos, "a glueball string has exactly four tokens")
@@ -826,15 +889,11 @@ def _parse_glueball(text: str, toks) -> BasicOperator:
     if sptype not in _SPATIAL:
         raise SigmondParseError(text, sp_pos, f"unknown spatial type {sptype!r}")
     hadron = _build(text, toks[0][1], Hadron, "glueball", mom, irrep, sptype)
-    return _build(text, toks[2][1], BasicOperator, (hadron,), row=row)
+    return _build(text, toks[2][1], BasicLapHOperator, (hadron,), row=row)
 
 
-def _parse_single_hadron(text: str, toks) -> BasicOperator:
+def _parse_single_hadron(text: str, toks) -> BasicLapHOperator:
     flavor, fpos = toks[0]
-    if flavor in TETRAQUARK_SHORT:
-        raise SigmondParseError(
-            text, fpos, "tetraquarks use their short flavor name (e.g. 'tquuuu1p') in strings"
-        )
     if flavor not in HADRON_FLAVORS and not (flavor[:2] == "tq" and flavor[:-1] in TETRAQUARK_LONG):
         raise SigmondParseError(text, fpos, f"unknown flavor {flavor!r}")
     if len(toks) < 4:
@@ -851,10 +910,10 @@ def _parse_single_hadron(text: str, toks) -> BasicOperator:
         else:
             raise SigmondParseError(text, pos, f"unexpected token {tok!r}")
     hadron = _build(text, fpos, Hadron, flavor, mom, irrep, sptype, spid, displacement)
-    return _build(text, fpos, BasicOperator, (hadron,), row=row, backwards=backwards)
+    return _build(text, fpos, BasicLapHOperator, (hadron,), row=row, backwards=backwards)
 
 
-def _parse_multi_hadron(text: str) -> BasicOperator:
+def _parse_multi_hadron(text: str) -> BasicLapHOperator:
     first_bracket = text.find("[")
     if first_bracket < 0:
         raise SigmondParseError(text, len(text), "a multi-hadron string needs '[...]' hadrons")
@@ -925,7 +984,7 @@ def _parse_multi_hadron(text: str) -> BasicOperator:
     return _build(
         text,
         0,
-        BasicOperator,
+        BasicLapHOperator,
         tuple(hadrons),
         irrep=irrep,
         row=row,
@@ -936,7 +995,7 @@ def _parse_multi_hadron(text: str) -> BasicOperator:
     )
 
 
-def _parse_general(text: str) -> GeneralOperator:
+def _parse_general(text: str) -> GenIrrepOperator:
     toks = _tokens(text)
     if not 4 <= len(toks) <= 6:
         raise SigmondParseError(
@@ -981,7 +1040,7 @@ def _parse_general(text: str) -> GeneralOperator:
     return _build(
         text,
         name_pos,
-        GeneralOperator,
+        GenIrrepOperator,
         isospin,
         strangeness,
         irrep,
@@ -993,42 +1052,35 @@ def _parse_general(text: str) -> GeneralOperator:
     )
 
 
-def parse_operator(text, kind: str = "auto") -> Operator:
+def parse_operator(
+    text: str | Operator, kind: Literal["auto", "basic", "general"] = "auto"
+) -> Operator:
     """Parse a short operator string of either kind (an operator is returned as is).
 
     ``BL{...}`` / ``GI{...}`` wrappers decide the kind. Otherwise ``kind`` may
-    be ``"basic"`` or ``"general"``; with ``"auto"`` both grammars are tried and
-    exactly one must accept the text.
+    be ``"basic"`` or ``"general"``; ``"auto"`` dispatches by the head token.
+    An explicit kind must match an existing operator or a tagged string.
     """
+    if kind not in ("auto", "basic", "general"):
+        raise ValueError(f"kind must be 'auto', 'basic' or 'general', got {kind!r}")
     if isinstance(text, _Label):
+        actual = "basic" if isinstance(text, BasicLapHOperator) else "general"
+        if kind not in ("auto", actual):
+            raise TypeError(f"expected {kind} operator, got {actual}")
         return text
     stripped = text.strip()
-    if stripped.startswith("BL{"):
-        kind = "basic"
-    elif stripped.startswith("GI{"):
-        kind = "general"
-    if kind == "basic":
-        return BasicOperator.from_sigmond(stripped)
-    if kind == "general":
-        return GeneralOperator.from_sigmond(stripped)
-    if kind != "auto":
-        raise ValueError(f"kind must be 'auto', 'basic' or 'general', got {kind!r}")
-    results, errors = [], []
-    for prefix in ("BL", "GI"):
-        try:
-            results.append(_parse_cached(prefix, stripped))
-        except SigmondParseError as e:
-            errors.append(e)
-    if len(results) == 1:
-        return results[0]
-    if not results:
-        raise ValueError(
-            "not a BL or GI operator string:\n  as BL: "
-            + errors[0].reason
-            + "\n  as GI: "
-            + errors[1].reason
-        )
-    raise ValueError(f"ambiguous operator string {text!r}; pass kind='basic' or 'general'")
+    tagged = (
+        "basic" if stripped.startswith("BL{") else "general" if stripped.startswith("GI{") else None
+    )
+    if tagged is not None:
+        if kind not in ("auto", tagged):
+            raise ValueError(f"{tagged} tag conflicts with kind={kind!r}")
+        kind = tagged
+    if kind == "auto":
+        head = stripped.split(maxsplit=1)[0] if stripped else ""
+        kind = "general" if _strip_iso(head) in ISOSPINS else "basic"
+    parser = BasicLapHOperator if kind == "basic" else GenIrrepOperator
+    return parser.from_sigmond(stripped)
 
 
 # ---------------------------------------------------------------------------
@@ -1053,7 +1105,7 @@ def operator_from_xml(xml: str | ET.Element) -> Operator:
     """An operator from ``<BLOperatorString>``, ``<OperatorString>`` or ``<GIOperatorString>``."""
     el = _as_element(xml)
     if el.tag in _BL_TAGS:
-        return BasicOperator.from_sigmond(el.text or "")
+        return BasicLapHOperator.from_sigmond(el.text or "")
     if el.tag in _GI_TAGS:
-        return GeneralOperator.from_sigmond(el.text or "")
+        return GenIrrepOperator.from_sigmond(el.text or "")
     raise ValueError(f"<{el.tag}> is not a short operator tag; expected one of {OPERATOR_TAGS}")

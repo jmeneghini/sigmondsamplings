@@ -117,6 +117,60 @@ class TestConsumersShareFormula:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Central estimates and percentile intervals
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestCentralAndIntervals:
+    @pytest.mark.parametrize(
+        ("metric", "expected"),
+        [
+            ("full_sample_value", lambda d: d[0]),
+            ("mean", lambda d: d[1:].mean()),
+            ("median", lambda d: np.median(d[1:])),
+            ("bias_corrected_mean", lambda d: 2 * d[0] - d[1:].mean()),
+        ],
+    )
+    def test_central_metrics(self, metric, expected):
+        s = _sampling("bootstrap", 50)
+        assert s.central(metric) == pytest.approx(expected(s.data), rel=1e-12)
+
+    def test_central_default_is_full_sample(self):
+        s = _sampling("jackknife", 20)
+        assert s.central() == s.full_sample_value
+
+    def test_central_rejects_unknown_and_bootstrap_only_metrics(self):
+        with pytest.raises(ValueError, match="unknown central metric"):
+            _sampling("bootstrap", 20).central("mode")
+        with pytest.raises(ValueError, match="bootstrap"):
+            _sampling("jackknife", 20).central("bias_corrected_mean")
+
+    def test_explicit_percentiles(self):
+        s = _sampling("bootstrap", 200)
+        lower, upper = s.confidence_interval(percentiles=(16, 84))
+        assert (lower, upper) == pytest.approx(tuple(np.percentile(s.data[1:], (16, 84))))
+        assert s.confidence_interval(0.68) == pytest.approx(
+            s.confidence_interval(percentiles=(16, 84))
+        )
+
+    def test_bins_percentiles_use_every_bin(self):
+        b = _bins()
+        assert b.confidence_interval(percentiles=(10, 90)) == pytest.approx(
+            tuple(np.percentile(b.data, (10, 90)))
+        )
+
+    def test_percentiles_and_level_are_exclusive(self):
+        with pytest.raises(ValueError, match="not both"):
+            _sampling("bootstrap", 20).confidence_interval(0.68, percentiles=(16, 84))
+
+    def test_jackknife_has_no_percentiles(self):
+        s = _sampling("jackknife", 20)
+        for call in (lambda: s.confidence_interval(), lambda: s.confidence_interval(percentiles=(16, 84))):
+            with pytest.raises(ValueError, match="only supported for bootstrap"):
+                call()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # NonlinearBinsWarning
 # ──────────────────────────────────────────────────────────────────────────────
 

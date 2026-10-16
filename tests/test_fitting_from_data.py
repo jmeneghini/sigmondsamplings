@@ -199,3 +199,22 @@ def test_x_needs_numeric_coordinate_values():
     unlabelled = SigmondSampling.from_data(np.ones((2, 11)), "corr", info, dim_names=["time"])
     with pytest.raises(ValueError, match="no coordinate"):
         SamplingFit.from_data(unlabelled, MODEL, _param_set())
+
+
+def test_parameter_ensemble_inference_override_and_roundtrip(tmp_path):
+    from sigmondsamplings.info import EnsembleInfo
+    from sigmondsamplings.io.loader import SigmondLoader
+    from sigmondsamplings.io.writer import SigmondWriter
+    ensemble = EnsembleInfo('fit_pivot', 20, spatial_extent=8, temporal_extent=16, num_streams=1)
+    series = SigmondSampling.from_data(_buffer(list(range(2, 10)), n_resamp=20), 'corr',
+                                      SamplingInfo.bootstrap(20), dim_names=['time'],
+                                      coords={'time': list(range(2, 10))}, ensemble_info=ensemble)
+    for override in (None, EnsembleInfo('explicit_fit', 20)):
+        expected = ensemble if override is None else override
+        fit = SamplingFit.from_data(series, MODEL, _param_set(), minimizer=LS, ensemble_info=override)
+        assert fit.ensemble_info == expected
+        result = fit.fit_resampled(progress=False)
+        assert result.param('A').ensemble_info == expected
+        path = tmp_path / (expected.name + '.hdf5')
+        SigmondWriter().write_hdf5(str(path), [result.param('A')], overwrite=True)
+        assert next(iter(SigmondLoader(path).observables)).ensemble_info == expected

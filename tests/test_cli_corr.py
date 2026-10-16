@@ -4,9 +4,9 @@ import json
 
 import numpy as np
 import pytest
+from correlator_data import OPS, ckey, observable, series, vev
 from typer.testing import CliRunner
 
-from correlator_data import OPS, ckey, observable, series, vev
 from sigmondsamplings.cli.main import app
 from sigmondsamplings.io.writer import SigmondWriter
 
@@ -69,7 +69,7 @@ def test_corr_listings(bins_file):
     assert len(vevs) == 2
 
 
-def test_corr_pair_by_number_and_string(bins_file):
+def test_corr_single_by_number_and_string(bins_file):
     by_number = _json("corr", str(bins_file), "--sink", "0", "--source", "1")
     by_string = _json("corr", str(bins_file), "--sink", str(OPS[0]), "--source", str(OPS[1]))
     subset = _json("corr", str(bins_file), "--sink", "0", "--source", "1", "--times", "1,2")
@@ -90,12 +90,24 @@ def test_corr_matrix_is_hermitian_by_default(bins_file):
 
 
 def test_corr_subtract_vev_needs_sampling_for_bins(bins_file):
-    assert "sampling_info" in _error("corr", str(bins_file), "--sink", "0", "--source", "1", "--subtract-vev")
+    assert "sampling_info" in _error(
+        "corr", str(bins_file), "--sink", "0", "--source", "1", "--subtract-vev"
+    )
 
     rows = _json(
-        "corr", str(bins_file), "--sink", "0", "--source", "1", "--subtract-vev", "--sampling", "jackknife"
+        "corr",
+        str(bins_file),
+        "--sink",
+        "0",
+        "--source",
+        "1",
+        "--subtract-vev",
+        "--sampling",
+        "jackknife",
     )
-    boot = _json("corr", str(bins_file), "--matrix", "0", "--subtract-vev", "--sampling", "bootstrap:20:4")
+    boot = _json(
+        "corr", str(bins_file), "--matrix", "0", "--subtract-vev", "--sampling", "bootstrap:20:4"
+    )
 
     assert len(rows) == len(TIMES)
     assert len(boot) == 2
@@ -123,7 +135,7 @@ def _numbers(path) -> list[str]:
     return [str(number[str(op)]) for op in OPS]
 
 
-def test_corr_pair_follows_hermmat_file(herm_file):
+def test_corr_single_follows_hermmat_file(herm_file):
     n = _numbers(herm_file)
     rows = _json("corr", str(herm_file), "--sink", n[0], "--source", n[2])
     flipped = _json("corr", str(herm_file), "--sink", n[2], "--source", n[0])
@@ -140,7 +152,9 @@ def test_corr_matrix_operator_subset(herm_file):
     n = _numbers(herm_file)
     message = _error("corr", str(herm_file), "--matrix", "0", "--time", "1")
     rows = _json("corr", str(herm_file), "--matrix", "0", "--time", "1", "--ops", f"{n[0]},{n[1]}")
-    reordered = _json("corr", str(herm_file), "--matrix", "0", "--time", "1", "--ops", f"{n[1]},{n[0]}")
+    reordered = _json(
+        "corr", str(herm_file), "--matrix", "0", "--time", "1", "--ops", f"{n[1]},{n[0]}"
+    )
 
     assert "not every requested cell" in message
     assert f"--ops {','.join(sorted(n[:2]))}" in message
@@ -167,3 +181,24 @@ def test_corr_matrix_operator_subset(herm_file):
 )
 def test_corr_rejects_bad_options(bins_file, args, message):
     assert message in _error("corr", str(bins_file), *args)
+
+
+@pytest.mark.parametrize("plot", [False, True])
+def test_explicit_key_form_resolves_ambiguity(tmp_path, plot):
+    import slat.plotting as slp
+
+    path = tmp_path / "forms.h5"
+    items = [
+        observable(ckey(0, 0, 1, herm), np.ones(41) * value)
+        for herm, value in [(False, 2), (True, 4)]
+    ]
+    SigmondWriter(create_backups=False).write_hdf5(str(path), items)
+    args = ["query", "corr", str(path), "--sink", "0", "--source", "0"]
+    assert runner.invoke(app, args).exit_code != 0
+    if plot:
+        args += ["--plot", "correlator", "--no-gui"]
+    with slp.record() as rec:
+        result = runner.invoke(app, args + ["--key-form", "HermMat"])
+    assert result.exit_code == 0, result.output
+    if plot:
+        np.testing.assert_allclose(rec.of_kind("errorbar")[0].args[1], [4])

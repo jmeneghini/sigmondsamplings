@@ -7,18 +7,19 @@ which wraps the third-party ``corner`` package and is matplotlib-only.
 
 from __future__ import annotations
 
-import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 import numpy as np
 
 import slat.plotting as slp
+from slat.plotting.lifecycle import figure_factory, track_native_figure
 
 from ..observable_collection import ObservableCollection
+from ..plot_contracts import _HISTOGRAM_CONFIDENCE
 from ..sampling import SigmondSampling
 from ..stats import SamplingStats
-from ._util import resolve_axes
+from ._util import labeled_heatmap, resolve_axes, summary_grid
 
 __all__ = ["SamplingPlotter"]
 
@@ -28,14 +29,15 @@ _DEFAULT_PANELS = ["histogram", "correlation"]
 _PANEL_W = 6.5  # inches per column
 _PANEL_H = 5.0  # inches per row
 
-
-def _summary_grid(n: int) -> tuple[int, int]:
-    """Compute (nrows, ncols) grid shape for n panels."""
-    if n <= 3:
-        return (1, n)
-    ncols = math.ceil(math.sqrt(n))
-    nrows = math.ceil(n / ncols)
-    return (nrows, ncols)
+# Every mark gets an explicit color: matplotlib and plotly cycle colors
+# differently, so neither backend's automatic choice is used.
+_DATA_COLOR = "#1f77b4"  # bars and points; matplotlib's first cycle color
+_INTERVAL_LINE_COLOR = "red"  # histogram: interval bounds and mean
+_FULL_SAMPLE_COLOR = "orange"
+_BIAS_CORRECTED_COLOR = "green"
+_MEAN_POINT_COLOR = "black"  # bootstrap intervals: the central points
+_INTERVAL_COLORS = ("red", "blue", "green", "purple", "orange")  # one per confidence level
+_MAX_TICK_LABELS = 20  # more observables than this get no x-tick labels
 
 
 def _summary_figsize(
@@ -58,8 +60,18 @@ def _as_observable_collection(
     return ObservableCollection(list(samplings))
 
 
-def _sampling_latex_label(sampling: SigmondSampling) -> str:
-    return f"${sampling.observable_info.latex_str.strip('$')}$"
+def _x_and_labels(samplings, x_values, labels, what: str):
+    """Default ``x_values`` to indices and ``labels`` to LaTeX names, checking lengths."""
+    n = len(samplings)
+    if x_values is None:
+        x_values = np.arange(n)
+    elif len(x_values) != n:
+        raise ValueError(f"Length of x_values must match number of {what}")
+    if labels is None:
+        labels = [slp.ensure_math(s.observable_info.latex_str) for s in samplings]
+    elif len(labels) != n:
+        raise ValueError(f"Length of labels must match number of {what}")
+    return x_values, labels
 
 
 class SamplingPlotter:
@@ -70,15 +82,14 @@ class SamplingPlotter:
     and fitting results from lattice QCD analysis workflows.
 
     Every method accepts ``axes`` (an existing :class:`slat.plotting.Axes`) and
-    ``backend`` (a backend name for this call only). The legacy ``ax`` keyword
-    still works and accepts a raw matplotlib Axes.
+    ``backend`` (a backend name for this call only). ``axes`` also accepts a
+    raw matplotlib Axes, which is wrapped.
     """
 
     def __init__(
         self,
         stats: Iterable[SigmondSampling] | None = None,
         default_figsize: tuple[float, float] = (10, 6),
-        default_style: dict[str, Any] = None,
     ):
         """
         Initialize the plotter.
@@ -86,25 +97,29 @@ class SamplingPlotter:
         Args:
             stats: Optional SamplingStats object for default data source
             default_figsize: Default figure size for plots
-            default_style: Default styling parameters
         """
         if stats is not None and not isinstance(stats, SamplingStats):
             self.stats = SamplingStats(stats)
         else:
             self.stats = stats
         self.default_figsize = default_figsize
-        self.default_style = default_style or {}
 
+    def _require_stats(self, message: str) -> SamplingStats:
+        """The plotter's stats; ``message`` is the error when it has none."""
+        if self.stats is None:
+            raise ValueError(message)
+        return self.stats
+
+    @figure_factory
     def plot_sampling_histogram(
         self,
         sampling: SigmondSampling | int | None = None,
         bins: int | str = "auto",
         axes: slp.Axes | None = None,
-        confidence_level: float = 0.68,
+        confidence_level: float = _HISTOGRAM_CONFIDENCE,
         show_bias: bool = False,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
-        ax: Any = None,
         **kwargs,
     ) -> slp.Axes:
         """
@@ -118,23 +133,17 @@ class SamplingPlotter:
             show_bias: Mark the bias-corrected mean for bootstrap samplings
             figsize: Figure size (uses default if None)
             backend: Backend for this call (uses the active one if None)
-            ax: Deprecated alias for ``axes``
             **kwargs: Extra backend kwargs forwarded to the bar mark
 
         Returns:
             The Axes drawn on
         """
-        # Use provided sampling or first from stats
-        if sampling is None:
-            if self.stats is None:
-                raise ValueError("Must provide sampling or initialize with SamplingStats")
-            sampling = self.stats[0]
-        elif isinstance(sampling, int):
-            if self.stats is None:
-                raise ValueError("Must provide sampling or initialize with SamplingStats")
-            sampling = self.stats[sampling]
+        # Use provided sampling, or one from stats by index (the first if None)
+        if sampling is None or isinstance(sampling, int):
+            stats = self._require_stats("Must provide sampling or initialize with SamplingStats")
+            sampling = stats[sampling or 0]
 
-        axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
+        axes = resolve_axes(axes, figsize=figsize or self.default_figsize, backend=backend)
 
         resampled = sampling.resampled_values
 
@@ -148,67 +157,75 @@ class SamplingPlotter:
             # also use CI to auto adjust bounds (keeping 99.9% CI)
             lower99, upper99 = sampling.confidence_interval(0.999)
             axes.set(xlim=(lower99, upper99))
-            axes.axvline(
-                lower,
-                color="red",
-                style="--",
-                alpha=0.7,
-                label=rf"${confidence_level * 100:.1f}\%$ CI",
-            )
-            axes.axvline(upper, color="red", style="--", alpha=0.7)
+            label = rf"${confidence_level * 100:.1f}\%$ CI"
+            hover = f"{confidence_level:.1%} CI: [{lower:.6g}, {upper:.6g}]"
         else:
             # For jackknife or other methods, use error bounds
-            axes.axvline(
-                mean_val - error_val,
-                color="red",
-                style="--",
-                alpha=0.7,
-                label="Mean ± Error",
-            )
-            axes.axvline(mean_val + error_val, color="red", style="--", alpha=0.7)
+            lower, upper = mean_val - error_val, mean_val + error_val
+            label = "Mean ± Error"
+            hover = f"mean = {sampling.pdg_format(central='mean')}"
+        axes.axvline(
+            lower, color=_INTERVAL_LINE_COLOR, linestyle="--", alpha=0.7, label=label, hover=hover
+        )
+        axes.axvline(upper, color=_INTERVAL_LINE_COLOR, linestyle="--", alpha=0.7, hover=hover)
 
         axes.axvline(
             mean_val,
-            color="red",
-            style="-",
-            width=2,
-            label=f"Mean: {mean_val:.6f}",
+            color=_INTERVAL_LINE_COLOR,
+            linestyle="-",
+            linewidth=2,
+            label=f"Mean: {sampling.pdg_format(central='mean')}",
+            hover=f"mean = {sampling.pdg_format(central='mean')}",
         )
 
         # Bin in numpy and emit bars, so both backends agree on the binning.
-        heights, edges = np.histogram(resampled, bins=bins, density=True)
+        counts, edges = np.histogram(resampled, bins=bins)
+        widths = np.diff(edges)
+        total = counts.sum()
+        heights = counts / (total * widths)  # as density=True
         centers = (edges[:-1] + edges[1:]) / 2
-        axes.bar(centers, heights, width=np.diff(edges), alpha=0.7, native=kwargs or None)
+        axes.bar(
+            centers,
+            heights,
+            width=widths,
+            color=_DATA_COLOR,
+            alpha=0.7,
+            hover=[
+                f"[{lo:.6g}, {hi:.6g})<br>{c} of {total} ({c / total:.1%})"
+                for lo, hi, c in zip(edges[:-1], edges[1:], counts)
+            ],
+            native=kwargs or None,
+        )
 
         # Add full sample value
         axes.axvline(
             sampling.full_sample_value,
-            color="orange",
-            style="-",
-            width=2,
-            label=f"Full Sample: {sampling.full_sample_value:.6f}",
+            color=_FULL_SAMPLE_COLOR,
+            linestyle="-",
+            linewidth=2,
+            label=f"Full Sample: {sampling.pdg_format()}",
+            hover=f"full sample = {sampling.pdg_format()}",
         )
 
         # Add bias information for bootstrap
         if sampling.sampling_info.method == "bootstrap" and show_bias:
             bias = sampling.bootstrap_bias
             bias_corrected = sampling.bias_corrected_mean
+            bias_corrected_text = sampling.pdg_format(central="bias_corrected_mean")
             if abs(bias) > 1e-10:  # Only show if bias is significant
                 axes.axvline(
                     bias_corrected,
-                    color="green",
-                    style=":",
-                    width=2,
+                    color=_BIAS_CORRECTED_COLOR,
+                    linestyle=":",
+                    linewidth=2,
                     alpha=0.8,
-                    label=f"Bias Corrected: {bias_corrected:.6f}",
+                    label=f"Bias Corrected: {bias_corrected_text}",
+                    hover=f"bias corrected = {bias_corrected_text}<br>bias = {bias:.2g}",
                 )
 
         # Labels and formatting
-        title_header = (
-            f"${sampling.latex_str}$"
-            if sampling.latex_str
-            else sampling.observable_name.replace("_", " ")
-        )
+        # The label and the value, e.g. "E_0 = 1.2345(67)"; never empty.
+        title_header = slp.ensure_math(sampling.latex_str)
         axes.set(
             xlabel="Value",
             ylabel="Density",
@@ -219,10 +236,10 @@ class SamplingPlotter:
             ),
         )
         axes.legend()
-        axes.grid(True, alpha=0.3)
 
         return axes
 
+    @figure_factory
     def plot_sampling_errorbar(
         self,
         samplings: SigmondSampling | list[SigmondSampling] | None = None,
@@ -231,7 +248,6 @@ class SamplingPlotter:
         labels: list[str] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
-        ax: Any = None,
         **kwargs,
     ) -> slp.Axes:
         """
@@ -244,7 +260,6 @@ class SamplingPlotter:
             labels: Labels for each sampling (uses latex_str if None)
             figsize: Figure size (uses default if None)
             backend: Backend for this call (uses the active one if None)
-            ax: Deprecated alias for ``axes``
             **kwargs: Extra backend kwargs forwarded to the errorbar mark
 
         Returns:
@@ -252,49 +267,43 @@ class SamplingPlotter:
         """
         # Use provided samplings or all from stats
         if samplings is None:
-            if self.stats is None:
-                raise ValueError("Must provide samplings or initialize with SamplingStats")
-            samplings = self.stats
+            samplings = self._require_stats(
+                "Must provide samplings or initialize with SamplingStats"
+            )
 
-        axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
         samplings = _as_observable_collection(samplings)
 
         n_samplings = len(samplings)
+        x_values, labels = _x_and_labels(samplings, x_values, labels, "samplings")
 
-        # Set default x values
-        if x_values is None:
-            x_values = np.arange(n_samplings)
-        elif len(x_values) != n_samplings:
-            raise ValueError("Length of x_values must match number of samplings")
-
-        # Set default labels - use str() method which handles latex_str automatically
-        if labels is None:
-            labels = [_sampling_latex_label(s) for s in samplings]
-        elif len(labels) != n_samplings:
-            raise ValueError("Length of labels must match number of samplings")
+        axes = resolve_axes(axes, figsize=figsize or self.default_figsize, backend=backend)
 
         # Extract means and errors
         means = np.array([s.mean for s in samplings])
         errors = np.array([s.error for s in samplings])
+        is_index_axis = np.array_equal(x_values, np.arange(n_samplings))
 
         axes.errorbar(
             x_values,
             means,
             yerr=errors,
+            color=_DATA_COLOR,
             marker="o",
             capsize=5,
-            width=2,
+            linewidth=2,
             markersize=6,
-            # On plotly this puts the observable name under the cursor.
-            hover=[f"{lab}: {m:.6g} ± {e:.2g}" for lab, m, e in zip(labels, means, errors)],
+            hover=[
+                f"{name}<br>{s.pdg_format(central='mean')}"
+                + ("" if is_index_axis else f"<br>x = {x:g}")
+                for name, x, s in zip(labels, x_values, samplings)
+            ],
             native=kwargs or None,
         )
 
         # Labels and formatting
-        is_index_axis = np.array_equal(x_values, np.arange(n_samplings))
         if n_samplings == 1:
             title = (
-                f"${samplings[0].observable_info.latex_str}$ "
+                f"{slp.ensure_math(samplings[0].observable_info.latex_str)} "
                 f"({samplings[0].sampling_info.method.title()})"
             )
         else:
@@ -310,13 +319,12 @@ class SamplingPlotter:
         )
 
         # Set x-tick labels if custom labels provided
-        if labels and n_samplings <= 20:  # Only show labels if not too many points
+        if labels and n_samplings <= _MAX_TICK_LABELS:
             axes.ticks("x", x_values, labels, rotation=45)
-
-        axes.grid(True, alpha=0.3)
 
         return axes
 
+    @figure_factory
     def plot_corner(
         self,
         labels: list[str] | None = None,
@@ -335,8 +343,7 @@ class SamplingPlotter:
         Returns:
             corner plot figure
         """
-        if self.stats is None:
-            raise ValueError("Must initialize with SamplingStats for corner plots")
+        self._require_stats("Must initialize with SamplingStats for corner plots")
 
         if slp.current() != "matplotlib":
             raise slp.UnsupportedFeature(
@@ -353,7 +360,7 @@ class SamplingPlotter:
 
         # Set default labels - use str() method which handles latex_str automatically
         if labels is None:
-            labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
+            labels = [slp.ensure_math(s) for s in self.stats.obs.latex_str]
         elif len(labels) != len(self.stats):
             raise ValueError("Length of labels must match number of selected observables")
 
@@ -373,7 +380,14 @@ class SamplingPlotter:
         }
         corner_kwargs.update(kwargs)
 
-        # Create corner plot
+        # Own the empty native surface before corner allocates its axes.
+        if corner_kwargs.get("fig") is None:
+            import matplotlib.pyplot as plt
+
+            side = 2.1 * len(self.stats) + 1.3  # corner's default panel geometry
+            corner_kwargs["fig"] = track_native_figure(
+                plt.figure(figsize=(side, side)), plt.close
+            )
         fig = corner.corner(self.stats.array.T, **corner_kwargs)
 
         # Add ensemble info to the figure title
@@ -393,12 +407,12 @@ class SamplingPlotter:
 
         return slp.wrap(fig)
 
+    @figure_factory
     def plot_correlation_matrix(
         self,
         axes: slp.Axes | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
-        ax: Any = None,
         **kwargs,
     ) -> slp.Axes:
         """
@@ -408,43 +422,44 @@ class SamplingPlotter:
             axes: Axes to draw on (creates a figure if None)
             figsize: Figure size (uses default if None)
             backend: Backend for this call (uses the active one if None)
-            ax: Deprecated alias for ``axes``
             **kwargs: Extra backend kwargs forwarded to the heatmap mark
 
         Returns:
             The Axes drawn on
         """
-        if self.stats is None:
-            raise ValueError("Must initialize with SamplingStats for correlation matrix")
+        self._require_stats("Must initialize with SamplingStats for correlation matrix")
 
-        axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
+        axes = resolve_axes(axes, figsize=figsize or self.default_figsize, backend=backend)
 
-        axes.heatmap(
-            self.stats.corr_matrix,
+        corr = np.asarray(self.stats.corr_matrix)
+        labels = [slp.ensure_math(s) for s in self.stats.obs.latex_str]
+        names = [str(s.observable_info) for s in self.stats]
+        hover = [
+            [f"{names[i]}<br>{names[j]}<br>ρ = {corr[i, j]:.3f}" for j in range(len(names))]
+            for i in range(len(names))
+        ]
+        labeled_heatmap(
+            axes,
+            corr,
+            labels=labels,
             cmap="RdBu",
             vmin=-1,
             vmax=1,
-            # Row 0 at the top, the usual convention for a correlation matrix.
-            origin="upper",
             colorbar_label="Correlation",
+            hover=hover,
             native=kwargs or None,
         )
-
-        # Labels - use str() method which handles latex_str automatically
-        labels = ["$" + s + "$" for s in self.stats.obs.latex_str]
-        axes.ticks("x", range(len(labels)), labels, rotation=45)
-        axes.ticks("y", range(len(labels)), labels)
         axes.set(title="Observable Correlation Matrix")
 
         return axes
 
+    @figure_factory
     def plot_effective_sample_size(
         self,
         axes: slp.Axes | None = None,
         figsize: tuple[float, float] | None = None,
-        max_labels: int = 20,
+        max_labels: int = _MAX_TICK_LABELS,
         backend: str | None = None,
-        ax: Any = None,
         **kwargs,
     ) -> slp.Axes:
         """
@@ -455,21 +470,29 @@ class SamplingPlotter:
             figsize: Figure size (uses default if None)
             max_labels: Max number of observables before suppressing x-tick labels
             backend: Backend for this call (uses the active one if None)
-            ax: Deprecated alias for ``axes``
             **kwargs: Extra backend kwargs forwarded to the bar mark
 
         Returns:
             The Axes drawn on
         """
-        if self.stats is None:
-            raise ValueError("Must initialize with SamplingStats for effective sample size plot")
+        self._require_stats("Must initialize with SamplingStats for effective sample size plot")
 
-        axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
+        axes = resolve_axes(axes, figsize=figsize or self.default_figsize, backend=backend)
 
         eff_sizes = self.stats.effective_sample_size
-        obs_names = ["$" + s + "$" for s in self.stats.obs.latex_str]
+        obs_names = [slp.ensure_math(s) for s in self.stats.obs.latex_str]
 
-        axes.bar(list(range(len(eff_sizes))), eff_sizes, native=kwargs or None)
+        hover = [
+            f"{name}<br>ESS = {ess:.0f} (N = {s.sampling_info.num_resamplings})"
+            for name, ess, s in zip(obs_names, eff_sizes, self.stats)
+        ]
+        axes.bar(
+            list(range(len(eff_sizes))),
+            eff_sizes,
+            color=_DATA_COLOR,
+            hover=hover,
+            native=kwargs or None,
+        )
         axes.set(
             xlabel="Observable Index",
             ylabel="Effective Sample Size",
@@ -477,10 +500,20 @@ class SamplingPlotter:
         )
         if len(obs_names) <= max_labels:
             axes.ticks("x", range(len(obs_names)), obs_names, rotation=45)
-        axes.grid(True, alpha=0.3)
 
         return axes
 
+    def _summary_slots(self, panels, obs_index):
+        unknown = [panel for panel in panels if panel not in _VALID_PANELS]
+        if not panels or unknown:
+            raise ValueError(f"Unknown or empty panels: {unknown}. Valid panels: {sorted(_VALID_PANELS)}")
+        if obs_index is not None and not 0 <= obs_index < len(self.stats):
+            raise ValueError(f"observable index {obs_index} is out of range")
+        return [(panel, index) for panel in panels
+                for index in (range(len(self.stats)) if panel == "histogram" and obs_index is None
+                              else (obs_index if panel == "histogram" else None,))]
+
+    @figure_factory
     def plot_stats_summary(
         self,
         figsize: tuple[float, float] | None = None,
@@ -509,44 +542,32 @@ class SamplingPlotter:
         Returns:
             The Figure
         """
-        if self.stats is None:
-            raise ValueError("Must initialize with SamplingStats for summary plots")
+        self._require_stats("Must initialize with SamplingStats for summary plots")
 
         panels = list(panels) if panels is not None else list(_DEFAULT_PANELS)
-
-        unknown = [p for p in panels if p not in _VALID_PANELS]
-        if unknown:
-            raise ValueError(f"Unknown panel(s): {unknown}. Valid panels: {sorted(_VALID_PANELS)}")
-
-        # Expand panels into (panel_name, histogram_idx) slots.
-        # "histogram" with obs_index=None becomes one slot per observable;
-        # combined panels (correlation, errorbar, eff_sample_size) are always one slot.
-        slots: list[tuple[str, int | None]] = []
-        for p in panels:
-            if p == "histogram" and obs_index is None:
-                for i in range(self.stats.num_observables):
-                    slots.append(("histogram", i))
-            else:
-                slots.append((p, obs_index if p == "histogram" else None))
+        slots = self._summary_slots(panels, obs_index)
 
         n = len(slots)
-        nrows, ncols = layout if layout is not None else _summary_grid(n)
+        nrows, ncols = layout if layout is not None else summary_grid(n)
+        if (not isinstance(nrows, int) or not isinstance(ncols, int)
+                or nrows <= 0 or ncols <= 0 or nrows * ncols < n):
+            raise ValueError("summary layout must have enough cells for every panel")
         figsize = figsize or _summary_figsize(nrows, ncols, panels, self.stats.num_observables)
 
         fig = slp.figure(nrows, ncols, figsize=figsize, backend=backend)
 
-        def _draw(target: slp.Axes, panel: str, idx: int | None) -> None:
+        combined = {
+            "correlation": self.plot_correlation_matrix,
+            "errorbar": self.plot_sampling_errorbar,
+            "eff_sample_size": self.plot_effective_sample_size,
+        }
+        for i, (panel, idx) in enumerate(slots):
+            target = fig.axes(i // ncols, i % ncols)
+            # Only the histogram panel draws one observable, chosen by index.
             if panel == "histogram":
                 self.plot_sampling_histogram(sampling=idx, axes=target)
-            elif panel == "correlation":
-                self.plot_correlation_matrix(axes=target)
-            elif panel == "errorbar":
-                self.plot_sampling_errorbar(axes=target)
-            elif panel == "eff_sample_size":
-                self.plot_effective_sample_size(axes=target)
-
-        for i, (panel, idx) in enumerate(slots):
-            _draw(fig.axes(i // ncols, i % ncols), panel, idx)
+            else:
+                combined[panel](axes=target)
 
         # Hide unused cells
         for i in range(n, nrows * ncols):
@@ -557,16 +578,16 @@ class SamplingPlotter:
 
         return fig
 
+    @figure_factory
     def plot_bootstrap_intervals(
         self,
         samplings: SigmondSampling | list[SigmondSampling] | None = None,
         x_values: np.ndarray | list | None = None,
-        confidence_levels: list[float] = [0.68, 0.95],
+        confidence_levels: Sequence[float] = (0.68, 0.95),
         axes: slp.Axes | None = None,
         labels: list[str] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
-        ax: Any = None,
         **kwargs,
     ) -> slp.Axes:
         """
@@ -575,12 +596,11 @@ class SamplingPlotter:
         Args:
             samplings: Single SigmondSampling or list (uses all from stats if None)
             x_values: X-axis values for each sampling (uses indices if None)
-            confidence_levels: List of confidence levels to show
+            confidence_levels: Confidence levels to show
             axes: Axes to draw on (creates a figure if None)
             labels: Labels for each sampling (uses observable names if None)
             figsize: Figure size (uses default if None)
             backend: Backend for this call (uses the active one if None)
-            ax: Deprecated alias for ``axes``
             **kwargs: ``central_kwargs`` / ``band_kwargs`` dicts of backend kwargs
 
         Returns:
@@ -588,12 +608,13 @@ class SamplingPlotter:
         """
         # Use provided samplings or all from stats
         if samplings is None:
-            if self.stats is None:
-                raise ValueError("Must provide samplings or initialize with SamplingStats")
-            samplings = self.stats
+            samplings = self._require_stats(
+                "Must provide samplings or initialize with SamplingStats"
+            )
 
-        axes = resolve_axes(axes, ax, figsize=figsize or self.default_figsize, backend=backend)
-
+        confidence_levels = tuple(confidence_levels)
+        if not confidence_levels or any(not 0 < level < 1 for level in confidence_levels):
+            raise ValueError("confidence_levels must be nonempty and within (0, 1)")
         samplings = _as_observable_collection(samplings)
 
         # Filter only bootstrap samplings
@@ -602,70 +623,70 @@ class SamplingPlotter:
             raise ValueError("No bootstrap samplings found")
 
         n_samplings = len(bootstrap_samplings)
+        x_values, labels = _x_and_labels(
+            bootstrap_samplings, x_values, labels, "bootstrap samplings"
+        )
 
-        # Set default x values
-        if x_values is None:
-            x_values = np.arange(n_samplings)
-        elif len(x_values) != n_samplings:
-            raise ValueError("Length of x_values must match number of bootstrap samplings")
-
-        # Set default labels - use str() method which handles latex_str automatically
-        if labels is None:
-            labels = [_sampling_latex_label(s) for s in bootstrap_samplings]
-        elif len(labels) != n_samplings:
-            raise ValueError("Length of labels must match number of bootstrap samplings")
+        axes = resolve_axes(axes, figsize=figsize or self.default_figsize, backend=backend)
 
         # Extract means
         means = np.array([s.mean for s in bootstrap_samplings])
 
-        # Plot central values
+        # Calculate confidence intervals, (lower, upper) arrays per level
+        intervals = []
+        for conf_level in confidence_levels:
+            bounds = []
+            for sampling in bootstrap_samplings:
+                try:
+                    bounds.append(sampling.confidence_interval(conf_level))
+                except ValueError:
+                    # Skip if confidence interval calculation fails
+                    bounds.append((np.nan, np.nan))
+            intervals.append(np.array(bounds, dtype=float).T)
+
+        # Plot central values; their hover lists every interval
+        hover = []
+        for j, name in enumerate(labels):
+            rows = [name, f"mean = {bootstrap_samplings[j].pdg_format(central='mean')}"]
+            for conf_level, (lower_bounds, upper_bounds) in zip(confidence_levels, intervals):
+                if not np.isnan(lower_bounds[j]):
+                    rows.append(
+                        f"{conf_level:.0%} CI: [{lower_bounds[j]:.6g}, {upper_bounds[j]:.6g}]"
+                    )
+            hover.append("<br>".join(rows))
         axes.errorbar(
             x_values,
             means,
             marker="o",
             markersize=8,
-            color="black",
+            color=_MEAN_POINT_COLOR,
             label="Mean",
+            hover=hover,
             native=kwargs.get("central_kwargs"),
         )
 
         # Plot confidence intervals for different levels
-        colors = ["red", "blue", "green", "purple", "orange"]
-        for i, conf_level in enumerate(confidence_levels):
-            color = colors[i % len(colors)]
-
-            # Calculate confidence intervals
-            lower_bounds = []
-            upper_bounds = []
-
-            for sampling in bootstrap_samplings:
-                try:
-                    lower, upper = sampling.confidence_interval(conf_level)
-                    lower_bounds.append(lower)
-                    upper_bounds.append(upper)
-                except ValueError:
-                    # Skip if confidence interval calculation fails
-                    lower_bounds.append(np.nan)
-                    upper_bounds.append(np.nan)
-
-            lower_bounds = np.array(lower_bounds)
-            upper_bounds = np.array(upper_bounds)
+        for i, (conf_level, (lower_bounds, upper_bounds)) in enumerate(
+            zip(confidence_levels, intervals)
+        ):
+            color = _INTERVAL_COLORS[i % len(_INTERVAL_COLORS)]
 
             # Plot confidence bands, labelling only the first box of each level
             label: str | None = f"{conf_level:.0%} CI"
-            for j, x in enumerate(x_values):
-                if np.isnan(lower_bounds[j]) or np.isnan(upper_bounds[j]):
-                    continue
-                axes.band(
-                    [x - 0.3, x + 0.3],
-                    [lower_bounds[j], lower_bounds[j]],
-                    [upper_bounds[j], upper_bounds[j]],
-                    color=color,
-                    alpha=0.3,
-                    label=label,
-                    native=kwargs.get("band_kwargs"),
-                )
-                label = None
+            with axes.legend_group():
+                for j, x in enumerate(x_values):
+                    if np.isnan(lower_bounds[j]) or np.isnan(upper_bounds[j]):
+                        continue
+                    axes.band(
+                        [x - 0.3, x + 0.3],
+                        [lower_bounds[j], lower_bounds[j]],
+                        [upper_bounds[j], upper_bounds[j]],
+                        color=color,
+                        alpha=0.3,
+                        label=label,
+                        native=kwargs.get("band_kwargs"),
+                    )
+                    label = None
 
         # Labels and formatting
         is_index_axis = np.array_equal(x_values, np.arange(n_samplings))
@@ -676,10 +697,9 @@ class SamplingPlotter:
         )
 
         # Set x-tick labels
-        if labels and n_samplings <= 20:
+        if labels and n_samplings <= _MAX_TICK_LABELS:
             axes.ticks("x", x_values, labels, rotation=45)
 
         axes.legend()
-        axes.grid(True, alpha=0.3)
 
         return axes

@@ -1,5 +1,7 @@
 """Case rules for particle-name resolution and parsing."""
 
+from dataclasses import FrozenInstanceError, is_dataclass
+
 import pytest
 
 from slat import PARTICLE_LATEX_MAP, is_particle_name, resolve_particle_name
@@ -51,8 +53,38 @@ class TestParticleCanonicalization:
         assert Particle("PI") == Particle("pi")
         assert hash(Particle("PI")) == hash(Particle("pi"))
 
-    def test_string_comparison_resolves(self):
-        assert Particle("pi") == "PI"
+    @pytest.mark.parametrize("name", ["pi", "PI"])
+    def test_strings_are_not_particles(self, name):
+        assert Particle("pi") != name
+        assert name != Particle("pi")
+
+    @pytest.mark.parametrize("field,value", [("name", "K"), ("psq", 2)])
+    def test_particle_is_frozen(self, field, value):
+        particle = Particle("PI", psq=1)
+        assert is_dataclass(particle)
+        mapping = {particle: "value"}
+        with pytest.raises(FrozenInstanceError):
+            setattr(particle, field, value)
+        assert mapping[Particle("pi", psq=1)] == "value"
+
+    def test_momentum_is_part_of_identity(self):
+        assert Particle("pi") != Particle("pi", 0)
+        assert Particle("pi", 0) != Particle("pi", 1)
+        assert len({Particle("pi"), Particle("pi", 0), Particle("PI", 0)}) == 2
+
+    def test_momentum_ordering_does_not_sort_names(self):
+        particles = [Particle("pi", 2), Particle("pi", 0), Particle("K", 0), Particle("N")]
+        assert sorted(particles) == [particles[3], particles[1], particles[2], particles[0]]
+        assert Particle("pi", 0) < Particle("K", 1)
+        assert Particle("K", 1) > Particle("pi", 0)
+        assert Particle("PI", 1) <= Particle("pi", 1)
+        assert Particle("PI", 1) >= Particle("pi", 1)
+        assert not Particle("pi", 0) < Particle("K", 0)
+        assert not Particle("pi", 0) > Particle("K", 0)
+
+    def test_negative_momentum_is_rejected(self):
+        with pytest.raises(ValueError, match="psq must be non-negative"):
+            Particle("pi", -1)
 
     def test_bad_name_still_raises(self):
         with pytest.raises(ValueError, match="Invalid particle name"):

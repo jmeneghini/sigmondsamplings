@@ -1,11 +1,18 @@
 """
-Typed keys for correlators, VEVs and correlation-matrix bases.
+Identities of correlators, VEVs and correlation matrices, named as in Sigmond.
 
-- :class:`CorrelatorPair` -- (sink, source) operators, Sigmond's ``CorrelatorInfo``.
-- :class:`CorrelatorKey` -- a pair at one time with the ``HermMat`` / ``SubVEV``
-  key flags, Sigmond's ``CorrelatorAtTimeInfo``.
-- :class:`VEVKey` -- the vacuum expectation value of one operator.
-- :class:`CorrelatorMatrixSpec` -- an ordered, validated operator basis.
+- :class:`CorrelatorInfo` -- a correlator ``C_ij`` for all times, given by its
+  sink and source operators.
+- :class:`CorrelatorAtTimeInfo` -- a correlator at one time with the
+  ``HermMat`` / ``SubVEV`` key flags.
+- :class:`VEVInfo` -- the vacuum expectation value of one operator.
+- :class:`CorrelatorMatrixInfo` -- an ordered, validated operator basis plus the
+  matrix assembly rules.
+
+An ``...Info`` is a sample-free identity (hashable, usable as a coordinate or
+dict key); the data it identifies is a ``SigmondData`` or
+:class:`~.matrix.CorrelatorMatrix`, and the metadata of a stored observable is
+an ``...ObsInfo`` (:mod:`.observables`).
 
 Short forms print the **sink first** (``<CorrT>BL{sink} GI{source} time=5
 HermMat SubVEV</CorrT>``). Flags are written in Sigmond's required order
@@ -21,35 +28,41 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from .operators import (
     MAX_TIME,
     OPERATOR_TAGS,
-    BasicOperator,
+    BasicLapHOperator,
     Channel,
-    GeneralOperator,
+    GenIrrepOperator,
     Operator,
     SigmondParseError,
     _as_element,
+    _int,
     _parse_cached,
     _tokens,
     operator_from_xml,
+    parse_operator,
 )
 
 __all__ = [
-    "CorrelatorPair",
-    "CorrelatorKey",
-    "VEVKey",
-    "CorrelatorMatrixSpec",
+    "CorrelatorInfo",
+    "CorrelatorAtTimeInfo",
+    "VEVInfo",
+    "CorrelatorMatrixInfo",
     "parse_key",
 ]
 
-_OPERATOR_TYPES = (BasicOperator, GeneralOperator)
+_OPERATOR_TYPES = (BasicLapHOperator, GenIrrepOperator)
+
+
+KeyForm = Literal["plain", "HermMat", "SubVEV", "HermMat SubVEV"]
 
 
 def _check_operator(op, role: str) -> None:
     if not isinstance(op, _OPERATOR_TYPES):
-        raise TypeError(f"{role} must be a BasicOperator or GeneralOperator, got {op!r}")
+        raise TypeError(f"{role} must be a BasicLapHOperator or GenIrrepOperator, got {op!r}")
     if op.is_vacuum:
         raise ValueError(f"the vacuum cannot be a correlator {role}")
 
@@ -94,19 +107,19 @@ def _operator(kind: str, body: str, start: int, text: str) -> Operator:
         raise SigmondParseError(text, start + e.position, e.reason) from None
 
 
-def _parse_pair_text(text: str) -> tuple[CorrelatorPair, int]:
+def _parse_correlator_text(text: str) -> tuple[CorrelatorInfo, int]:
     kind, body, start, pos = _scan_operator(text, 0)
     sink = _operator(kind, body, start, text)
     kind, body, start, pos = _scan_operator(text, pos)
     source = _operator(kind, body, start, text)
     try:
-        return CorrelatorPair(sink, source), pos
+        return CorrelatorInfo(sink, source), pos
     except (TypeError, ValueError) as e:
         raise SigmondParseError(text, 0, str(e)) from None
 
 
-def _parse_key_text(text: str) -> CorrelatorKey:
-    pair, pos = _parse_pair_text(text)
+def _parse_key_text(text: str) -> CorrelatorAtTimeInfo:
+    corr, pos = _parse_correlator_text(text)
     time = None
     herm = subvev = False
     for tok, tpos in _tokens(text[pos:], offset=pos):
@@ -123,7 +136,7 @@ def _parse_key_text(text: str) -> CorrelatorKey:
             raise SigmondParseError(text, tpos, f"unexpected token {tok!r}")
     if time is None:
         raise SigmondParseError(text, len(text), "missing 'time=<n>'")
-    return CorrelatorKey(pair, time, herm, subvev)
+    return CorrelatorAtTimeInfo(corr, time, herm, subvev)
 
 
 def _short_text(tag: str, text: str) -> str:
@@ -138,13 +151,13 @@ def _short_text(tag: str, text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Pair
+# Correlator
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class CorrelatorPair:
-    """A (sink, source) operator pair: the label of ``C_ij(t)`` for all ``t``."""
+class CorrelatorInfo:
+    """The correlator ``C_ij(t)`` for all ``t``: its sink and source operators."""
 
     sink: Operator
     source: Operator
@@ -153,12 +166,14 @@ class CorrelatorPair:
         _check_operator(self.sink, "sink")
         _check_operator(self.source, "source")
 
-    def flipped(self) -> CorrelatorPair:
-        """The time-flipped pair ``(source, sink)``, i.e. ``C_ji``."""
-        return CorrelatorPair(self.source, self.sink)
+    def flipped(self) -> CorrelatorInfo:
+        """The time-flipped correlator ``C_ji`` (sink and source swapped)."""
+        return CorrelatorInfo(self.source, self.sink)
 
-    def at(self, time: int, hermitian: bool = False, subtract_vev: bool = False) -> CorrelatorKey:
-        return CorrelatorKey(self, time, hermitian, subtract_vev)
+    def at(
+        self, time: int, hermitian: bool = False, subtract_vev: bool = False
+    ) -> CorrelatorAtTimeInfo:
+        return CorrelatorAtTimeInfo(self, time, hermitian, subtract_vev)
 
     @property
     def backwards(self) -> bool:
@@ -168,13 +183,13 @@ class CorrelatorPair:
         return f"{self.sink.coordinate} {self.source.coordinate}"
 
     @classmethod
-    def from_sigmond(cls, text: str) -> CorrelatorPair:
+    def from_sigmond(cls, text: str) -> CorrelatorInfo:
         """Parse ``<Corr>BL{sink} GI{source}</Corr>`` or the bare text."""
         body = _short_text("Corr", text)
-        pair, pos = _parse_pair_text(body)
+        corr, pos = _parse_correlator_text(body)
         if body[pos:].strip():
             raise SigmondParseError(body, pos, "unexpected text after the source operator")
-        return pair
+        return corr
 
     def to_sigmond(self) -> str:
         el = ET.Element("Corr")
@@ -185,7 +200,7 @@ class CorrelatorPair:
 def _coordinate(op: Operator) -> str:
     """``BL{...}``/``GI{...}`` after checking Sigmond's encoding limits."""
     op._check_sigmond()
-    return op.coordinate
+    return f"{op.coordinate[:2]}{{{op.to_sigmond()}}}"
 
 
 # ---------------------------------------------------------------------------
@@ -194,29 +209,33 @@ def _coordinate(op: Operator) -> str:
 
 
 @dataclass(frozen=True, slots=True)
-class CorrelatorKey:
-    """``C_ij(t)``: a pair, a nonnegative time, and the stored-key flags."""
+class CorrelatorAtTimeInfo:
+    """``C_ij(t)``: a correlator, a nonnegative time, and the stored-key flags."""
 
-    pair: CorrelatorPair
+    correlator: CorrelatorInfo
     time: int
     hermitian: bool = False
     subtract_vev: bool = False
 
     def __post_init__(self):
-        if not isinstance(self.pair, CorrelatorPair):
-            raise TypeError("pair must be a CorrelatorPair")
+        if not isinstance(self.correlator, CorrelatorInfo):
+            raise TypeError("correlator must be a CorrelatorInfo")
         time = self.time
-        if isinstance(time, bool) or int(time) != time or time < 0:
+        try:
+            time = _int(time, "time")
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"time must be a nonnegative integer, got {time!r}") from None
+        if time < 0:
             raise ValueError(f"time must be a nonnegative integer, got {time!r}")
         object.__setattr__(self, "time", int(time))
         object.__setattr__(self, "hermitian", bool(self.hermitian))
         object.__setattr__(self, "subtract_vev", bool(self.subtract_vev))
 
     @classmethod
-    def _unchecked(cls, pair, time, hermitian, subtract_vev) -> CorrelatorKey:
+    def _unchecked(cls, correlator, time, hermitian, subtract_vev) -> CorrelatorAtTimeInfo:
         """Build from already-validated parts (used for every cell of a matrix)."""
         key = object.__new__(cls)
-        object.__setattr__(key, "pair", pair)
+        object.__setattr__(key, "correlator", correlator)
         object.__setattr__(key, "time", time)
         object.__setattr__(key, "hermitian", hermitian)
         object.__setattr__(key, "subtract_vev", subtract_vev)
@@ -224,20 +243,22 @@ class CorrelatorKey:
 
     @property
     def sink(self) -> Operator:
-        return self.pair.sink
+        return self.correlator.sink
 
     @property
     def source(self) -> Operator:
-        return self.pair.source
+        return self.correlator.source
 
-    def flipped(self) -> CorrelatorKey:
-        return CorrelatorKey(self.pair.flipped(), self.time, self.hermitian, self.subtract_vev)
+    def flipped(self) -> CorrelatorAtTimeInfo:
+        return CorrelatorAtTimeInfo(
+            self.correlator.flipped(), self.time, self.hermitian, self.subtract_vev
+        )
 
-    def with_time(self, time: int) -> CorrelatorKey:
-        return CorrelatorKey(self.pair, time, self.hermitian, self.subtract_vev)
+    def with_time(self, time: int) -> CorrelatorAtTimeInfo:
+        return CorrelatorAtTimeInfo(self.correlator, time, self.hermitian, self.subtract_vev)
 
     def __str__(self) -> str:
-        text = f"{self.pair} time={self.time}"
+        text = f"{self.correlator} time={self.time}"
         if self.hermitian:
             text += " HermMat"
         if self.subtract_vev:
@@ -245,7 +266,7 @@ class CorrelatorKey:
         return text
 
     @classmethod
-    def from_sigmond(cls, text: str) -> CorrelatorKey:
+    def from_sigmond(cls, text: str) -> CorrelatorAtTimeInfo:
         """Parse ``<CorrT>...</CorrT>`` or the bare short text."""
         return _parse_key_text(_short_text("CorrT", text))
 
@@ -265,7 +286,7 @@ class CorrelatorKey:
 
 
 @dataclass(frozen=True, slots=True)
-class VEVKey:
+class VEVInfo:
     """The vacuum expectation value ``<O>`` of one operator."""
 
     operator: Operator
@@ -277,7 +298,7 @@ class VEVKey:
         return f"VEV {self.operator.coordinate}"
 
     @classmethod
-    def from_sigmond(cls, text: str) -> VEVKey:
+    def from_sigmond(cls, text: str) -> VEVInfo:
         el = _as_element(text)
         if el.tag != "VEV":
             raise ValueError(f"expected <VEV>, got <{el.tag}>")
@@ -288,7 +309,9 @@ class VEVKey:
 
     def to_sigmond(self) -> str:
         el = ET.Element("VEV")
-        el.append(self.operator.to_xml())
+        child = self.operator.to_xml()
+        child.text = self.operator.to_sigmond()
+        el.append(child)
         return ET.tostring(el, encoding="unicode")
 
 
@@ -312,7 +335,7 @@ def key_tag(name: str) -> str | None:
     return name[1:end]
 
 
-def parse_key(name: str) -> CorrelatorKey | VEVKey:
+def parse_key(name: str) -> CorrelatorAtTimeInfo | VEVInfo:
     """Parse an observable name holding a ``<CorrT>`` or ``<VEV>`` key.
 
     Operator labels are memoized, so the same few labels recurring at every
@@ -323,9 +346,9 @@ def parse_key(name: str) -> CorrelatorKey | VEVKey:
         return _parse_key_text(name[7:-8])
     tag = key_tag(name)
     if tag == CORRELATOR_TAG:
-        return CorrelatorKey.from_sigmond(name)
+        return CorrelatorAtTimeInfo.from_sigmond(name)
     if tag == VEV_TAG:
-        return VEVKey.from_sigmond(name)
+        return VEVInfo.from_sigmond(name)
     raise ValueError(f"not a <CorrT> or <VEV> key: {name[:80]!r}")
 
 
@@ -334,8 +357,8 @@ def parse_key(name: str) -> CorrelatorKey | VEVKey:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True, slots=True)
-class CorrelatorMatrixSpec:
+@dataclass(frozen=True, slots=True, init=False)
+class CorrelatorMatrixInfo:
     """An ordered operator basis plus the requested assembly rules.
 
     ``hermitian=True`` asks for Hermitian completion from both ordered
@@ -350,6 +373,17 @@ class CorrelatorMatrixSpec:
     operators: tuple[Operator, ...]
     hermitian: bool = True
     subtract_vev: bool = False
+
+    def __init__(
+        self,
+        operators: Sequence[Operator | str],
+        hermitian: bool = True,
+        subtract_vev: bool = False,
+    ):
+        object.__setattr__(self, "operators", tuple(operators))
+        object.__setattr__(self, "hermitian", hermitian)
+        object.__setattr__(self, "subtract_vev", subtract_vev)
+        self.__post_init__()
 
     def __post_init__(self):
         from .operators import parse_operator
@@ -389,14 +423,15 @@ class CorrelatorMatrixSpec:
     def coordinates(self) -> tuple[str, ...]:
         return tuple(op.coordinate for op in self.operators)
 
-    def position(self, op: Operator) -> int:
+    def position(self, op: Operator | str) -> int:
+        op = parse_operator(op)
         try:
             return self.operators.index(op)
         except ValueError:
             raise KeyError(f"{op.coordinate} is not in the basis") from None
 
-    def with_operators(self, operators: Sequence[Operator]) -> CorrelatorMatrixSpec:
-        return CorrelatorMatrixSpec(tuple(operators), self.hermitian, self.subtract_vev)
+    def with_operators(self, operators: Sequence[Operator | str]) -> CorrelatorMatrixInfo:
+        return CorrelatorMatrixInfo(tuple(operators), self.hermitian, self.subtract_vev)
 
     def to_sigmond_xml(self) -> str:
         """``<CorrelatorMatrixInfo>`` text (short operator tags, basis order), for Sigmond input."""

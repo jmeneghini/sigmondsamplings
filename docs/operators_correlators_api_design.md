@@ -16,7 +16,7 @@ matching Sigmond's internal design is not.
 Built: Sigmond's short-form BL/GI operator labels, `CorrT` and `VEV` keys,
 typed correlator/VEV observable infos, a metadata-only index, strict square
 matrices with Hermitian completion, VEV subtraction and complex basis changes,
-and HDF5 round trips that Sigmond reads back. Not built: the fixed pivot (see
+and HDF5 round trips that Sigmond reads back. Not built: the single pivot (see
 the end), long-form XML and Sigmond's `icode` ordering (see *Decisions*).
 
 ## Where things live
@@ -24,8 +24,8 @@ the end), long-form XML and Sigmond's `icode` ordering (see *Decisions*).
 | What | Where |
 | --- | --- |
 | Hadron flavors, irreps, isospins, spatial types (Sigmond's name tables) | `slat/sigmond_names.py`; irrep LaTeX in `slat.IRREP_LATEX_MAP` covers every Sigmond irrep |
-| Operator labels and grammar: `Hadron`, `BasicOperator`, `GeneralOperator`, `Channel`, `parse_operator` | `correlators/operators.py` |
-| Keys: `CorrelatorPair`, `CorrelatorKey`, `VEVKey`, `CorrelatorMatrixSpec`, `parse_key` | `correlators/keys.py` |
+| Operator labels and grammar: `Hadron`, `BasicLapHOperator`, `GenIrrepOperator`, `Channel`, `parse_operator` | `correlators/operators.py` |
+| Identities: `CorrelatorInfo`, `CorrelatorAtTimeInfo`, `VEVInfo`, `CorrelatorMatrixInfo`, `parse_key` | `correlators/keys.py` |
 | Observable infos: `CorrelatorObsInfo`, `VEVObsInfo` (registered obs kinds `correlator`, `vev`) | `correlators/observables.py` |
 | `CorrelatorIndex` | `correlators/index.py`; `SigmondLoader.correlators` caches one |
 | Assembly, `CorrelatorMatrix` | `correlators/matrix.py` |
@@ -34,6 +34,31 @@ the end), long-form XML and Sigmond's `icode` ordering (see *Decisions*).
 
 Labels, keys and infos are pure Python (no NumPy/xarray), so importing them is
 cheap; `slat` loads its pydantic-based TOML models only on first use.
+
+## Naming
+
+Names follow Sigmond's classes and one rule for suffixes:
+
+- **Operators have no suffix.** `BasicLapHOperator` and `GenIrrepOperator`
+  (Sigmond's `BasicLapHOperatorInfo` / `GenIrrepOperatorInfo`, "BL" / "GI")
+  and their union `Operator`. An operator object *is* the operator; no data
+  object competes for the name.
+- **`...Info` is a sample-free identity** of something that has data, as in
+  Sigmond: `CorrelatorInfo` (a correlator `C_ij` for all times, from its sink
+  and source), `CorrelatorAtTimeInfo` (`C_ij(t)` with the key flags),
+  `VEVInfo`, and `CorrelatorMatrixInfo` (basis plus assembly rules; it writes
+  Sigmond's `<CorrelatorMatrixInfo>`). They are frozen and hashable.
+- **`...ObsInfo` is the metadata of a stored observable** (`ObservableInfo`
+  subclasses): `CorrelatorObsInfo` wraps a `CorrelatorAtTimeInfo` the way
+  Sigmond's `MCObsInfo` does; `VEVObsInfo`, and `AtObsInfo` with immutable `EffectiveEnergyInfo` elements.
+- **The data** is a `SigmondData` or a `CorrelatorMatrix`, whose identity is
+  `CorrelatorMatrix.info`.
+
+Attributes use the same words: `CorrelatorAtTimeInfo.correlator` and
+`CorrelatorObsInfo.correlator` (so `group_by("correlator")`),
+`CorrelatorIndex.correlator_infos` (identities) versus
+`CorrelatorIndex.correlator(...)` (data). "Key" is kept only where the HDF5
+name is meant (`parse_key`, `ObsInfo.key`, `key_form`).
 
 ## Labels
 
@@ -45,11 +70,11 @@ encoding does. Operators pickle by their text, since a cached string hash is
 only valid within one process. Parsing is memoized (`lru_cache`), so the few
 labels that recur at every time and matrix cell are parsed once per process.
 
-- `BasicOperator`: the vacuum (`BasicOperator.vacuum()`), one hadron
-  (`BasicOperator.single(...)`), or several (explicit total isospin, irrep and
+- `BasicLapHOperator`: the vacuum (`BasicLapHOperator.vacuum()`), one hadron
+  (`BasicLapHOperator.single(...)`), or several (explicit total isospin, irrep and
   row; CG occurrence ids; `bwd`). Tetraquarks take the long flavor name plus
   `color=±1`; the short `tq...p/m` names convert.
-- `GeneralOperator`: isospin, strangeness, definite momentum **or** `PSQ`,
+- `GenIrrepOperator`: isospin, strangeness, definite momentum **or** `PSQ`,
   irrep, optional row, name and index. `PSQ=0` becomes `P=(0,0,0)`.
 - `Channel`: isospin, strangeness, momentum or `PSQ`, irrep and row, compared
   exactly (an unspecified field is a distinct value, not a wildcard).
@@ -61,7 +86,7 @@ labels that recur at every time and matrix cell are parsed once per process.
 Keys print the **sink first** (`<CorrT>BL{sink} GI{source} time=5 HermMat
 SubVEV</CorrT>`), with flags in Sigmond's required order; the reader accepts
 either order and uses a brace-aware scanner. Sigmond's bit-field limits are
-checked only on export (`to_sigmond()`). `CorrelatorMatrixSpec.to_sigmond_xml()`
+checked only on export (`to_sigmond()`). `CorrelatorMatrixInfo.to_sigmond_xml()`
 writes a `<CorrelatorMatrixInfo>` for Sigmond input (Sigmond reindexes the
 basis in its own order).
 
@@ -70,7 +95,7 @@ basis in its own order).
 `SigmondLoader._parse_observable_key` gives every `<CorrT>` observable a
 `CorrelatorObsInfo` and every `<VEV>` observable a `VEVObsInfo`. Their typed
 `key` is parsed on first use and exposed as attributes (`sink`, `source`,
-`pair`, `time`, `hermitian`, `subtract_vev`, and the sink channel's `irrep`,
+`correlator`, `time`, `hermitian`, `subtract_vev`, and the sink channel's `irrep`,
 `psq`, `momentum`, `isospin`, `strangeness`). They therefore work in
 `filter`, `group_by`, `ss query --where` and `--list-attrs` with no correlator
 code in those layers. The info keeps the file's key text as its name, so
@@ -85,7 +110,7 @@ strictly.
 
 `CorrelatorIndex` maps typed keys to the original (possibly lazy) observables
 without reading samples. It offers `operators`, `channels` (operators grouped
-by channel: the candidate bases), `times`, `pairs`, `vev_operators`, `get`,
+by channel: the candidate bases), `times`, `correlator_infos`, `vev_operators`, `get`,
 `series_times`, `matrix(...)` and `correlator(...)`. One index covers one
 ensemble, sampling plan, kind (bins or samplings) and sample length; mixed
 collections raise. Duplicate semantic keys raise even when spelled differently.
@@ -97,8 +122,8 @@ files used the same draws.
 `index.matrix(basis, times=None, *, hermitian=True, subtract_vev=False,
 key_form=None, sampling_info=None, include_vevs=False)`, where `basis` is a
 sequence of operators (objects or short strings, kept in order) or a
-`CorrelatorMatrixSpec`. `index.correlator(sink, source, ...)` applies the same
-rules to one pair and returns a 1-D `SigmondData` over `time`.
+`CorrelatorMatrixInfo`. `index.correlator(sink, source, ...)` applies the same
+rules to one correlator and returns a 1-D `SigmondData` over `time`.
 
 - **Basis.** Rejected: empty, duplicates, the vacuum, several channels, and a
   mix of forward and backward operators (Sigmond's own check for this is
@@ -135,7 +160,7 @@ rules to one pair and returns a 1-D `SigmondData` over `time`.
 - **Lone imaginary parts.** A record with only an `Im` dataset is indexed but
   raises if used; a lone `Re` record is a real correlator.
 
-`CorrelatorMatrix` holds `spec`, `values` (an ordinary N-D `SigmondData` with
+`CorrelatorMatrix` holds `info` (its `CorrelatorMatrixInfo`), `values` (an ordinary N-D `SigmondData` with
 dims `(time, sink, source)` and string coords `op.coordinate`), optional
 `vevs` (dim `operator`), and how the matrix was read: `key_form`, `stored` (a
 boolean `(time, sink, source)` array, true where that ordered direction was
@@ -228,33 +253,8 @@ lightweight info per cell.
 - **`sigmond_query` and mixed records.** The installed `sigmond_query`
   rejected one file mixing real-only and complex records under particular
   keys; the C++ key test writes every record as complex.
-- **Fixed pivot (not started).** `fit_fixed_pivot(matrix, norm_time,
-  metric_time, diagonalize_time, min_inverse_condition=...) -> FixedPivot` in
-  `correlators/rotation.py`: `scipy.linalg.eigh` on the Hermitian matrices
-  with a rank cut on the metric, deterministic eigenvector phases, one
-  full-sample `R` applied to all samples via `transform`, returning a
-  `CorrelatorMatrix`. Report negative or near-zero eigenvalues and validate
-  positive normalization diagonals. Name the overlap normalizations
-  explicitly (`|Z_scaled[i,n]|² = |Zmat[i,n]|² |A[n]|`; raw-operator overlaps
-  need an extra `C[i,i](norm_time)`), and permute labels, columns, amplitudes
-  and overlaps together when reordering levels. Rolling rotation comes later,
-  with `scipy.optimize.linear_sum_assignment` for overlap pinning and
-  per-time transforms.
-
-  **Diagnostics that come with it** (moved here from
-  `correlator_views_design.md`, since choosing the pivot's parameters is their
-  only use): `CorrelatorMatrix.eigenvalues(metric_time=None)`, the per-time
-  GEVP eigenvalues of `G^{-1/2} C(t) G^{-1/2}` with `G = C(t0)`, `(time, level)`;
-  `condition_numbers()`, `cond(C(t))` per time, for choosing `metric_time`; and
-  `CorrelatorMatrixPlotter.plot_eigenvalues` (eigenvalues or their effective
-  energies, with the condition number in a second row), plus
-  `ss query corr --plot eigenvalues --metric-time`. They share the pivot's
-  eigensolver and rank cut, as a private kernel in `correlators/_kernels.py`
-  that uses NumPy's stacked `linalg.eigh` over `(time, sample, N, N)` in one
-  call. Two questions to settle with the pivot, not before:
-  - **Metric per sample or full sample.** `G^{-1/2}` computed on every sample, or
-    once from the full sample and applied to all samples. The second matches how
-    the fixed pivot applies one full-sample rotation.
-  - **Level identity across samples.** Sorting eigenvalues per sample is simple,
-    but nearby levels swap in noisy samples. Matching by eigenvector overlap
-    fixes that but needs the eigenvectors, which is the pivot's machinery.
+- **Single pivot (planned).** See `single_pivot_design.md`: `SinglePivot`
+  in `correlators/rotation.py`, rotation through `transform`, overlaps, and
+  the eigenvalue diagnostic (`principal_correlators`) that was listed here.
+  It also plans lifting the definite-momentum restriction on `transform` for
+  momentum-averaged (`PSQ`-only) bases.

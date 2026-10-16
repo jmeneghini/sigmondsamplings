@@ -12,7 +12,7 @@
 
 - **Convenient Many-Observable Data Structures**: In-memory `ObservableCollection` objects act as queryable containers, providing batched accessors along with `filter`, `find`, `group_by`, and `sort` methods. `EnergyObsInfo` can be constructed by flexibly parsing observable names and extracting level info, which can then be stored in specialized `Single/MultiEnsembleEnergyCollection` objects with accessors like `irreps`, `psq_values`, and `group_by_irrep()`.
 
-- **Operators and Correlation Matrices**: Sigmond's BL/GI operator labels, `CorrT` correlator keys and VEV keys parse into immutable, hashable objects (`BasicOperator`, `GeneralOperator`, `CorrelatorKey`, `VEVKey`) that print Sigmond's canonical short form. Loaded correlators carry typed infos, so they filter and group like other observables. A metadata-only `CorrelatorIndex` (`loader.correlators`) finds them, and `index.matrix(operators)` assembles a complete, labeled `(time, sink, source)` matrix with Hermitian completion, VEV subtraction (bins are resampled jointly before subtracting) and complex basis changes. See `docs/operators_correlators_api_design.md`.
+- **Operators and Correlation Matrices**: Sigmond's BL/GI operator labels, `CorrT` correlator keys and VEV keys parse into immutable, hashable objects (`BasicLapHOperator`, `GenIrrepOperator`, `CorrelatorAtTimeInfo`, `VEVInfo`) that print Sigmond's canonical short form. Loaded correlators carry typed infos, so they filter and group like other observables. A metadata-only `CorrelatorIndex` (`loader.correlators`) finds them, and `index.matrix(operators)` assembles a complete, labeled `(time, sink, source)` matrix with Hermitian completion, VEV subtraction (bins are resampled jointly before subtracting) and complex basis changes. See `docs/operators_correlators_api_design.md`.
 
 - **Plotting**: General observable plots, such as histograms and corner plots, are provided by `SamplingPlotter`. Spectrum plotting of energy levels is provided by `SpectrumPlotter`, and a WIP fit-result plotter lives in `fitting/fit_plotter.py`.
 
@@ -198,6 +198,37 @@ to zero, while same-ensemble observables use the usual resampling covariance.
 
 ### Use Energy-Level Metadata
 
+Sampled model predictions can be wrapped as coordinate-aware series:
+
+```python
+predictions = model.series([0.5, 1.5, 2.5], dim="time")
+predictions.ts.at(1.5)
+theory = fit_result.theory_series()  # wraps stored predictions; no reevaluation
+```
+
+Each prediction carries an immutable `PredictionSeriesInfo` through its
+`AtObsInfo` cell. The series ID distinguishes prediction sets using coordinates,
+normalized sample values and identity fields. Labels remain outside identity.
+Coordinates retain fractional values for selection and plotting; effective
+energies still require integer times. Optional `sector_info` and `target` provide
+explicit physical context; parameter names do not establish it. The existing
+model `__call__` still returns a scalar or list. Written prediction cells can be
+reloaded and rebuilt with `SigmondData.from_collection(..., shape_by=["time"])`.
+`FitResult.write_theory()` records prediction order alongside its coordinates,
+so restored theory remains aligned even when storage keys sort differently.
+
+Arithmetic creates `DerivedObsInfo` metadata, even for unary operations,
+scalar scaling, or equal operands: `E` and `-E` remain distinct collection
+entries. Generated identity includes the operation, ordered operand identifiers,
+exact scalar arguments and numeric-array fingerprints; labels are separate.
+Unary/scalar results retain source sector context. Multiple data operands retain
+only sector fields known and equal in every operand. Arithmetic clears energy,
+level and pivot-mode classification. Time-aligned results carry derived elements
+and at-time cells, so `.ts` selection and SS HDF5 reconstruction remain available.
+Matching source time offsets/extents survive; conflicting source offsets reject
+a common offset query. Explicit domain methods such as `create_ref_sampling()`
+establish their intended typed output metadata.
+
 Energy-level observables can be parsed into `EnergyObsInfo` and stored in
 specialized energy collections:
 
@@ -213,6 +244,81 @@ print(energy_levels.filter(irrep = 'A1g', psq = 0))
 print(energy_levels.filter(irrep = ['A1', 'A2'], psq = 1)) # returns collections
 
 ```
+
+Energy roles are explicit: `SHEnergyObsInfo(hadron="pi", psq=0)` describes a
+single hadron (`particle` remains an alias). `EnergyObsInfo` uses
+`ni_particles=(Particle("pi", 0), Particle("pi", 0))` for NI constituents or a
+shift baseline; `non_interacting=True` marks an NI sum. The read-only `particles`
+view remains available. Constituent order and repetitions are retained, and
+constituent momenta do not determine the total sector momentum. For example,
+an NI sum with unknown total PSQ is named `elab_ni_pi(0)_pi(0)`.
+
+For a collection of explicitly described interacting fitted energies,
+`ranked = fitted_energies.with_level_indices()` assigns ascending full-sample
+ranks within each ensemble and exact sector. It returns the same collection
+kind with independent metadata, preserves input order and resample values, and
+keeps `rot_idx` distinct from `level_index`. Existing level assignments require
+`overwrite=True`. Unknown PSQ/irrep, mixed energy/reference conventions,
+nonfinite or complex full-sample values, repeated rotation indices, SH entries
+and NI sums reject ranking. Generic collection deduplication still uses metadata
+identity, so give distinct fitted estimates distinct identities before collection
+construction.
+
+### Plot an Energy Spectrum
+
+Spectrum points use the full-sample value. By default their uncertainty is the
+statistical error; bootstrap percentiles provide asymmetric bounds:
+
+```python
+from sigmondsamplings import plotting as ssp
+
+reference = ssp.HMarker.from_sampling(
+    energy_levels[0], percentiles=(16, 84), label="reference",
+    ni_pair="N(0)N(0)",
+)
+axes = ssp.SectorSpectrumPlotter(energy_levels).plot(
+    energy_type="ecm",
+    percentiles=(16, 84),
+    markers=[reference],
+    backend="plotly",
+)
+axes.figure.save("spectrum.html")
+```
+
+Plotly HTML exports and embedded plots enlarge markers gently as you zoom in,
+using the fifth root of the zoom factor up to 1.5 times their initial size.
+Resetting the axes restores the initial sizes. This callback is included by
+`save` and `embed_html`; direct use of the native Plotly figure does not include it.
+
+`HMarker.hover` supplies interactive hover text without a visible annotation;
+`label` supplies the visible annotation independently. This works on spectrum
+and series overlays. Slat's `axes.hlines(..., hover=...)` also accepts a shared
+string or one string per segment; Matplotlib ignores hover text.
+In Plotly HTML exports, horizontal-line hover targets cover the visible line
+and are refreshed on zoom, pan and resize to keep their screen spacing small.
+
+`HMarker.from_sampling` retains the sampling and automatically shows its
+full-sample energy in PDG notation with the Gaussian statistical error, followed
+by the percentile bounds. Spectrum points use the same summary. `ni_pair` adds
+the compact particle pair to a marker's summary; explicit `hover` overrides it.
+
+`confidence_level=0.68` is an alternative to explicit percentiles. Both levels
+and `HMarker.from_sampling` also honor `plot.error_metric="confidence_interval"`
+and `plot.confidence_level`. Percentiles use bootstrap resamples, excluding the
+full-sample entry, and are unavailable for jackknife data. The point remains at
+the full-sample value even when it lies outside the percentile interval.
+
+`energy_type=` filters the plotted data. All plotted groups must share the same
+energy type and reference-particle normalization; labels come from those groups.
+Colors follow `level_index`, so reordering or filtering levels preserves their
+colors (missing indices use the first color). Columns are evenly spaced, with
+vertical separators between outer groups rather than extra horizontal gaps.
+`SpectrumStyle.group_separator_color`, `group_separator_linewidth`, and
+`group_separator_linestyle` control the separators. They extend below the x-axis
+as larger ticks; `group_separator_tick_length` sets that extension in points
+(default 10). Automatic y limits include marker
+lines and bands. Existing explicit axes limits are preserved; pass `xlim=` or
+`ylim=` to override them.
 
 ### Work with Correlation Matrices
 
@@ -242,7 +348,32 @@ print(matrix.key_form, matrix.stored.sel(time=8).values)  # how the cells were r
 
 `matrix.values` is an ordinary N-D `SigmondSampling`/`SigmondBins`, so
 statistics, arithmetic, `.sel`/`.isel` and `.to_collection()` work as usual.
-Operators may be given as short strings or as `BasicOperator`/`GeneralOperator`
+
+For resampled matrices, `.ts` computes time-series behavior from coordinates
+and cell metadata:
+
+```python
+from sigmondsamplings import SigmondData
+
+eff = matrix.diagonal(component="real").ts.effective_energy(kind="forward", step=1)
+print(eff.ts.axis.offset, eff.ts.axis.extent)  # display offset and calculation extent
+print(eff.ts.elements)                       # one immutable element per operator
+cell = eff.ts.at(8).isel(operator=0)          # source time 8, drawn at 8.5
+window = eff.ts.window(6, 12)                 # inclusive, preserving input order
+eff.isel(operator=0).ts.plot()
+
+cells = eff.isel(operator=0).to_collection()
+rebuilt = SigmondData.from_collection(cells, shape_by=["time"])
+print(rebuilt.ts.axis.offset)                # recovered from cells; no stored axis state
+```
+
+Time coordinates must be unique finite real numbers. Floating coordinates stay
+floating for selection and plotting; effective-energy calculations require
+integer-valued times. A stack can contain series with different display offsets:
+plotting resolves each series separately, while a common `.ts.axis.offset` query
+raises. `x_offset=` explicitly overrides the plotting offset. SS HDF5 preserves
+the cell metadata needed to recover these views after reading.
+Operators may be given as short strings or as `BasicLapHOperator`/`GenIrrepOperator`
 objects. One stored key form (`"HermMat"`, `"plain"`, `"SubVEV"`, ...) is used
 per request; if a file holds several for the basis, the request raises and
 `key_form=` chooses. Connected correlators use `subtract_vev=True` (pass
@@ -262,6 +393,33 @@ param_set = ParamSetSpec(values={"A": ParamSpec(initial=1.0), "E": ParamSpec(ini
 fit = SamplingFit.from_data(series, model, param_set)   # fit.x holds the times
 result = fit.fit_resampled()
 ```
+
+The runnable [matrix example](examples/correlator_matrix.py) needs no fitting
+library. `index.matrix(channel)` accepts a discovered channel, and
+`index.correlator(op)` requests its diagonal. Single-correlator requests follow
+the unique stored form; conflicting forms require `key_form=` (CLI:
+`--key-form`). `matrix.transform(T, name="ROT")` generates GI labels from the
+channel. `sel()`, `at()` and `correlator()` return ordinary `SigmondData`;
+`select()` and `sel_times()` preserve the matrix wrapper and its provenance.
+
+Indices snapshot mutable metadata. After renaming observations, call
+`loader.refresh_correlators()` to rebuild; existing indices keep their original
+metadata. Coverage and available bases check metadata, including usable real
+parts, VEVs and compatible directions; assembly may still require a bins
+resampling plan or encounter a read failure. Channels group physical quantum
+numbers, so discovery can return separate forward and backward sub-bases.
+
+`key_form` describes stored keys; `info.hermitian` requests averaging and
+completion. A Hermitian request has already erased off-diagonal disagreement;
+use `hermitian=False` to inspect the original directions. Numerical diagnostics
+reject non-finite data. Forward effective energies need a positive integer step
+and exact neighbouring coordinates, but no lattice extent. Symmetric kinds
+require the extent. Existing coordinates with invalid samples follow the chosen
+`on_fail` policy.
+
+Operator strings, coordinates, XML and pickle preserve Python identity.
+`to_sigmond()` retains Sigmond's exact stored-key spelling, including its lossy
+tetraquark displacement omission; compatibility key export uses that spelling.
 
 From the command line, `ss query corr` shows the same index:
 

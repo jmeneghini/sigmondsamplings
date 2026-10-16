@@ -21,7 +21,7 @@ import numpy as np
 from ..bins import SigmondBins
 from ..correlators.observables import observable_info_for
 from ..ensemble_collection import MultiEnsembleCollection, SingleEnsembleCollection
-from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo, obs_kind_class
+from ..info import EnsembleInfo, KnownEnsembles, ObservableInfo, SamplingInfo, SectorInfo, obs_kind_class
 from ..lazy import (
     HDF5ObservableRecord,
     LazySigmondBins,
@@ -179,11 +179,19 @@ class SigmondLoader:
 
         Built from :attr:`observables` on first access (unrelated observables are
         skipped); it does not modify :attr:`observables` or read any samples.
+        Metadata are a snapshot: call :meth:`refresh_correlators` after edits.
         """
         if self._correlator_index is None:
             from ..correlators.index import CorrelatorIndex
 
             self._correlator_index = CorrelatorIndex.from_collection(self._all_samplings)
+        return self._correlator_index
+
+    # TODO: seems like this could be shared with 'energy_observables'.
+    def refresh_correlators(self) -> "CorrelatorIndex":
+        """Rebuild the metadata snapshot after observable metadata edits."""
+        from ..correlators.index import CorrelatorIndex
+        self._correlator_index = CorrelatorIndex.from_collection(self.observables)
         return self._correlator_index
 
     def energy_observables(
@@ -331,14 +339,25 @@ class SigmondLoader:
         Datasets the writer tagged with an ``obs_kind`` are rebuilt as the concrete
         registered type (including non-interacting pairs) so reads are deterministic
         rather than relying on name heuristics. Untagged datasets (old files, real
-        Sigmond files, fstream) pass through unchanged, keeping only an explicit
-        ``latex_str``.
+        Sigmond files, fstream) retain their native-key classification; legacy
+        flat sector attrs and explicit ``latex_str`` annotations are also read.
         """
+        if "metadata_version" in attrs:
+            from ..metadata import _version
+
+            _version(attrs)
         cls = obs_kind_class(attrs.get("obs_kind"))
         if cls is not None:
-            return cls.from_attrs(obs_info, attrs)
+            result = cls.from_attrs(obs_info, attrs)
+            if attrs.get("latex_str") is not None:
+                result.latex_str = attrs["latex_str"]
+            return result
+        if "metadata_version" in attrs:
+            raise ValueError(f"Unsupported observable metadata kind: {attrs.get('obs_kind')!r}")
+        if any(name in attrs for name in ("sector_info", "strangeness", "isospin", *SectorInfo.__dataclass_fields__)):
+            return type(obs_info).from_attrs(obs_info, attrs)
         latex_str = attrs.get("latex_str")
-        if latex_str:
+        if latex_str is not None:
             obs_info = obs_info.copy()
             obs_info.latex_str = latex_str
         return obs_info
@@ -1163,6 +1182,12 @@ class MultiSigmondLoader:
         for loader in self._loaders:
             collection += loader.observables
         return collection
+
+    def refresh_correlators(self) -> "CorrelatorIndex":
+        """Rebuild the metadata snapshot after observable metadata edits."""
+        from ..correlators.index import CorrelatorIndex
+        self._correlator_index = CorrelatorIndex.from_collection(self.observables)
+        return self._correlator_index
 
     def energy_observables(
         self,

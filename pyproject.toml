@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sigmondsamplings"
-version = "0.5.0"
+version = "0.5.1"
 description = "A python package for manipulating and analyzing lattice QCD sampling data in sigmond format."
 readme = "README.md"
 authors = [
@@ -16,11 +16,10 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Topic :: Scientific :: Physics",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     'numpy>=1.20.0',
     'scipy>=1.7.0',
@@ -43,7 +42,7 @@ fitting = [
 ]
 plot = [
     "matplotlib>=3.7",
-    "plotly>=5.15"
+    "plotly>=5.21"
 ]
 dev = [
     "pytest>=7.0",
@@ -65,11 +64,11 @@ include = ["sigmondsamplings*", "slat*"]
 
 [tool.setuptools.package-data]
 sigmondsamplings = ["py.typed", "*.pyi"]
-slat = ["py.typed"]
+slat = ["py.typed", "plotting/_plotly/*.js"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Select which rules to enforce:
