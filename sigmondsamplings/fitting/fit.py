@@ -402,7 +402,9 @@ class _ResampleWorker:
         result = _run_minimize(self.objective, self.param_set, self.minimizer, resamp_idx, self.x0)
         record = {
             "params": _params_vector(result, self.param_set.names),
-            "chi2": float(result.fun),
+            # evaluated at the returned params: on an abnormal stop optimagic's
+            # ``result.fun`` can come from a different evaluation than ``result.params``
+            "chi2": _chi2_at(self.objective, result.params, resamp_idx),
             "success": bool(result.success),
             "n_iterations": int(getattr(result, "n_iterations", 0) or 0),
             "message": str(result.message),
@@ -608,6 +610,8 @@ class SamplingFit:
             _fmt_fit_counts(full, elapsed=fit_dt),
             _format_params_table(full.params, names, start=start),
         )
+        if not bool(full.success):
+            logger.warning("Full-sample fit FAILED: %s", full.message)
         return full
 
     # ------------------------------------------------------------------
@@ -896,12 +900,17 @@ class SamplingFit:
         error_policy: ErrorPolicy = "record",
         worker_initializer: Any = None,
         worker_initargs: tuple = (),
+        chunksize: int | Literal["auto"] = "auto",
     ) -> ResampleBatch:
         """Fit exactly *indices* from a prepared central fit.
 
         The returned batch is independent of scheduler or filesystem policy and
         can be serialized for later assembly. Indices must be unique, positive,
         and within :attr:`sampling_info`.
+
+        On the process backend the resample worker (objective included) is
+        installed once per worker process and jobs carry only index chunks of
+        ``chunksize`` (see :func:`~._execution.run_jobs`).
         """
         backend = validate_backend(backend)
         if keep not in ("none", "summary", "full"):
@@ -991,6 +1000,7 @@ class SamplingFit:
                 blas_threads=budget.blas_threads,
                 omp_threads=budget.omp_threads,
                 mp_context=context,
+                payload=worker,
             ) as executor:
                 for idx, value, error in run_jobs(
                     worker,
@@ -999,6 +1009,7 @@ class SamplingFit:
                     progress=progress,
                     error_policy=error_policy,
                     desc="Resample fits",
+                    chunksize=chunksize,
                 ):
                     position = positions[idx]
                     if error is not None or value is None:
@@ -1007,7 +1018,7 @@ class SamplingFit:
                         messages[position] = message
                         if theory is not None:
                             theory[:, position] = central.theory
-                        logger.debug("resample %d FAILED: %s", idx, message)
+                        logger.warning("resample %d FAILED: %s", idx, message)
                         continue
                     params[:, position] = value["params"]
                     chi2[position] = value["chi2"]
@@ -1022,7 +1033,10 @@ class SamplingFit:
                     native = value.get("result")
                     if optimize_results is not None and native is not None:
                         optimize_results[idx] = native
-                    logger.debug("resample %d done", idx)
+                    if success[position]:
+                        logger.debug("resample %d done", idx)
+                    else:
+                        logger.warning("resample %d FAILED: %s", idx, messages[position])
 
         elapsed = time.perf_counter() - t0
         failed = int(np.count_nonzero(~success))
@@ -1158,6 +1172,7 @@ class SamplingFit:
         trace_path: str | None = None,
         worker_initializer: Any = None,
         worker_initargs: tuple = (),
+        chunksize: int | Literal["auto"] = "auto",
     ) -> FitResult:
         """Fit the full sample, then fit every resampling from that initial value.
 
@@ -1206,6 +1221,7 @@ class SamplingFit:
             error_policy=error_policy,
             worker_initializer=worker_initializer,
             worker_initargs=worker_initargs,
+            chunksize=chunksize,
         )
         return self.assemble_resampled(
             central,

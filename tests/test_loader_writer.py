@@ -681,6 +681,23 @@ class TestModifyInPlace:
 
 
 class TestMultiRootGroupHDF5:
+    @pytest.mark.parametrize("lazy", [False, True])
+    def test_explicit_group_does_not_discover_other_groups(self, multi_path_hdf5, monkeypatch, lazy):
+        def unexpected_scan(_):
+            pytest.fail("An explicit group must not scan the archive")
+
+        monkeypatch.setattr("sigmondsamplings.io.loader.discover_root_groups", unexpected_scan)
+        levels = SigmondLoader(str(multi_path_hdf5), group=f"/{LEVELS_PATH}/", lazy=lazy)
+        assert levels.group == LEVELS_PATH
+        assert len(levels.observables) == 54
+
+    @pytest.mark.parametrize("lazy", [False, True])
+    def test_explicit_group_still_validates_header(self, multi_path_hdf5, lazy):
+        with h5py.File(multi_path_hdf5, "r+") as handle:
+            del handle[f"{LEVELS_PATH}/Header"]
+        with pytest.raises(ValueError, match="No Header"):
+            SigmondLoader(str(multi_path_hdf5), group=LEVELS_PATH, lazy=lazy)
+
     def test_no_group_with_multiple_groups_raises(self, multi_path_hdf5):
         with pytest.raises(ValueError, match="Multiple groups found"):
             SigmondLoader(str(multi_path_hdf5))

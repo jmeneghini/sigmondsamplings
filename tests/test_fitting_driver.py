@@ -337,6 +337,102 @@ def test_write_jacobian_requires_overwrite_and_a_jacobian(tmp_path):
         resampled.write_jacobian(tmp_path / "other.h5")
 
 
+def test_records_round_trip_through_hdf5(tmp_path):
+    from dataclasses import replace
+
+    result = _fit("bootstrap", n_resamp=40).fit_resampled(progress=False)
+    assert result.records is not None and len(result.records) == 40
+    # mark one resample as failed so failures are rebuilt on reload
+    records = [dict(r) for r in result.records]
+    records[6] = {**records[6], "success": False, "message": "did not converge"}
+    result = replace(result, records=records)
+
+    h5 = tmp_path / "results.h5"
+    result.write_params(h5)
+    result.write_chi2(h5)
+    result.write_records(h5)
+
+    bare = FitResult.from_hdf5(params_file=h5, chi2_file=h5, num_data_residuals=len(T))
+    assert bare.records is None
+    assert bare.failures == {}
+
+    loaded = FitResult.from_hdf5(
+        params_file=h5, chi2_file=h5, records_file=h5, num_data_residuals=len(T)
+    )
+    assert [r["resamp_idx"] for r in loaded.records] == list(range(1, 41))
+    for got, want in zip(loaded.records, records):
+        assert got["params"] == pytest.approx(np.asarray(want["params"]))
+        assert got["chi2"] == pytest.approx(want["chi2"])
+        assert got["success"] == want["success"]
+        assert got["n_iterations"] == want["n_iterations"]
+        assert got["message"] == want["message"]
+    assert loaded.failures == {records[6]["resamp_idx"]: "did not converge"}
+
+
+def test_from_hdf5_keeps_declared_param_order(tmp_path):
+    # "E" before "A": not alphabetical, so a reload that fell back to HDF5's
+    # listing order would reorder the params and reject the records
+    model = CallableModel(lambda th: th[1] * np.exp(-th[0] * T), ["E", "A"])
+    params = ParamSetSpec(
+        values={"E": ParamSpec(initial=0.5), "A": ParamSpec(initial=1.0)}
+    ).resolve()
+    fit = SamplingFit.from_model(
+        _make_stats(n_resamp=20), model, params, minimizer=MinimizerConfig(algorithm="scipy_ls_trf")
+    )
+    result = fit.fit_resampled(progress=False)
+    assert result.param_names == ["E", "A"]
+
+    h5 = tmp_path / "results.h5"
+    result.write_params(h5)
+    result.write_chi2(h5)
+    result.write_records(h5)
+
+    loaded = FitResult.from_hdf5(
+        params_file=h5, chi2_file=h5, records_file=h5, num_data_residuals=len(T)
+    )
+    assert loaded.param_names == ["E", "A"]
+    assert loaded.best_params == pytest.approx(result.best_params)
+    for got, want in zip(loaded.records, result.records):
+        assert got["params"] == pytest.approx(np.asarray(want["params"]))
+
+
+def test_resample_record_chi2_is_evaluated_at_returned_params(monkeypatch):
+    # an abnormal optimagic stop can report ``fun`` from another evaluation than
+    # ``params``; the record must carry the chi2 of the params it stores
+    from sigmondsamplings.fitting import fit as fit_module
+
+    real = fit_module._run_minimize
+
+    def stale_fun(*args, **kwargs):
+        result = real(*args, **kwargs)
+        result.fun = float(result.fun) + 100.0
+        return result
+
+    monkeypatch.setattr(fit_module, "_run_minimize", stale_fun)
+    fit = _fit("bootstrap", n_resamp=5)
+    worker = fit_module._ResampleWorker(
+        fit.objective, fit.param_set, fit.resample_minimizer, fit.param_set.start_values()
+    )
+    record = worker(3)
+    params = dict(zip(fit.param_set.names, record["params"]))
+    assert record["chi2"] == pytest.approx(fit.objective.chi2(params, 3))
+
+
+def test_write_records_requires_overwrite_and_records(tmp_path):
+    result = _fit("bootstrap", n_resamp=40).fit_resampled(progress=False)
+    h5 = tmp_path / "results.h5"
+    result.write_records(h5)
+    with pytest.raises(ValueError, match="already exists"):
+        result.write_records(h5)
+    result.write_records(h5, overwrite=True)  # no raise
+
+    with pytest.raises(ValueError, match="No per-resample records"):
+        _fit().fit_full_sample(rng=0).write_records(tmp_path / "other.h5")
+    none_kept = _fit("bootstrap", n_resamp=40).fit_resampled(progress=False, keep="none")
+    with pytest.raises(ValueError, match="No per-resample records"):
+        none_kept.write_records(tmp_path / "other.h5")
+
+
 def test_all_write_methods_share_one_file(tmp_path):
     # every write_* appends, so the full result round-trips from a single file
     from dataclasses import replace

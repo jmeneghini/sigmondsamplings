@@ -12,7 +12,9 @@ Owns the three orthogonal concerns of running many small fits:
   the available CPUs among them.
 * **Workers** — SLURM-/affinity-aware CPU detection and pool construction
   (serial, thread, or process), with both thread and process workers throttled
-  in their initializer.
+  in their initializer. A process pool can be given a *payload* — the per-index
+  callable — which is installed once per worker process instead of being pickled
+  into every job; jobs then carry only a chunk of indices.
 * **Progress** — a tqdm/marimo-aware bar driven from the completion loop.
 
 The module is intentionally free of any fitting logic; the driver in
@@ -22,6 +24,7 @@ The module is intentionally free of any fitting logic; the driver in
 from __future__ import annotations
 
 import logging
+import math
 import multiprocessing
 import os
 import threading
@@ -140,16 +143,23 @@ _WORKER_THREAD_LIMITS: Any = None
 #: thread count is a per-thread setting.
 _THREAD_WORKER_STATE = threading.local()
 
+#: The per-index callable installed in a process worker by its initializer (see
+#: ``payload`` in :func:`executor_context`); jobs then name it implicitly.
+_WORKER_PAYLOAD: Callable[[int], Any] | None = None
+
 
 def _process_worker_init(
     blas_threads: int | None,
     omp_threads: int | None,
     user_initializer: Callable | None,
     user_initargs: tuple,
+    payload: Callable[[int], Any] | None = None,
 ) -> None:
-    """Initializer run once per process worker: pin native threads, then chain."""
-    global _WORKER_THREAD_LIMITS
+    """Initializer run once per process worker: pin native threads, install the
+    payload, then chain."""
+    global _WORKER_THREAD_LIMITS, _WORKER_PAYLOAD
     _WORKER_THREAD_LIMITS = _thread_limit_stack(blas_threads, omp_threads)
+    _WORKER_PAYLOAD = payload
     logger.debug(
         "process worker %d native threads: %s", os.getpid(), format_observed_threads()
     )
@@ -439,6 +449,7 @@ def executor_context(
     blas_threads: int | None = None,
     omp_threads: int | None = None,
     mp_context: str | Any | None = "auto",
+    payload: Callable[[int], Any] | None = None,
 ) -> Iterator[Executor | None]:
     """Yield an :class:`~concurrent.futures.Executor` (or ``None`` for serial).
 
@@ -446,6 +457,13 @@ def executor_context(
     for OpenMP is the only placement that works: its thread count is a per-thread
     setting, so a limit applied by the submitting thread does not reach the
     workers. The user's own initializer is chained after the pinning.
+
+    ``payload`` is the per-index callable :func:`run_jobs` will be given. For the
+    process backend it travels in the initializer arguments — pickled once per
+    worker process rather than once per job, which matters because a resampling
+    objective carries one evaluator per index and so grows with the number of
+    jobs. :func:`run_jobs` recognises the installed payload and submits only
+    index chunks. The other backends share memory and ignore it.
     """
     if backend == "serial":
         yield None
@@ -461,15 +479,35 @@ def executor_context(
         executor = ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=_process_worker_init,
-            initargs=(blas_threads, omp_threads, worker_initializer, worker_initargs),
+            initargs=(
+                blas_threads,
+                omp_threads,
+                worker_initializer,
+                worker_initargs,
+                payload,
+            ),
             mp_context=resolve_mp_context(
                 mp_context, uses_openmp=(omp_threads or 1) > 1
             ),
         )
+        _PROCESS_POOLS[id(executor)] = _PoolInfo(payload, max_workers)
     try:
         yield executor
     finally:
+        _PROCESS_POOLS.pop(id(executor), None)
         executor.shutdown()
+
+
+@dataclass(frozen=True, slots=True)
+class _PoolInfo:
+    payload: Callable[[int], Any] | None
+    max_workers: int
+
+
+#: Process pools opened by :func:`executor_context`, keyed by ``id`` for the
+#: lifetime of the context: what each worker has installed, and how many workers
+#: there are (for automatic chunk sizing).
+_PROCESS_POOLS: dict[int, _PoolInfo] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +523,7 @@ def run_jobs(
     progress: ProgressKind = False,
     error_policy: ErrorPolicy = "record",
     desc: str = "Resample fits",
+    chunksize: int | Literal["auto"] = "auto",
 ) -> Iterator[tuple[int, Any, str | None]]:
     """Run ``fn(index)`` over ``indices`` yielding ``(index, value, error)``.
 
@@ -492,6 +531,14 @@ def run_jobs(
     exception repr when the call raised and ``error_policy`` is ``"record"``;
     ``"raise"`` re-raises, tagged with the index it came from. Results arrive
     in completion order for pooled backends, declared order when serial.
+
+    Pooled jobs carry ``chunksize`` indices each. ``"auto"`` means one index per
+    job on a thread pool (nothing is serialized, so chunks only cost load
+    balance) and about four chunks per worker on a process pool, which keeps
+    the futures and IPC round trips near ``4 x workers`` while leaving slack for
+    fits that converge slowly. When *fn* is the payload the process pool was
+    opened with (see :func:`executor_context`), a job is just its chunk of
+    indices; otherwise *fn* is pickled once per chunk.
     """
     indices = list(indices)
     bar = _maybe_tqdm(progress, total=len(indices), desc=desc)
@@ -503,21 +550,82 @@ def run_jobs(
                     bar.update(1)
             return
 
-        futures = {executor.submit(fn, i): i for i in indices}
+        pool = _PROCESS_POOLS.get(id(executor))
+        size = _resolve_chunksize(chunksize, len(indices), pool)
+        chunks = [tuple(indices[k : k + size]) for k in range(0, len(indices), size)]
+        if pool is not None and pool.payload is not None and pool.payload is fn:
+            futures = {
+                executor.submit(_run_installed_chunk, chunk, error_policy, desc): chunk
+                for chunk in chunks
+            }
+        else:
+            futures = {
+                executor.submit(_run_chunk, fn, chunk, error_policy, desc): chunk
+                for chunk in chunks
+            }
         for fut in as_completed(futures):
-            i = futures[fut]
+            chunk = futures[fut]
             try:
-                yield i, fut.result(), None
+                results = fut.result()
             except Exception as exc:  # noqa: BLE001 - policy decides re-raise
+                # Either a fit raised under "raise" (already tagged with its index
+                # in the worker) or the job itself failed — a broken pool, an
+                # unpicklable payload — in which case every index in it is lost.
                 if error_policy == "raise":
-                    _tag_index(exc, i, desc)
+                    if not _is_tagged(exc, desc):
+                        _tag_chunk(exc, chunk, desc)
                     raise
-                yield i, None, repr(exc)
+                results = [(i, None, repr(exc)) for i in chunk]
+            yield from results
             if bar is not None:
-                bar.update(1)
+                bar.update(len(results))
     finally:
         if bar is not None:
             bar.close()
+
+
+def _resolve_chunksize(
+    chunksize: int | Literal["auto"], n_jobs: int, pool: _PoolInfo | None
+) -> int:
+    if chunksize == "auto":
+        if pool is None:
+            return 1
+        return max(1, math.ceil(n_jobs / (4 * pool.max_workers)))
+    size = _positive_int(chunksize, "chunksize")
+    assert size is not None
+    return size
+
+
+def _run_chunk(
+    fn: Callable[[int], Any],
+    chunk: tuple[int, ...],
+    error_policy: ErrorPolicy,
+    desc: str,
+) -> list[tuple[int, Any, str | None]]:
+    """Worker-side: run *fn* over one chunk, recording errors per index."""
+    return [_run_one(fn, i, error_policy, desc) for i in chunk]
+
+
+def _run_installed_chunk(
+    chunk: tuple[int, ...], error_policy: ErrorPolicy, desc: str
+) -> list[tuple[int, Any, str | None]]:
+    """Worker-side: :func:`_run_chunk` against the payload installed at start-up."""
+    if _WORKER_PAYLOAD is None:
+        raise RuntimeError("no payload installed in this process worker")
+    return _run_chunk(_WORKER_PAYLOAD, chunk, error_policy, desc)
+
+
+def _is_tagged(exc: BaseException, desc: str) -> bool:
+    prefix = f"{desc}: raised at index"
+    return any(str(note).startswith(prefix) for note in getattr(exc, "__notes__", ()))
+
+
+def _tag_chunk(exc: BaseException, chunk: tuple[int, ...], desc: str) -> None:
+    """Like :func:`_tag_index`, for a job that failed as a whole."""
+    add_note = getattr(exc, "add_note", None)
+    if add_note is not None:
+        span = f"{chunk[0]}" if len(chunk) == 1 else f"{chunk[0]}..{chunk[-1]}"
+        add_note(f"{desc}: job for indices {span} failed")
 
 
 def _tag_index(exc: BaseException, i: int, desc: str) -> None:

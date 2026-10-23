@@ -86,7 +86,9 @@ def discover_root_groups(h5: h5py.File) -> list[str]:
     return found
 
 
-def verify_sigmond_hdf5(filename: str) -> tuple[bool, str | None, list[str] | None]:
+def verify_sigmond_hdf5(
+    filename: str, *, group: str | None = None
+) -> tuple[bool, str | None, list[str] | None]:
     """
     Verify an HDF5 file is a valid Sigmond samplings or bins file.
 
@@ -94,6 +96,10 @@ def verify_sigmond_hdf5(filename: str) -> tuple[bool, str | None, list[str] | No
     ``'samplings'`` or ``'bins'`` and ``available_groups`` are the full root group
     names (see :func:`discover_root_groups`). Returns ``(False, None, None)`` if
     the file is not a recognized Sigmond HDF5 file.
+
+    When ``group`` is supplied and valid, return just that group without
+    traversing the file. Missing groups still discover the available paths
+    for the caller's error message.
     """
     try:
         with h5py.File(filename, "r") as f:
@@ -103,6 +109,11 @@ def verify_sigmond_hdf5(filename: str) -> tuple[bool, str | None, list[str] | No
             file_kind = _HDF5_FIDENTIFIERS.get(fid)
             if file_kind is None:
                 return False, None, None
+            if group is not None:
+                group = clean_group(group)
+                root = f.get(group)
+                if isinstance(root, h5py.Group) and isinstance(root.get("Values"), h5py.Group):
+                    return True, file_kind, [group]
             return True, file_kind, discover_root_groups(f)
     except Exception as e:
         logger.debug(f"HDF5 verification failed: {e}")
@@ -573,7 +584,7 @@ class SigmondLoader:
         # Auto-detect file type
         if is_hdf5_file(filename):
             # Verify it's a valid Sigmond HDF5 file
-            is_valid, file_kind, available_groups = verify_sigmond_hdf5(filename)
+            is_valid, file_kind, available_groups = verify_sigmond_hdf5(filename, group=group)
             if not is_valid:
                 raise ValueError(f"File {filename} is not a valid Sigmond HDF5 file")
 

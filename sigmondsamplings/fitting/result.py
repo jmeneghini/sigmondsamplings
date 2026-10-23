@@ -60,6 +60,48 @@ def _prediction_order_key(sampling):
     return (info.name, info.index, info.op_type, info.re_im, info.ensemble_info.name)
 
 
+#: ``Format`` attribute of the group :meth:`FitResult.write_records` writes.
+_RECORDS_FORMAT = "sigmondsamplings-fit-records-v1"
+
+
+def _read_records(
+    filename: str | Path, group: str, param_names: list[str]
+) -> list[dict[str, Any]]:
+    """Read the group :meth:`FitResult.write_records` wrote back into record dicts."""
+    import h5py
+
+    def text(value):
+        return value.decode() if isinstance(value, bytes) else str(value)
+
+    with h5py.File(str(filename), "r") as handle:
+        grp = handle[group]
+        fmt = text(grp.attrs.get("Format", ""))
+        if fmt != _RECORDS_FORMAT:
+            raise ValueError(f"unsupported records format {fmt!r} in {str(filename)!r}")
+        stored = [text(name) for name in grp.attrs["ParamNames"]]
+        if stored != list(param_names):
+            raise ValueError(
+                f"records parameter names {stored} do not match the loaded params {param_names}"
+            )
+        indices = np.asarray(grp["ResampIdx"], dtype=np.int64)
+        params = np.asarray(grp["Params"], dtype=float)
+        chi2 = np.asarray(grp["Chi2"], dtype=float)
+        success = np.asarray(grp["Success"], dtype=bool)
+        n_iterations = np.asarray(grp["NIterations"], dtype=np.int64)
+        messages = [text(m) for m in grp["Message"][()]]
+    return [
+        {
+            "resamp_idx": int(indices[i]),
+            "params": params[:, i].copy(),
+            "chi2": float(chi2[i]),
+            "success": bool(success[i]),
+            "n_iterations": int(n_iterations[i]),
+            "message": messages[i],
+        }
+        for i in range(indices.size)
+    ]
+
+
 def _claim_groups(filename: str | Path, groups: list[str], overwrite: bool) -> None:
     """Clear the way for the ``write_*`` methods to write ``groups`` into ``filename``.
 
@@ -152,7 +194,8 @@ class FitResult:
     n_failed: int = 0
     #: ``{resamp_idx: message}`` for failed resample fits.
     failures: dict[int, str] = field(default_factory=dict)
-    #: Optional per-resample summary records (``keep="summary"`` or ``"full"``).
+    #: Optional per-resample summary records (``keep="summary"`` or ``"full"``),
+    #: sorted by ``resamp_idx``. Persisted by :meth:`write_records`.
     records: list[dict[str, Any]] | None = None
     #: Native optimagic ``OptimizeResult`` per resampling index, including the
     #: full sample at ``0`` (only with ``keep="full"``; ``None`` otherwise).
@@ -347,14 +390,22 @@ class FitResult:
         """Write fitted parameter samplings to ``group`` of an HDF5 file.
 
         The file is appended to, not truncated; an existing ``group`` is an error
-        unless ``overwrite``, which replaces it.
+        unless ``overwrite``, which replaces it. The declared parameter order is
+        stored as the group's ``ParamOrder`` attribute, since HDF5 lists the
+        per-parameter datasets alphabetically.
         """
+        import h5py
+
         from ..observable_collection import ObservableCollection
 
         _claim_groups(filename, [group], overwrite)
         ObservableCollection(list(self.params)).to_hdf5(
             str(filename), group=group, mode="a", create_backups=False
         )
+        with h5py.File(str(filename), "a") as handle:
+            handle[group].attrs["ParamOrder"] = np.array(
+                list(self.param_names), dtype=h5py.string_dtype()
+            )
 
 
     def write_chi2(
@@ -465,6 +516,52 @@ class FitResult:
             dset.attrs["CovSource"] = self.cov_source or ""
             dset.attrs["CovSingular"] = bool(self.cov_singular)
 
+    def write_records(
+        self, filename: str | Path, group: str = "records", overwrite: bool = False
+    ) -> None:
+        """Write the per-resample :attr:`records` to an HDF5 file.
+
+        Stored column-wise in its own group — ``ResampIdx``, ``Params`` (shape
+        ``(len(param_names), n)``), ``Chi2``, ``Success``, ``NIterations`` and
+        ``Message`` — with the parameter names as the ``ParamNames`` attribute. Like
+        :meth:`write_jacobian` nothing lands under ``Values/``, so it can share a file
+        with the sampling groups. :meth:`from_hdf5` (``records_file=``) restores both
+        :attr:`records` and :attr:`failures` from it.
+
+        Raises ``ValueError`` when the result carries no records — full-sample fits,
+        ``keep="none"``, or a result reconstructed without them.
+        """
+        import h5py
+
+        if self.records is None:
+            raise ValueError(
+                "No per-resample records available; only fit_resampled() results "
+                "with keep='summary' or 'full' carry them."
+            )
+        records = sorted(self.records, key=lambda record: int(record["resamp_idx"]))
+        n_params = len(self.param_names)
+        params = np.empty((n_params, len(records)), dtype=float)
+        for column, record in enumerate(records):
+            params[:, column] = np.asarray(record["params"], dtype=float)
+        _claim_groups(filename, [group], overwrite)
+        with h5py.File(str(filename), "a") as handle:
+            grp = handle.create_group(group)
+            grp.attrs["Format"] = _RECORDS_FORMAT
+            grp.attrs["ParamNames"] = np.array(list(self.param_names), dtype=h5py.string_dtype())
+            grp.create_dataset(
+                "ResampIdx", data=np.array([r["resamp_idx"] for r in records], dtype=np.int64)
+            )
+            grp.create_dataset("Params", data=params)
+            grp.create_dataset("Chi2", data=np.array([r["chi2"] for r in records], dtype=float))
+            grp.create_dataset("Success", data=np.array([r["success"] for r in records], dtype=bool))
+            grp.create_dataset(
+                "NIterations", data=np.array([r["n_iterations"] for r in records], dtype=np.int64)
+            )
+            grp.create_dataset(
+                "Message",
+                data=np.array([str(r["message"]) for r in records], dtype=h5py.string_dtype()),
+            )
+
     # ------------------------------------------------------------------
     # display
     # ------------------------------------------------------------------
@@ -573,6 +670,8 @@ class FitResult:
         theory_group: str = "theory",
         jacobian_file: str | Path | None = None,
         jacobian_group: str = "jacobian",
+        records_file: str | Path | None = None,
+        records_group: str = "records",
         trace_path: str | Path | None = None,
         num_data_residuals: int = 0,
         **kwargs: Any,
@@ -591,6 +690,10 @@ class FitResult:
                 Without it :attr:`residual_jacobian` — and so the degeneracy
                 diagnostics — stay ``None``, since nothing else persists it.
             jacobian_group: Group inside ``jacobian_file`` (default ``"jacobian"``).
+            records_file: HDF5 file written by :meth:`write_records` (optional).
+                Restores :attr:`records`, and :attr:`failures` from the records that
+                did not succeed; without it both stay empty.
+            records_group: Group inside ``records_file`` (default ``"records"``).
             trace_path: Path to the optimagic SQLite log (from a ``trace_path=`` call).
                 When provided the final recorded criterion and parameters are used
                 to populate the reconstructed ``optimize_result``.
@@ -607,6 +710,24 @@ class FitResult:
         param_loader = SigmondLoader(filename=str(params_file), group=params_group)
         param_samplings = list(param_loader.observables)
         param_names = [s.observable_info.name for s in param_samplings]
+        import h5py
+
+        with h5py.File(str(params_file), "r") as handle:
+            order = handle[params_group].attrs.get("ParamOrder")
+        if order is None and records_file is not None:
+            # files from before ParamOrder: the records group kept the declared order
+            with h5py.File(str(records_file), "r") as handle:
+                order = handle[records_group].attrs.get("ParamNames")
+        if order is not None:
+            # restore the declared order (the loader returns HDF5's alphabetical one)
+            order = [n.decode() if isinstance(n, bytes) else str(n) for n in order]
+            if sorted(order) != sorted(param_names):
+                raise ValueError(
+                    f"Stored parameter order {order} contradicts the params {param_names}"
+                )
+            by_name = dict(zip(param_names, param_samplings))
+            param_samplings = [by_name[name] for name in order]
+            param_names = order
         params_stats = SamplingStats(param_samplings)
 
         # --- chi-squared ---
@@ -675,6 +796,15 @@ class FitResult:
                     kwargs.setdefault("cov_source", source)
                 if "CovSingular" in dset.attrs:
                     kwargs.setdefault("cov_singular", bool(dset.attrs["CovSingular"]))
+
+        # --- per-resample records ---
+        if records_file is not None:
+            records = _read_records(records_file, records_group, param_names)
+            kwargs.setdefault("records", records)
+            kwargs.setdefault(
+                "failures",
+                {r["resamp_idx"]: r["message"] for r in records if not r["success"]},
+            )
 
         # --- optimize_result stub (optionally populated from SQLite log) ---
         best: dict[str, float] = {

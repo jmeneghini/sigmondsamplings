@@ -181,6 +181,7 @@ def _run_scan(
             worker_initializer=worker_initializer,
             worker_initargs=worker_initargs,
             blas_threads=blas_threads,
+            payload=indexed,
         ) as executor:
             for i, value, _ in run_jobs(
                 indexed,
